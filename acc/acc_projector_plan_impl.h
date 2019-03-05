@@ -10,8 +10,8 @@
 	int TIMING_PRIOR = 		timer.setNew("  prior");
 	int TIMING_PROC_CALC = 	timer.setNew("  procCalc");
 	int TIMING_PROC = 		timer.setNew("  proc");
-	int TIMING_GEN = 		timer.setNew("   genOri");
-	int TIMING_PERTURB = 	timer.setNew("   perturb");
+	int TIMING_GEN = 		timer.setNew("  genOri");
+	int TIMING_PERTURB = 	timer.setNew("  perturb");
 	int TIMING_EULERS = 	timer.setNew(" eulers");
 #define TIMING_TIC(id) timer.tic(id)
 #define TIMING_TOC(id) timer.toc(id)
