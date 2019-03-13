@@ -1131,6 +1131,7 @@ void getAllSquaredDifferencesCoarse(
 				======================================*/
 				allWeights_pos += projectorPlans[iclass].orientation_num*translation_num;
 
+
 			}
 		}
 
