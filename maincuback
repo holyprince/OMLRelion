@@ -1,0 +1,137 @@
+#include <stdio.h>
+#include "image.h"
+
+
+#include "ctf.h"
+#include "time.h"
+#include "mask.h"
+#include "Healpix_2.15a/healpix_base.h"
+#include "projector.h"
+#include "symmetries.h"
+#include "acc/settings.h"
+#include "ml_model.h"
+#include "backprojector.h"
+#include "ml_optimiser_mpi.h"
+#include "acc/data_types.h"
+#include "acc/cuda/cuda_kernels/helper.cuh"
+#include "acc/cuda/cuda_kernels/cuda_device_utils.cuh"
+int nr_images=10;
+std :: string particlename[300];
+
+
+
+void setparticlename()
+{
+	char test[100];
+	std::string suffix="@001_particles_shiny_nb50_new.mrcs";
+	for(int i=0;i<nr_images;i++)
+	{
+		sprintf(test,"%06d",i+1);
+		std::string temp(test);
+		particlename[i]=temp+suffix;
+	}
+
+}
+
+int main()
+{
+/*
+	int block_dim=1;
+	//int SOFTMASK_BLOCK_SIZE=128;
+	//100*100
+	float *d_data,*d_sum,*d_sumbg;
+	float *c_data,*c_sum,*c_sumbg;
+	long int x,y,z;
+	float radius,radius_p,cosine_width;
+
+	long int xyz;
+	int xyz_size=10*10;
+	xyz=xyz_size;
+	x=10;
+	y=10;
+	z=1;
+	c_data=(float *)malloc(sizeof(float)*xyz_size);
+	for(int i=0;i<xyz_size;i++)
+		c_data[i]=i%100;
+	cudaMalloc((void**)&d_data, xyz_size * sizeof(float));
+	cudaMalloc((void**)&d_sum, SOFTMASK_BLOCK_SIZE * sizeof(float));
+	cudaMalloc((void**)&d_sumbg, SOFTMASK_BLOCK_SIZE * sizeof(float));
+	cudaMemset(d_sum, 0, SOFTMASK_BLOCK_SIZE * sizeof(float));
+	cudaMemset(d_sumbg, 0, SOFTMASK_BLOCK_SIZE * sizeof(float));
+	cudaMemcpy(d_data, c_data , xyz_size *sizeof(float), cudaMemcpyHostToDevice);
+	radius=28.24;
+	radius_p=33.24;
+	cosine_width=5;
+	cuda_kernel_softMaskBackgroundValue<<<3,SOFTMASK_BLOCK_SIZE ,0, 0>>>(
+			d_data,
+			xyz,
+			x,
+			y,
+			z,
+			x/2,
+			y/2,
+			z/2,
+			radius,
+			radius_p,
+			cosine_width,
+			d_sum,
+			d_sumbg);
+	c_sum=(float *)malloc(SOFTMASK_BLOCK_SIZE*sizeof(float));
+	c_sumbg=(float *)malloc(SOFTMASK_BLOCK_SIZE*sizeof(float));
+	cudaMemcpy(c_sum, d_sum , SOFTMASK_BLOCK_SIZE *sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpy(c_sumbg, d_sumbg , SOFTMASK_BLOCK_SIZE *sizeof(float), cudaMemcpyDeviceToHost);
+
+	float sum1=0,sum2=0;
+	for(int i=0;i<SOFTMASK_BLOCK_SIZE;i++)
+	{
+		sum1+=c_sum[i];
+		sum2+=c_sumbg[i];
+	}
+	printf("%f %f \n",sum1,sum2);
+	printf("HAHA\n");
+
+	*/
+	cudaError_t err;
+    int block_dim=1;
+    //int SOFTMASK_BLOCK_SIZE=128;
+    //100*100
+    float *datatest;
+    float *cpudata;
+    int volgetz=1,volgety=100,volgetx=100;
+    long int volgetxyz=100*100;
+    MultidimArray<float> imgdata(1,volgetz,volgety,volgetx);
+    float radius=28.44;
+    float radius_p=33.44;
+    float cosine_width=5;
+
+    cpudata =(float *) malloc( volgetxyz * sizeof(float));
+    for(int i=0;i<volgetxyz;i++)
+        cpudata[i]=imgdata.data[i];
+    cudaMalloc((void**)&datatest, volgetxyz * sizeof(float));
+    cudaMemcpy(datatest, cpudata , volgetxyz*sizeof(float), cudaMemcpyHostToDevice);
+    float *datares1,*datares2;
+    cudaMalloc((void**)&datares1, 1000 * sizeof(float));
+    cudaMalloc((void**)&datares2, 1000 * sizeof(float));
+    printf("%ld %ld %ld %ld %f %f %f \n",volgetxyz,volgetx,volgety,volgetz,radius,radius_p,cosine_width);
+    cuda_kernel_softMaskBackgroundValue<<<3,SOFTMASK_BLOCK_SIZE ,0, 0>>>(datatest,
+                volgetxyz,
+                volgetx,
+                volgety,
+                volgetz,
+                volgetx/2,
+                volgety/2,
+                volgetz/2,
+                radius,
+                radius_p,
+                cosine_width,
+                datares1,
+                datares2);
+    err = cudaThreadSynchronize();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy : %s\n", cudaGetErrorString(cudaGetLastError()));
+        exit(EXIT_FAILURE);
+    }
+    printf("Sucdcess");
+
+
+}

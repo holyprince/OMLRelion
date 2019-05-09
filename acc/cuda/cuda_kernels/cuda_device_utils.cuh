@@ -20,7 +20,7 @@ __device__ inline double cuda_atomic_add(double* address, double val)
 #else
 __device__ inline void cuda_atomic_add(float* address, float value)
 {
-  atomicAdd(address,value);
+	atomicAdd(address,value);
 }
 #endif
 

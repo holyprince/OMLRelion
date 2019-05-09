@@ -11,6 +11,7 @@
 class AccProjectorKernel
 {
 
+
 public:
 	int mdlX, mdlXY, mdlZ,
 		imgX, imgY, imgZ,

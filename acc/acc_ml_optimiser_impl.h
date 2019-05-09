@@ -568,6 +568,7 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 				softMaskSum.accInit(0);
 				softMaskSum_bg.accInit(0);
 
+				printf("%d \n",d_img.getxyz());
 				// Calculate the background value
 				AccUtilities::softMaskBackgroundValue(
 						d_img,
@@ -583,7 +584,7 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 				// Finalize the background value
 				bg_val = (RFLOAT) AccUtilities::getSumOnDevice<XFLOAT>(softMaskSum_bg) /
 						 (RFLOAT) AccUtilities::getSumOnDevice<XFLOAT>(softMaskSum);
-				softMaskSum.streamSync();
+			//	softMaskSum.streamSync();
 			}
 
 			//avoid kernel-calls warning about null-pointer for RandomImage

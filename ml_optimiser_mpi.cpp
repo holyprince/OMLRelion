@@ -411,6 +411,7 @@ void MlOptimiserMpi::initialise()
 				for (int i = 0; i < cudaDevices.size(); i ++)
 				{
 					MlDeviceBundle b(this);
+					printf("cudaDevices %d \n ",cudaDevices[i]);
 					b.setDevice(cudaDevices[i]);
 					size_t t = b.checkFixedSizedObjects(cudaDeviceShares[i]);
 					boxLim = ((t < boxLim) ? t : boxLim );
@@ -724,7 +725,7 @@ void MlOptimiserMpi::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFL
 {
 
 	// First calculate the sum of all individual power spectra on each subset
-	MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(Mavg, node->rank == 1);
+	MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(Mavg, node->rank == 1,node->rank);
 
 	// Now combine all weighted sums
 	// Leave the option of both for a while. Then, if there are no problems with the system via files keep that one and remove the MPI version from the code
@@ -849,6 +850,7 @@ void MlOptimiserMpi::expectation()
 			// Master sends metadata (but not imagedata) for first 100 particles to first_slave (for calculateExpectedAngularErrors)
 			MlOptimiser::getMetaAndImageDataSubset(0, n_trials_acc-1, false);
 			my_nr_images = YSIZE(exp_metadata);
+
 			node->relion_MPI_Send(&my_nr_images, 1, MPI_INT, first_slave, MPITAG_JOB_REQUEST, MPI_COMM_WORLD);
 			node->relion_MPI_Send(MULTIDIM_ARRAY(exp_metadata), MULTIDIM_SIZE(exp_metadata), MY_MPI_DOUBLE, first_slave, MPITAG_METADATA, MPI_COMM_WORLD);
 			// Also send exp_fn_ctfs if necessary
@@ -1419,7 +1421,20 @@ void MlOptimiserMpi::expectation()
 					timer.toc(TIMING_MPISLAVEWAIT2);
 					timer.tic(TIMING_MPISLAVEWORK);
 #endif
-					expectationSomeParticles(JOB_FIRST, JOB_LAST);
+/*                    printf("Start calc  %d %d %d \n",node->rank, JOB_FIRST,JOB_LAST);
+                    double start,finish;
+                    start = MPI_Wtime();
+                    struct timeval tv1,tv2;
+                    struct timezone tz;
+                    gettimeofday (&tv1, &tz);*/
+                    expectationSomeParticles(JOB_FIRST, JOB_LAST);
+/*                    gettimeofday (&tv2, &tz);
+                    finish = MPI_Wtime();
+                    printf("MPI time is %f  and the thread is %d\n",finish-start,node->rank);
+                    printf("tv_sec:  %ld s and the thread is %d \n", tv2.tv_sec-tv1.tv_sec,node->rank) ;*/
+
+					//printf("%d %d %d \n",JOB_FIRST, JOB_LAST,node->rank);
+					//expectationSomeParticles(JOB_FIRST, JOB_LAST);
 #ifdef TIMING
 					timer.toc(TIMING_MPISLAVEWORK);
 					timer.tic(TIMING_MPISLAVEWAIT3);

@@ -37,7 +37,6 @@ int main(int argc, char **argv)
 		else
 		{
 			// normal code
-
 			// Set things up
 			optimiser.initialise();
 

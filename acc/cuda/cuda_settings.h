@@ -122,7 +122,7 @@ static void LaunchHandleError( cudaError_t err, const char *file, int line )
 
 // MISC --------------------------------
 #define SUMW_BLOCK_SIZE 	  	32
-#define SOFTMASK_BLOCK_SIZE 	128
+#define SOFTMASK_BLOCK_SIZE 	20
 #define CFTT_BLOCK_SIZE 	 	128
 #define PROBRATIO_BLOCK_SIZE 	128
 #define POWERCLASS_BLOCK_SIZE 	128

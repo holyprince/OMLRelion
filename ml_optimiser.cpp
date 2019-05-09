@@ -1995,13 +1995,15 @@ void MlOptimiser::initialiseWorkLoad()
 
 }
 
-void MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT> &Mavg, bool myverb)
+void MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT> &Mavg, bool myverb, int myid)
 {
 
 #ifdef DEBUG_INI
     std::cerr<<"MlOptimiser::calculateSumOfPowerSpectraAndAverageImage Entering"<<std::endl;
 #endif
 
+
+    printf("id num : %d first : %lld - last : %lld\n", myid,my_first_ori_particle_id, my_last_ori_particle_id);
     int barstep, my_nr_ori_particles = my_last_ori_particle_id - my_first_ori_particle_id + 1;
     if (my_nr_ori_particles < 1)
     {
@@ -3400,6 +3402,7 @@ void MlOptimiser::doThreadExpectationSomeParticles(int thread_id)
 			else if (thread_id == nr_threads -1)
 				timer.tic(TIMING_ESP_ONEPARTN);
 #endif
+			//printf("single particle : %d  %d \n",exp_my_first_ori_particle + ipart,thread_id);
 			expectationOneParticle(exp_my_first_ori_particle + ipart, thread_id);
 
 #ifdef TIMING
@@ -5860,7 +5863,7 @@ void MlOptimiser::getAllSquaredDifferences(long int my_ori_particle, int ibody, 
 		std::vector<MultidimArray<RFLOAT> > &exp_local_Fctfs,
 		std::vector<RFLOAT> &exp_local_sqrtXi2)
 {
-
+int num=0;
 #ifdef TIMING
 	if (my_ori_particle == exp_my_first_ori_particle)
 	{
@@ -5880,6 +5883,7 @@ void MlOptimiser::getAllSquaredDifferences(long int my_ori_particle, int ibody, 
 #endif
 
 	// Initialise min_diff and exp_Mweight for this pass
+
 
 	int exp_nr_particles = mydata.ori_particles[my_ori_particle].particles_id.size();
 	long int exp_nr_dir = (do_skip_align || do_skip_rotate) ? 1 : sampling.NrDirections(0, &exp_pointer_dir_nonzeroprior);
@@ -6404,6 +6408,7 @@ void MlOptimiser::getAllSquaredDifferences(long int my_ori_particle, int ibody, 
 #endif
 											//std::cerr << " my_ori_particle= " << my_ori_particle<< " ipart= " << ipart << " ihidden_over= " << ihidden_over << " diff2= " << diff2 << " x= " << oversampled_translations_x[iover_trans] << " y=" <<oversampled_translations_x[iover_trans] <<std::endl;
 											DIRECT_A2D_ELEM(exp_Mweight, ipart, ihidden_over) = diff2;
+											//num++;
 #ifdef DEBUG_CHECKSIZES
 											if (ipart >= exp_min_diff2.size())
 											{
@@ -6425,6 +6430,8 @@ void MlOptimiser::getAllSquaredDifferences(long int my_ori_particle, int ibody, 
 			} // end loop idir
 		} // end if mymodel.pdf_class[iclass] > 0.
 	} // end loop iclass
+
+	//printf(" from getall %d %d \n",num,exp_ipass);
 
 #ifdef TIMING
 	if (my_ori_particle == exp_my_first_ori_particle)
@@ -6448,6 +6455,7 @@ void MlOptimiser::convertAllSquaredDifferencesToWeights(long int my_ori_particle
 		std::vector<RFLOAT> &exp_directions_prior, std::vector<RFLOAT> &exp_psi_prior)
 {
 
+	int num=0;
 #ifdef TIMING
 	if (my_ori_particle == exp_my_first_ori_particle)
 	{
@@ -6788,6 +6796,7 @@ void MlOptimiser::convertAllSquaredDifferencesToWeights(long int my_ori_particle
 										// Keep track of sum and maximum of all weights for this particle
 										// Later add all to exp_thisparticle_sumweight, but inside this loop sum to local thisthread_sumweight first
 										exp_thisparticle_sumweight += weight;
+										//num++;
 									} // end if/else exp_Mweight < 0.
 								} // end loop iover_trans
 							}// end loop iover_rot
@@ -6805,6 +6814,7 @@ void MlOptimiser::convertAllSquaredDifferencesToWeights(long int my_ori_particle
 		//Store parameters for this particle
 		exp_sum_weight[ipart] = exp_thisparticle_sumweight;
 
+		//printf(" from convertall %d %d \n",num,exp_ipass);
 		// Check the sum of weights is not zero
 // On a Mac, the isnan function does not compile. Just uncomment the define statement, as this is merely a debugging statement
 //#define MAC_OSX
@@ -7028,6 +7038,7 @@ void MlOptimiser::storeWeightedSums(long int my_ori_particle, int ibody, int exp
 		std::vector<MultidimArray<RFLOAT> > &exp_local_Fctfs,
 		std::vector<RFLOAT> &exp_local_sqrtXi2)
 {
+	int num=0;
 #ifdef TIMING
 	if (my_ori_particle == exp_my_first_ori_particle)
 		timer.tic(TIMING_ESP_WSUM);
@@ -7137,6 +7148,8 @@ void MlOptimiser::storeWeightedSums(long int my_ori_particle, int ibody, int exp
 	// wsum_sigma2_offset is just a RFLOAT
 	thr_wsum_sigma2_offset = 0.;
 
+	int num2=0;
+	int num3=0;
 	// Loop from iclass_min to iclass_max to deal with seed generation in first iteration
 	for (int exp_iclass = exp_iclass_min; exp_iclass <= exp_iclass_max; exp_iclass++)
 	{
@@ -7146,9 +7159,11 @@ void MlOptimiser::storeWeightedSums(long int my_ori_particle, int ibody, int exp
 			{
 				long int iorientclass = exp_iclass * exp_nr_dir * exp_nr_psi + iorient;
 
+				num3++;
 				// Only proceed if any of the particles had any significant coarsely sampled translation
 				if (isSignificantAnyParticleAnyTranslation(iorientclass, exp_itrans_min, exp_itrans_max, exp_Mcoarse_significant))
 				{
+					num2++;
 					// Now get the oversampled (rot, tilt, psi) triplets
 					// This will be only the original (rot,tilt,psi) triplet if (adaptive_oversampling==0)
 					sampling.getOrientations(idir, ipsi, adaptive_oversampling, oversampled_rot, oversampled_tilt, oversampled_psi,
@@ -7791,6 +7806,7 @@ void MlOptimiser::storeWeightedSums(long int my_ori_particle, int ibody, int exp
 							// Perform this inside a mutex
 							int my_mutex = exp_iclass % NR_CLASS_MUTEXES;
 							pthread_mutex_lock(&global_mutex2[my_mutex]);
+						//	num++;
 							if (mymodel.nr_bodies > 1)
 								(wsum_model.BPref[ibody]).set2DFourierTransform(Fimg, Abody, IS_NOT_INV, &Fweight);
 							else
@@ -7808,6 +7824,8 @@ void MlOptimiser::storeWeightedSums(long int my_ori_particle, int ibody, int exp
 		} // end loop idir
 	} // end loop iclass
 
+	//printf("from store %d \n",num);
+	//printf("from store %d %d \n",num3,num2);
 	// Extend norm_correction and sigma2_noise estimation to higher resolutions for all particles
 	// Also calculate dLL for each particle and store in metadata
 	// loop over all particles inside this ori_particle

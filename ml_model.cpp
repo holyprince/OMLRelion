@@ -1472,6 +1472,7 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed)
     // Get memory for the packed array
     packed.clear();
     packed.resize(packed_size);
+    //printf("packed_size  %d \n",packed_size);
 
     // Start packing
     unsigned long long idx = 0;
