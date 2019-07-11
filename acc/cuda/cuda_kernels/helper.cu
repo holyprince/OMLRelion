@@ -366,11 +366,6 @@ __global__ void cuda_kernel_softMaskBackgroundValue(	XFLOAT *vol,
 		long int texel_pass_num = ceilfracf(vol_size,SOFTMASK_BLOCK_SIZE*gridDim.x);
 
 		int texel = bid*SOFTMASK_BLOCK_SIZE*texel_pass_num + tid;
-		if(bid==1)
-		{
-			printf(" %d \n",texel);
-			//printf("texel_pass_num:%d \n",texel_pass_num);
-		}
 		partial_sum[tid]=(XFLOAT)0.0;
 		partial_sum_bg[tid]=(XFLOAT)0.0;
 
@@ -380,7 +375,7 @@ __global__ void cuda_kernel_softMaskBackgroundValue(	XFLOAT *vol,
 			{
 				img_pixels[tid]=__ldg(&vol[texel]);
 				partial_sum[tid]+=img_pixels[tid];
-/*
+
 				z =   texel / (xdim*ydim) ;
 				y = ( texel % (xdim*ydim) ) / xdim ;
 				x = ( texel % (xdim*ydim) ) % xdim ;
@@ -408,7 +403,7 @@ __global__ void cuda_kernel_softMaskBackgroundValue(	XFLOAT *vol,
 					partial_sum[tid] += raisedcos;
 					partial_sum_bg[tid] += raisedcos * img_pixels[tid];
 				}
-				*/
+
 			}
 		}
 

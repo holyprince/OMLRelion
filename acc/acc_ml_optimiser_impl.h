@@ -568,7 +568,6 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 				softMaskSum.accInit(0);
 				softMaskSum_bg.accInit(0);
 
-				printf("%d \n",d_img.getxyz());
 				// Calculate the background value
 				AccUtilities::softMaskBackgroundValue(
 						d_img,

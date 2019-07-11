@@ -725,7 +725,7 @@ void MlOptimiserMpi::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFL
 {
 
 	// First calculate the sum of all individual power spectra on each subset
-	MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(Mavg, node->rank == 1,node->rank);
+	MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(Mavg, node->rank == 1);
 
 	// Now combine all weighted sums
 	// Leave the option of both for a while. Then, if there are no problems with the system via files keep that one and remove the MPI version from the code
