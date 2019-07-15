@@ -464,6 +464,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 
     MlOptimiser::initialiseGeneral(node->rank);
 
+
     initialiseWorkLoad();
 
 #ifdef ALTCPU
@@ -484,6 +485,8 @@ will still yield good performance and possibly a more stable execution. \n" << s
 	// number of threads
 	fftw_plan_with_nthreads(nr_threads);
 #endif
+
+
 
 	if (fn_sigma != "")
 	{
@@ -510,6 +513,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 	}
 	else if (do_calculate_initial_sigma_noise || do_average_unaligned)
 	{
+
 		MultidimArray<RFLOAT> Mavg;
 		// Calculate initial sigma noise model from power_class spectra of the individual images
 		// This is done in parallel
@@ -631,9 +635,11 @@ void MlOptimiserMpi::initialiseWorkLoad()
 	    	int nr_slaves_halfset2 = nr_slaves_halfset1;
 	    	if ( (node->size - 1) % 2 != 0)
 	    		nr_slaves_halfset1 += 1;
+
 	    	if (node->myRandomSubset() == 1)
 	    	{
 	    		// Divide first half of the images
+
 	    		divide_equally(mydata.numberOfOriginalParticles(1), nr_slaves_halfset1, node->rank / 2, my_first_ori_particle_id, my_last_ori_particle_id);
 	    	}
 	    	else
@@ -819,6 +825,7 @@ void MlOptimiserMpi::expectation()
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 	}
+
 #ifdef DEBUG
 	if(node->rank==2)
 	{
@@ -844,6 +851,7 @@ void MlOptimiserMpi::expectation()
 	// Only the first (reconstructing) slave (i.e. from half1) calculates expected angular errors
 	if (!(iter==1 && do_firstiter_cc) && !(do_skip_align || do_skip_rotate) && !do_sgd)
 	{
+
 		int my_nr_images, length_fn_ctf;
 		if (node->isMaster())
 		{
@@ -2064,6 +2072,7 @@ void MlOptimiserMpi::maximization()
 				else
 					reconstruct_rank1 = ith_recons % (node->size - 1) + 1;
 
+
 				if (node->rank == reconstruct_rank1)
 				{
 
@@ -2773,6 +2782,7 @@ void MlOptimiserMpi::reconstructUnregularisedMapAndCalculateSolventCorrectedFSC(
 void MlOptimiserMpi::writeTemporaryDataAndWeightArrays()
 {
 
+	printf("writeTemporaryDataAndWeightArrays\n");
 	if ( (node->rank == 1 || (do_split_random_halves && node->rank == 2) ) )
 	{
 		Image<RFLOAT> It;
@@ -3017,7 +3027,7 @@ void MlOptimiserMpi::iterate()
 		updateSubsetSize(node->isMaster());
 
 		// Randomly take different subset of the particles each time we do a new "iteration" in SGD
-		mydata.randomiseOriginalParticlesOrder(random_seed+iter, do_split_random_halves,  subset_size < mydata.numberOfOriginalParticles() );
+		//mydata.randomiseOriginalParticlesOrder(random_seed+iter, do_split_random_halves,  subset_size < mydata.numberOfOriginalParticles() );
 
 		// Nobody can start the next iteration until everyone has finished
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -3099,6 +3109,7 @@ void MlOptimiserMpi::iterate()
 		if (do_split_random_halves)
 		{
 
+
 			// For asymmetric molecules, join 2 half-reconstructions at the lowest resolutions to prevent them from diverging orientations
 			if (low_resol_join_halves > 0.)
 				joinTwoHalvesAtLowResolution();
@@ -3147,6 +3158,7 @@ void MlOptimiserMpi::iterate()
 			// Upon convergence join the two random halves
 			if (do_join_random_halves || do_always_join_random_halves)
 			{
+
 				if (combine_weights_thru_disc)
 					combineWeightedSumsTwoRandomHalvesViaFile();
 				else
@@ -3161,6 +3173,7 @@ void MlOptimiserMpi::iterate()
 #endif
 
 		maximization();
+
 
 		// Make sure all nodes have the same resolution, set the data_vs_prior array from half1 also for half2
 		// Because there is an if-statement on ave_Pmax to set the image size, also make sure this one is the same for both halves

@@ -357,6 +357,10 @@ void Experiment::divideOriginalParticlesInRandomHalves(int seed, bool do_helical
 			for (long int i = 0; i < ori_particles.size(); i++)
 			{
 				int random_subset = rand() % 2 + 1;
+				if(i<ori_particles.size()/2)
+					random_subset=1;
+				else
+					random_subset=2;
 				ori_particles[i].random_subset = random_subset; // randomly 1 or 2
 				if (random_subset == 1)
 					nr_ori_particles_subset1++;
@@ -419,9 +423,12 @@ void Experiment::divideOriginalParticlesInRandomHalves(int seed, bool do_helical
 void Experiment::randomiseOriginalParticlesOrder(int seed, bool do_split_random_halves, bool do_subsets)
 {
 	//This static flag is for only randomize once
+
+	//printf("%s and %d \n",ori_particles[0].name.c_str(),ori_particles[0].particles_id[0]);
 	static bool randomised = false;
 	if (!randomised || do_subsets)
 	{
+		//printf("running  \n");
 
 		srand(seed);
 		std::vector<ExpOriginalParticle> new_ori_particles;
@@ -479,7 +486,7 @@ void Experiment::randomiseOriginalParticlesOrder(int seed, bool do_split_random_
 
 		ori_particles=new_ori_particles;
 		randomised = true;
-
+		//printf("%s and %d \n",ori_particles[0].name.c_str(),ori_particles[0].particles_id[0]);
 	}
 }
 

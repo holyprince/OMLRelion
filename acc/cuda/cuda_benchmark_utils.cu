@@ -22,6 +22,7 @@ int relion_timer::cuda_benchmark_find_id(std::string id, std::vector<std::string
 
 void relion_timer::cuda_cpu_tic(std::string id)
 {
+
 	if (cuda_benchmark_find_id(id, cuda_cpu_benchmark_identifiers) == -1)
 	{
 		cuda_cpu_benchmark_identifiers.push_back(id);

@@ -2077,6 +2077,7 @@ void MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT
 				}
 			}
 
+
 			// Read image from disc
             Image<RFLOAT> img;
 			if (do_preread_images && do_parallel_disc_io)
@@ -2349,6 +2350,13 @@ void MlOptimiser::initialLowPassFilterReferences()
 		RFLOAT radius_p = radius + WIDTH_FMASK_EDGE;
 		FourierTransformer transformer;
 		MultidimArray<Complex > Faux;
+/*		double sum=0;
+		for(int i=0;i<mymodel.Iref[0].nzyxdim;i++)
+		{
+			sum+=mymodel.Iref[0].data[i];
+		}
+		printf("sum is : %f \n",sum);*/
+		//same input ref
 		for (int iclass = 0; iclass < mymodel.nr_classes; iclass++)
 		{
 			transformer.FourierTransform(mymodel.Iref[iclass], Faux);
@@ -3823,6 +3831,7 @@ void MlOptimiser::symmetriseReconstructions()
 
 				wsum_model.BPref[ith_recons].applyPointGroupSymmetry();
 			}
+
 		}
 	}
 	return;

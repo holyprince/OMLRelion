@@ -138,8 +138,9 @@ void HealpixSampling::resetRandomlyPerturbedSampling()
 
 	// Actual instance of random perturbation
 	// Add to the random perturbation from the last iteration, so it keeps changing strongly...
-	random_perturbation += rnd_unif(0.5*perturbation_factor, perturbation_factor);
-	random_perturbation = realWRAP(random_perturbation, -perturbation_factor, perturbation_factor);
+	//random_perturbation += rnd_unif(0.5*perturbation_factor, perturbation_factor);
+	//random_perturbation = realWRAP(random_perturbation, -perturbation_factor, perturbation_factor);
+	random_perturbation=0.46;
 
 }
 

@@ -322,7 +322,9 @@ long int divide_equally(long int N, int size, int rank, long int &first, long in
         first = rank * jobs_per_worker + jobs_resting;
         last = first + jobs_per_worker - 1;
     }
+
     return last - first + 1;
+
 }
 
 /** In which group from divide_equally is myself? */
