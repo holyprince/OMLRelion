@@ -24,11 +24,15 @@
  *      Author: scheres
  */
 
-#include "backprojector.h"
 
-#ifdef TIMING
-	#define RCTIC(timer,label) (timer.tic(label))
-    #define RCTOC(timer,label) (timer.toc(label))
+#include "backprojector.h"
+#include "time.h"
+#define TIMINGREC
+#ifdef TIMINGREC
+	#define RCTICREC(timer,label) (timer.tic(label))
+    #define RCTOCREC(timer,label) (timer.toc(label))
+	#define RCTIC(timer,label)
+    #define RCTOC(timer,label)
 #else
 	#define RCTIC(timer,label)
     #define RCTOC(timer,label)
@@ -920,7 +924,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 								bool do_fsc0999)
 {
 
-#ifdef TIMING
+#ifdef TIMINGREC
 	Timer ReconTimer;
 	int ReconS_1 = ReconTimer.setNew(" RcS1_Init ");
 	int ReconS_2 = ReconTimer.setNew(" RcS2_Shape&Noise ");
@@ -955,7 +959,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 	MultidimArray<RFLOAT> tau2 = tau2_io;
 
 
-    RCTIC(ReconTimer,ReconS_1);
+    RCTICREC(ReconTimer,ReconS_1);
     FourierTransformer transformer;
 	MultidimArray<RFLOAT> Fweight;
 	// Fnewweight can become too large for a float: always keep this one in double-precision
@@ -983,8 +987,8 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
     transformer.setReal(vol_out); // Fake set real. 1. Allocate space for Fconv 2. calculate plans.
     vol_out.clear(); // Reset dimensions to 0
 
-    RCTOC(ReconTimer,ReconS_1);
-    RCTIC(ReconTimer,ReconS_2);
+    RCTOCREC(ReconTimer,ReconS_1);
+    RCTICREC(ReconTimer,ReconS_2);
 
     Fweight.reshape(Fconv);
     if (!skip_gridding)
@@ -1061,8 +1065,8 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			DIRECT_A1D_ELEM(data_vs_prior, i) = myssnr;
 		}
 	}
-    RCTOC(ReconTimer,ReconS_2);
-    RCTIC(ReconTimer,ReconS_2_5);
+    RCTOCREC(ReconTimer,ReconS_2);
+    RCTICREC(ReconTimer,ReconS_2_5);
 	// Apply MAP-additional term to the Fnewweight array
 	// This will regularise the actual reconstruction
     if (do_map)
@@ -1165,10 +1169,10 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
     }
 
 
-    RCTOC(ReconTimer,ReconS_2_5);
+    RCTOCREC(ReconTimer,ReconS_2_5);
 	if (skip_gridding)
 	{
-	    RCTIC(ReconTimer,ReconS_3);
+	    RCTICREC(ReconTimer,ReconS_3);
 		std::cerr << "Skipping gridding!" << std::endl;
 		Fconv.initZeros(); // to remove any stuff from the input volume
 		decenter(data, Fconv, max_r2);
@@ -1178,7 +1182,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			if (DIRECT_MULTIDIM_ELEM(Fweight, n) > 0.)
 				DIRECT_MULTIDIM_ELEM(Fconv, n) /= DIRECT_MULTIDIM_ELEM(Fweight, n);
 		}
-		RCTOC(ReconTimer,ReconS_3);
+		RCTOCREC(ReconTimer,ReconS_3);
 #ifdef DEBUG_RECONSTRUCT
 		FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
 		{
@@ -1195,7 +1199,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 	}
 	else
 	{
-		RCTIC(ReconTimer,ReconS_4);
+		RCTICREC(ReconTimer,ReconS_4);
 		// Divide both data and Fweight by normalisation factor to prevent FFT's with very large values....
 	#ifdef DEBUG_RECONSTRUCT
 		std::cerr << " normalise= " << normalise << std::endl;
@@ -1208,8 +1212,8 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 		{
 			DIRECT_MULTIDIM_ELEM(data, n) /= normalise;
 		}
-		RCTOC(ReconTimer,ReconS_4);
-		RCTIC(ReconTimer,ReconS_5);
+		RCTOCREC(ReconTimer,ReconS_4);
+		RCTICREC(ReconTimer,ReconS_5);
         // Initialise Fnewweight with 1's and 0's. (also see comments below)
 		FOR_ALL_ELEMENTS_IN_ARRAY3D(weight)
 		{
@@ -1219,13 +1223,13 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 				A3D_ELEM(weight, k, i, j) = 0.;
 		}
 		decenter(weight, Fnewweight, max_r2);
-		RCTOC(ReconTimer,ReconS_5);
+		RCTOCREC(ReconTimer,ReconS_5);
 		// Iterative algorithm as in  Eq. [14] in Pipe & Menon (1999)
 		// or Eq. (4) in Matej (2001)
 		for (int iter = 0; iter < max_iter_preweight; iter++)
 		{
             //std::cout << "    iteration " << (iter+1) << "/" << max_iter_preweight << "\n";
-			RCTIC(ReconTimer,ReconS_6);
+			RCTICREC(ReconTimer,ReconS_6);
 			// Set Fnewweight * Fweight in the transformer
 			// In Matej et al (2001), weights w_P^i are convoluted with the kernel,
 			// and the initial w_P^0 are 1 at each sampling point
@@ -1260,7 +1264,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 					DIRECT_A3D_ELEM(Fnewweight, k, i, j) /= w;
 				}
 			}
-			RCTOC(ReconTimer,ReconS_6);
+			RCTOCREC(ReconTimer,ReconS_6);
 	#ifdef DEBUG_RECONSTRUCT
 			std::cerr << " PREWEIGHTING ITERATION: "<< iter + 1 << " OF " << max_iter_preweight << std::endl;
 			// report of maximum and minimum values of current conv_weight
@@ -1270,7 +1274,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 	#endif
 		}
 
-		RCTIC(ReconTimer,ReconS_7);
+		RCTICREC(ReconTimer,ReconS_7);
 	#ifdef DEBUG_RECONSTRUCT
 		Image<double> tttt;
 		tttt()=Fnewweight;
@@ -1304,7 +1308,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 
 		// Clear memory
 		Fnewweight.clear();
-		RCTOC(ReconTimer,ReconS_7);
+		RCTOCREC(ReconTimer,ReconS_7);
 	} // end if skip_gridding
 
 // Gridding theory says one now has to interpolate the fine grid onto the coarse one using a blob kernel
@@ -1316,24 +1320,24 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 
 	// Apply the same blob-convolution as above to the data array
 	// Mask real-space map beyond its original size to prevent aliasing in the downsampling step below
-	RCTIC(ReconTimer,ReconS_8);
+	RCTICREC(ReconTimer,ReconS_8);
 	convoluteBlobRealSpace(transformer, true);
-	RCTOC(ReconTimer,ReconS_8);
-	RCTIC(ReconTimer,ReconS_9);
+	RCTOCREC(ReconTimer,ReconS_8);
+	RCTICREC(ReconTimer,ReconS_9);
 	// Now just pick every 3rd pixel in Fourier-space (i.e. down-sample)
 	// and do a final inverse FT
 	if (ref_dim == 2)
 		vol_out.resize(ori_size, ori_size);
 	else
 		vol_out.resize(ori_size, ori_size, ori_size);
-	RCTOC(ReconTimer,ReconS_9);
-	RCTIC(ReconTimer,ReconS_10);
+	RCTOCREC(ReconTimer,ReconS_9);
+	RCTICREC(ReconTimer,ReconS_10);
 	FourierTransformer transformer2;
 	MultidimArray<Complex > Ftmp;
 	transformer2.setReal(vol_out); // cannot use the first transformer because Fconv is inside there!!
 	transformer2.getFourierAlias(Ftmp);
-	RCTOC(ReconTimer,ReconS_10);
-	RCTIC(ReconTimer,ReconS_11);
+	RCTOCREC(ReconTimer,ReconS_10);
+	RCTICREC(ReconTimer,ReconS_11);
 	FOR_ALL_ELEMENTS_IN_FFTW_TRANSFORM(Ftmp)
 	{
 		if (kp * kp + ip * ip + jp * jp < r_max * r_max)
@@ -1345,25 +1349,25 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			DIRECT_A3D_ELEM(Ftmp, k, i, j) = 0.;
 		}
 	}
-	RCTOC(ReconTimer,ReconS_11);
-	RCTIC(ReconTimer,ReconS_12);
+	RCTOCREC(ReconTimer,ReconS_11);
+	RCTICREC(ReconTimer,ReconS_12);
 	// inverse FFT leaves result in vol_out
 	transformer2.inverseFourierTransform();
-	RCTOC(ReconTimer,ReconS_12);
-	RCTIC(ReconTimer,ReconS_13);
+	RCTOCREC(ReconTimer,ReconS_12);
+	RCTICREC(ReconTimer,ReconS_13);
 	// Shift the map back to its origin
 	CenterFFT(vol_out, false);
-	RCTOC(ReconTimer,ReconS_13);
-	RCTIC(ReconTimer,ReconS_14);
+	RCTOCREC(ReconTimer,ReconS_13);
+	RCTICREC(ReconTimer,ReconS_14);
 	// Un-normalize FFTW (because original FFTs were done with the size of 2D FFTs)
 	if (ref_dim==3)
 		vol_out /= ori_size;
-	RCTOC(ReconTimer,ReconS_14);
-	RCTIC(ReconTimer,ReconS_15);
+	RCTOCREC(ReconTimer,ReconS_14);
+	RCTICREC(ReconTimer,ReconS_15);
 	// Mask out corners to prevent aliasing artefacts
 	softMaskOutsideMap(vol_out);
-	RCTOC(ReconTimer,ReconS_15);
-	RCTIC(ReconTimer,ReconS_16);
+	RCTOCREC(ReconTimer,ReconS_15);
+	RCTICREC(ReconTimer,ReconS_16);
 	// Gridding correction for the blob
 	RFLOAT normftblob = tab_ftblob(0.);
 	FOR_ALL_ELEMENTS_IN_ARRAY3D(vol_out)
@@ -1375,7 +1379,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 		//if (k==0 && i==0)
 		//	std::cerr << " j= " << j << " rval= " << rval << " tab_ftblob(rval) / normftblob= " << tab_ftblob(rval) / normftblob << std::endl;
 	}
-	RCTOC(ReconTimer,ReconS_16);
+	RCTOCREC(ReconTimer,ReconS_16);
 
 #else
 
@@ -1392,9 +1396,9 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 	// Now do inverse FFT and window to original size in real-space
 	// Pass the transformer to prevent making and clearing a new one before clearing the one declared above....
 	// The latter may give memory problems as detected by electric fence....
-	RCTIC(ReconTimer,ReconS_17);
+	RCTICREC(ReconTimer,ReconS_17);
 	windowToOridimRealSpace(transformer, vol_out, nr_threads, printTimes);
-	RCTOC(ReconTimer,ReconS_17);
+	RCTOCREC(ReconTimer,ReconS_17);
 
 #endif
 
@@ -1404,9 +1408,9 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 #endif
 
 	// Correct for the linear/nearest-neighbour interpolation that led to the data array
-	RCTIC(ReconTimer,ReconS_18);
+	RCTICREC(ReconTimer,ReconS_18);
 	griddingCorrect(vol_out);
-	RCTOC(ReconTimer,ReconS_18);
+	RCTOCREC(ReconTimer,ReconS_18);
 	// If the tau-values were calculated based on the FSC, then now re-calculate the power spectrum of the actual reconstruction
 	if (update_tau2_with_fsc)
 	{
@@ -1416,18 +1420,18 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 
 		// Calculate this map's power spectrum
 		// Don't call getSpectrum() because we want to use the same transformer object to prevent memory trouble....
-		RCTIC(ReconTimer,ReconS_19);
+		RCTICREC(ReconTimer,ReconS_19);
 		spectrum.initZeros(XSIZE(vol_out));
 	    count.initZeros(XSIZE(vol_out));
-		RCTOC(ReconTimer,ReconS_19);
-		RCTIC(ReconTimer,ReconS_20);
+		RCTOCREC(ReconTimer,ReconS_19);
+		RCTICREC(ReconTimer,ReconS_20);
 	    // recycle the same transformer for all images
         transformer.setReal(vol_out);
-		RCTOC(ReconTimer,ReconS_20);
-		RCTIC(ReconTimer,ReconS_21);
+		RCTOCREC(ReconTimer,ReconS_20);
+		RCTICREC(ReconTimer,ReconS_21);
         transformer.FourierTransform();
-		RCTOC(ReconTimer,ReconS_21);
-		RCTIC(ReconTimer,ReconS_22);
+		RCTOCREC(ReconTimer,ReconS_21);
+		RCTICREC(ReconTimer,ReconS_22);
 	    FOR_ALL_ELEMENTS_IN_FFTW_TRANSFORM(Fconv)
 	    {
 	    	long int idx = ROUND(sqrt(kp*kp + ip*ip + jp*jp));
@@ -1446,16 +1450,16 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 		{
 			DIRECT_MULTIDIM_ELEM(tau2, n) =  tau2_fudge * DIRECT_MULTIDIM_ELEM(spectrum, n);
 		}
-		RCTOC(ReconTimer,ReconS_22);
+		RCTOCREC(ReconTimer,ReconS_22);
 	}
-	RCTIC(ReconTimer,ReconS_23);
+	RCTICREC(ReconTimer,ReconS_23);
 	// Completely empty the transformer object
 	transformer.cleanup();
     // Now can use extra mem to move data into smaller array space
     vol_out.shrinkToFit();
 
-	RCTOC(ReconTimer,ReconS_23);
-#ifdef TIMING
+	RCTOCREC(ReconTimer,ReconS_23);
+#ifdef TIMINGREC
     if(printTimes)
     	ReconTimer.printTimes(true);
 #endif

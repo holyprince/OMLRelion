@@ -640,12 +640,14 @@ void MlOptimiserMpi::initialiseWorkLoad()
 	    	{
 	    		// Divide first half of the images
 
-	    		divide_equally(mydata.numberOfOriginalParticles(1), nr_slaves_halfset1, node->rank / 2, my_first_ori_particle_id, my_last_ori_particle_id);
+	    		//printf("suset 1 : %d %d \n",node->rank,node->myRandomSubset());
+	    		divide_equally(mydata.numberOfOriginalParticles(1), nr_slaves_halfset1, node->rank / 2, my_first_ori_particle_id, my_last_ori_particle_id,node->rank);
 	    	}
 	    	else
 	    	{
 	    		// Divide second half of the images
-	    		divide_equally(mydata.numberOfOriginalParticles(2), nr_slaves_halfset2, node->rank / 2 - 1, my_first_ori_particle_id, my_last_ori_particle_id);
+	    		//printf("suset 2 : %d %d \n",node->rank,node->myRandomSubset());
+	    		divide_equally(mydata.numberOfOriginalParticles(2), nr_slaves_halfset2, node->rank / 2 - 1, my_first_ori_particle_id, my_last_ori_particle_id,node->rank);
 	    		my_first_ori_particle_id += mydata.numberOfOriginalParticles(1);
 	    		my_last_ori_particle_id += mydata.numberOfOriginalParticles(1);
 	    	}
@@ -1017,7 +1019,7 @@ void MlOptimiserMpi::expectation()
 
 			size_t free, total, allocationSize;
 			HANDLE_ERROR(cudaMemGetInfo( &free, &total ));
-
+			printf("%ld   %ld \n",free,total);
 			free = (float) free / (float)cudaDeviceShares[i];
 			size_t required_free = requested_free_gpu_memory + GPU_THREAD_MEMORY_OVERHEAD_MB*1000*1000*threadcountOnDevice[i];
 
@@ -1435,6 +1437,7 @@ void MlOptimiserMpi::expectation()
                     struct timeval tv1,tv2;
                     struct timezone tz;
                     gettimeofday (&tv1, &tz);*/
+
                     expectationSomeParticles(JOB_FIRST, JOB_LAST);
 /*                    gettimeofday (&tv2, &tz);
                     finish = MPI_Wtime();
@@ -1473,10 +1476,17 @@ void MlOptimiserMpi::expectation()
 #endif
 					MlDeviceBundle* b = ((MlDeviceBundle*)accDataBundles[i]);
 					b->syncAllBackprojects();
+					printf(" backprojectors size %ld and wsum_model.BPref[j].data.nzyxdim  %ld  and x:%ld y: %ld z %ld:\n", \
+							b->backprojectors.size(),wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[0].data.xdim,wsum_model.BPref[0].data.ydim,wsum_model.BPref[0].data.zdim);
 
+					if(b->backprojectors.size()>1)
+					{
+						printf("and wsum_model.BPref[j].data.nzyxdim  %ld  and x:%ld y: %ld z %ld:\n", wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[1].data.xdim,wsum_model.BPref[1].data.ydim,wsum_model.BPref[1].data.zdim);
+					}
 					for (int j = 0; j < b->backprojectors.size(); j++)
 					{
 						unsigned long s = wsum_model.BPref[j].data.nzyxdim;
+
 						XFLOAT *reals = new XFLOAT[s];
 						XFLOAT *imags = new XFLOAT[s];
 						XFLOAT *weights = new XFLOAT[s];

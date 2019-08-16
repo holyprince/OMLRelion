@@ -308,7 +308,7 @@ bool ThreadTaskDistributor::distribute(size_t &first, size_t &last)
 
 
 /** Divides a number into most equally groups */
-long int divide_equally(long int N, int size, int rank, long int &first, long int &last)
+long int divide_equally(long int N, int size, int rank, long int &first, long int &last,int rawrank)
 {
     long int jobs_per_worker = N / size;
     long int jobs_resting = N % size;
@@ -323,6 +323,7 @@ long int divide_equally(long int N, int size, int rank, long int &first, long in
         last = first + jobs_per_worker - 1;
     }
 
+    //printf(" first and last  and thread id : %d %ld %ld \n",rawrank,first,last);
     return last - first + 1;
 
 }

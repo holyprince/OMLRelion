@@ -2044,6 +2044,7 @@ void MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT
 		wsum_model.current_size  = mymodel.getPixelFromResolution(1./ini_high);
 	wsum_model.initZeros();
 
+	//printf("Fisrt and last : %d %d \n ",my_first_ori_particle_id,my_last_ori_particle_id);
 	for (long int ori_part_id = my_first_ori_particle_id; ori_part_id <= my_last_ori_particle_id; ori_part_id++, nr_ori_particles_done++)
 	{
 

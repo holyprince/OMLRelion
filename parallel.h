@@ -391,7 +391,7 @@ protected:
  * Return the number of jobs assigned, that could be N/M + 1 or N/M
  *
  */
-long int divide_equally(long int N, int size, int rank, long int &first, long int &last);
+long int divide_equally(long int N, int size, int rank, long int &first, long int &last,int rawrank=100);
 
 /** In which group (of divide_equally) is myself situated?
  */
