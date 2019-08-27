@@ -2086,6 +2086,7 @@ void MlOptimiserMpi::maximization()
 				if (node->rank == reconstruct_rank1)
 				{
 
+					printf("%f \n",(wsum_model.BPref[iclass].weight).sum());
 					if ((wsum_model.BPref[iclass].weight).sum() > XMIPP_EQUAL_ACCURACY)
 					{
 
@@ -2101,6 +2102,7 @@ void MlOptimiserMpi::maximization()
 								mymodel.fsc_halves_class[ibody], wsum_model.pdf_class[iclass],
 								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, &timer, do_fsc0999);
 #else
+						printf("Before rank1 reconstruction \n");
 						(wsum_model.BPref[ith_recons]).reconstruct(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
 								mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
 								mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
@@ -2183,8 +2185,12 @@ void MlOptimiserMpi::maximization()
 
 					// Also perform the unregularized reconstruction
 					if (do_auto_refine && has_converged)
+					{
+						printf("Before rank1 ArraysAndReconstruct \n");
 						readTemporaryDataAndWeightArraysAndReconstruct(ith_recons, 1);
+					}
 
+					printf("After rank1 \n");
 				}
 
 				// In some cases there is not enough memory to reconstruct two random halves in parallel
@@ -2205,7 +2211,7 @@ void MlOptimiserMpi::maximization()
 							MultidimArray<RFLOAT> Iref_old;
 							if(do_sgd)
 								Iref_old = mymodel.Iref[ith_recons];
-
+							printf("Before rank2 reconstruction \n");
 							(wsum_model.BPref[ith_recons]).reconstruct(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
 									mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
 									mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
@@ -2285,8 +2291,11 @@ void MlOptimiserMpi::maximization()
 
 						// But rank 2 always does the unfiltered reconstruction
 						if (do_auto_refine && has_converged)
+						{
+							printf("Before rank2 ArraysAndReconstruct \n");
 							readTemporaryDataAndWeightArraysAndReconstruct(ith_recons, 2);
-
+						}
+						printf("After rank2 \n");
 					}
 				}
 
@@ -2897,6 +2906,7 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct(int iclass, 
 		A3D_ELEM(wsum_model.BPref[iclass].weight, k, i, j) = A3D_ELEM(Itmp(), k, i, j);
 	}
 
+	printf("Test recon \n ");
 	// Now perform the unregularized reconstruction
 	wsum_model.BPref[iclass].reconstruct(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, nr_threads, -1, false, do_fsc0999);
 
@@ -2912,7 +2922,11 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct(int iclass, 
 	// And write the resulting model to disc
 	Iunreg.write(fn_root+"_unfil.mrc");
 
+	printf(" %d %d %f %d\n", wsum_model.BPref[iclass].ori_size, wsum_model.BPref[iclass].data_dim,wsum_model.BPref[iclass].padding_factor,wsum_model.BPref[iclass].pad_size);
+	printf("%d \n ",wsum_model.BPref[iclass].r_min_nn);
+	printf("%ld %ld %ld \n",wsum_model.BPref[iclass].weight.xdim,wsum_model.BPref[iclass].weight.ydim,wsum_model.BPref[iclass].weight.zdim);
 
+	/*
 	// remove temporary arrays from the disc
 #ifndef DEBUG_RECONSTRUCTION
 	if (!do_keep_debug_reconstruct_files)
@@ -2922,7 +2936,7 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct(int iclass, 
 		remove((fn_root+"_weight.mrc").c_str());
 	}
 #endif
-
+*/
 }
 
 void MlOptimiserMpi::compareTwoHalves()
@@ -3118,7 +3132,6 @@ void MlOptimiserMpi::iterate()
 		// anyway, now that this is done inside BPref, there would be no other way...
 		if (do_split_random_halves)
 		{
-
 
 			// For asymmetric molecules, join 2 half-reconstructions at the lowest resolutions to prevent them from diverging orientations
 			if (low_resol_join_halves > 0.)

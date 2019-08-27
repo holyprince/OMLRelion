@@ -926,6 +926,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 
 #ifdef TIMINGREC
 	Timer ReconTimer;
+	printTimes=1;
 	int ReconS_1 = ReconTimer.setNew(" RcS1_Init ");
 	int ReconS_2 = ReconTimer.setNew(" RcS2_Shape&Noise ");
 	int ReconS_2_5 = ReconTimer.setNew(" RcS2.5_Regularize ");
@@ -1826,6 +1827,10 @@ void BackProjector::applyPointGroupSymmetry()
 void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool do_mask, int threads)
 {
 
+
+	struct timeval tv1,tv2;
+	struct timezone tz;
+	double time_use;
 	MultidimArray<RFLOAT> Mconv;
 	int padhdim = pad_size / 2;
 
@@ -1838,8 +1843,12 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 
 	// inverse FFT
 	transformer.setReal(Mconv);
+	gettimeofday (&tv1, &tz);
 	transformer.inverseFourierTransform();
+	gettimeofday (&tv2, &tz);
 
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("inverseFourierTransform  time : %ld \n",time_use);
 	// Blob normalisation in Fourier space
 	RFLOAT normftblob = tab_ftblob(0.);
 
@@ -1848,7 +1857,7 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 	//blob.order = 0;
 	//blob.radius = 1.9 * padding_factor;
 	//blob.alpha = 15;
-
+	gettimeofday (&tv1, &tz);
     // Multiply with FT of the blob kernel
 	FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY3D(Mconv)
     {
@@ -1865,9 +1874,15 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
     	else
     		DIRECT_A3D_ELEM(Mconv, k, i, j) *= (tab_ftblob(rval) / normftblob);
     }
-
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("apply blob  time : %ld \n",time_use);
     // forward FFT to go back to Fourier-space
+	gettimeofday (&tv1, &tz);
     transformer.FourierTransform();
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("FourierTransform time : %ld \n",time_use);
 
 }
 
