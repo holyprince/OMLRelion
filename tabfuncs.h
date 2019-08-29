@@ -28,7 +28,7 @@
 class TabFunction
 {
 
-protected:
+public:
 	MultidimArray<RFLOAT> tabulatedValues;
 	RFLOAT  sampling;
 public:

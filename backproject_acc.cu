@@ -2,7 +2,15 @@
 
 #include "backproject_impl.h"
 
+__device__ double tab_ftblobgetvalue(double *tabulatedValues, double val,double sampling,int xdim)
+{
 
+	int idx = (int)( ABS(val) / sampling);
+	if (idx >= xdim)
+		return 0.;
+	else
+		return tabulatedValues[idx];
+}
 __global__ void vectorMulti(double *A, double *B, cufftComplex *C, int numElements)
 {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -10,6 +18,32 @@ __global__ void vectorMulti(double *A, double *B, cufftComplex *C, int numElemen
     {
         C[i].x = A[i] * B[i];
     }
+}
+
+__global__ void volumeMulti(double *Mconv, double *tabdata, int numElements, int xdim, double sampling , int padhdim, int pad_size, int ori_size, double padding_factor, float normftblob, int zslice)
+{
+
+
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+	if (index < numElements) {
+
+		int k = index / zslice;
+		int xyslice = index % (zslice);
+		int i = xyslice / 723;
+		int j = xyslice % 723;
+
+		int kp = (k < padhdim) ? k : k - pad_size;
+		int ip = (i < padhdim) ? i : i - pad_size;
+		int jp = (j < padhdim) ? j : j - pad_size;
+		double rval = sqrt((double) (kp * kp + ip * ip + jp * jp)) / (ori_size * padding_factor);
+
+		Mconv[index] *= (tab_ftblobgetvalue(tabdata, rval, sampling, xdim) / normftblob);
+
+		if ( index ==0)
+		{
+			printf("From GPU : %f %f %f \n",Mconv[index],tab_ftblobgetvalue(tabdata, rval, sampling, xdim),rval);
+		}
+	}
 }
 
 void initgpu()
@@ -52,7 +86,13 @@ cufftComplex* gpumallocdata(cufftComplex *d_outData,int N)
 	return d_outData;
 }
 
-
+void volume_Multi(double *data1, double *data2, int numElements, int xdim, double sampling , int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob)
+{
+    int threadsPerBlock = 512;
+    int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
+    int zslice= pad_size*pad_size ;
+    volumeMulti<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, xdim, sampling,padhdim,pad_size,ori_size,padding_factor,normftblob,zslice);
+}
 
 void printdatatofile(Complex *data,int N)
 {

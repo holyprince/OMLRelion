@@ -335,7 +335,7 @@ public:
 	 * Note the convlution is done on the complex array inside the transformer object!!
 	 */
     void convoluteBlobRealSpace(FourierTransformer &transformer, bool do_mask = false, int threads = 1);
-
+    void convoluteBlobRealSpace_gpu(FourierTransformer &transformer, bool do_mask = false, int threads = 1);
 	/* Calculate the inverse FFT of Fin and windows the result to ori_size
 	 * Also pass the transformer, to prevent making and clearing a new one before clearing the one in reconstruct()
 	 */
