@@ -20,7 +20,10 @@ int main(int argc, char *argv[])
 	backprojector.weight.setXmippOrigin();
 	backprojector.weight.xinit=0;
 	backprojector.r_max=180;  //add by self
-
+	int _blob_order = 0;
+	RFLOAT _blob_radius = 1.9;
+	RFLOAT _blob_alpha = 15;
+	backprojector.tab_ftblob.initialise(_blob_radius * 2., _blob_alpha, _blob_order, 10000);
 
 	printf(" %d %d %f %d\n", backprojector.ori_size, backprojector.data_dim,backprojector.padding_factor,backprojector.pad_size);
 	printf("%d \n ",backprojector.r_min_nn);
@@ -83,14 +86,15 @@ int main(int argc, char *argv[])
 	// Now perform the unregularized reconstruction
 	int gridding_nr_iter=1;
 	bool do_fsc0999 = false;
-	//backprojector.reconstruct_gpu(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
+	//backprojector.reconstruct(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
 	backprojector.reconstruct_gpu(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
 
 
+/*
 	// Update header information
 	Iunreg.setStatisticsInHeader();
 	Iunreg.setSamplingRateInHeader(1);
 	// And write the resulting model to disc
-	Iunreg.write(fn_root+"_unfil.mrc");
+	Iunreg.write(fn_root+"_unfil.mrc");*/
 
 }

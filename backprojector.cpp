@@ -1243,7 +1243,10 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			{
 				DIRECT_MULTIDIM_ELEM(Fconv, n) = DIRECT_MULTIDIM_ELEM(Fnewweight, n) * DIRECT_MULTIDIM_ELEM(Fweight, n);
 			}
-			printdatatofile(Fconv.data,Fconv.nzyxdim);
+			for(int i=0;i<10;i++)
+				printf("%f ",Fconv.data[i].real);
+			printf("\n");
+			//printdatatofile(Fconv.data,Fconv.nzyxdim);
 			// convolute through Fourier-transform (as both grids are rectangular)
 			// Note that convoluteRealSpace acts on the complex array inside the transformer
             convoluteBlobRealSpace(transformer, false, nr_threads);
@@ -1800,17 +1803,18 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 
 		initgpu();
-		cufftDoubleComplex *d_inputData, *d_outData;
+
+		cufftComplex *d_fourierData;
 		double *d_Fnewweight;
 		RFLOAT *d_Fweight;
-		gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
-		gpusetdata_double(d_Fweight,Fweight.nzyxdim,Fweight.data);
-
 		int Fconvnum=Fconv.nzyxdim;
-		gpumallocdata(d_outData,Fconvnum);
+		d_fourierData = gpumallocdata(d_fourierData,Fconvnum);
+		d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
+		d_Fweight = gpusetdata_double(d_Fweight,Fweight.nzyxdim,Fweight.data);
+
 		printf("Fconvnum  : %d \n",Fconvnum);
 
-		cufftDoubleComplex *c_output = (cufftDoubleComplex*) malloc(Fconvnum * sizeof(cufftDoubleComplex));
+		//cufftComplex *c_output = (cufftComplex*) malloc(Fconvnum * sizeof(cufftComplex));
 		for (int iter = 0; iter < max_iter_preweight; iter++)
 		{
             //std::cout << "    iteration " << (iter+1) << "/" << max_iter_preweight << "\n";
@@ -1822,14 +1826,10 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			// but each "sampling point" counts "Fweight" times!
 			// That is why Fnewweight is multiplied by Fweight prior to the convolution
 
-			vector_Multi(d_Fnewweight,d_Fweight,d_outData,1000);
-			cpugetdata(d_outData,c_output,Fconvnum);
-			for(int i=0;i<Fconvnum;i++)
-			{
-				Fconv.data[i].real=c_output[i].x;
-				Fconv.data[i].imag=c_output[i].y;
-			}
-			printdatatofile(Fconv.data,Fconv.nzyxdim);
+			vector_Multi(d_Fnewweight,d_Fweight,d_fourierData,Fconvnum);
+
+			cudaFree(d_Fnewweight);
+			cudaFree(d_Fweight);
 /*
 			FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
 			{
@@ -1839,7 +1839,45 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 			// convolute through Fourier-transform (as both grids are rectangular)
 			// Note that convoluteRealSpace acts on the complex array inside the transformer
-            convoluteBlobRealSpace(transformer, false, nr_threads);
+
+			int Ndim[3];
+			Ndim[0]=pad_size;
+			Ndim[1]=pad_size;
+			Ndim[2]=pad_size;
+			printf("pad_size : %d \n",pad_size);
+			cufftResult cr;
+			cufftHandle cufftForwrdHandle, cufftInverseHandle;
+			cr=  (cufftPlan3d( &cufftInverseHandle, Ndim[0], Ndim[1], Ndim[2] , CUFFT_C2R));
+
+			printf("%d \n",cr);
+			cufftReal *d_real;
+			cudaMalloc((void**) &d_real, Ndim[0]*Ndim[1]*Ndim[2] * sizeof(cufftReal));
+			cr= ( cufftExecC2R(cufftInverseHandle, d_fourierData, d_real));
+
+
+/*			RFLOAT normftblob = tab_ftblob(0.);
+
+			printf("blob : %f and %d \n",normftblob,tab_ftblob.tabulatedValues.xdim);
+
+			double *d_tab_ftblob;
+			d_tab_ftblob=gpusetdata_double(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);*/
+
+/*
+			FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY3D(Mconv)
+		    {
+				int kp = (k < padhdim) ? k : k - pad_size;
+				int ip = (i < padhdim) ? i : i - pad_size;
+				int jp = (j < padhdim) ? j : j - pad_size;
+		    	RFLOAT rval = sqrt ( (RFLOAT)(kp * kp + ip * ip + jp * jp) ) / (ori_size * padding_factor);
+		    	if (do_mask && rval > 1./(2. * padding_factor))
+		    		DIRECT_A3D_ELEM(Mconv, k, i, j) = 0.;
+		    	else
+		    		DIRECT_A3D_ELEM(Mconv, k, i, j) *= (tab_ftblob(rval) / normftblob);
+		    }*/
+
+
+
+          //  convoluteBlobRealSpace(transformer, false, nr_threads);
 
 			RFLOAT w, corr_min = LARGE_NUMBER, corr_max = -LARGE_NUMBER, corr_avg=0., corr_nn=0.;
 
@@ -1867,8 +1905,9 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			std::cerr << " corr_min= " << corr_min << std::endl;
 			std::cerr << " corr_max= " << corr_max << std::endl;
 	#endif
-		}
 
+		}
+/*
 		RCTICREC(ReconTimer,ReconS_7);
 	#ifdef DEBUG_RECONSTRUCT
 		Image<double> tttt;
@@ -1903,7 +1942,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 		// Clear memory
 		Fnewweight.clear();
-		RCTOCREC(ReconTimer,ReconS_7);
+		RCTOCREC(ReconTimer,ReconS_7);*/
 	} // end if skip_gridding
 
 // Gridding theory says one now has to interpolate the fine grid onto the coarse one using a blob kernel
@@ -1991,9 +2030,9 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	// Now do inverse FFT and window to original size in real-space
 	// Pass the transformer to prevent making and clearing a new one before clearing the one declared above....
 	// The latter may give memory problems as detected by electric fence....
-	RCTICREC(ReconTimer,ReconS_17);
+/*	RCTICREC(ReconTimer,ReconS_17);
 	windowToOridimRealSpace(transformer, vol_out, nr_threads, printTimes);
-	RCTOCREC(ReconTimer,ReconS_17);
+	RCTOCREC(ReconTimer,ReconS_17);*/
 
 #endif
 
@@ -2003,7 +2042,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 #endif
 
 	// Correct for the linear/nearest-neighbour interpolation that led to the data array
-	RCTICREC(ReconTimer,ReconS_18);
+/*	RCTICREC(ReconTimer,ReconS_18);
 	griddingCorrect(vol_out);
 	RCTOCREC(ReconTimer,ReconS_18);
 	// If the tau-values were calculated based on the FSC, then now re-calculate the power spectrum of the actual reconstruction
@@ -2067,7 +2106,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	tau2_io = tau2;
     sigma2_out = sigma2;
     data_vs_prior_out = data_vs_prior;
-    fourier_coverage_out = fourier_coverage;
+    fourier_coverage_out = fourier_coverage;*/
 }
 
 void BackProjector::symmetrise(int nr_helical_asu, RFLOAT helical_twist, RFLOAT helical_rise)
@@ -2436,13 +2475,25 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 		Mconv.reshape(pad_size, pad_size, pad_size);
 
 	// inverse FFT
+	for(int i=0;i<10;i++)
+	{
+		printf("%f \n",transformer.fFourier.data[i].real);
+	}
 	transformer.setReal(Mconv);
 	gettimeofday (&tv1, &tz);
 	transformer.inverseFourierTransform();
 	gettimeofday (&tv2, &tz);
-
+	for(int i=0;i<10;i++)
+		printf("%f ",transformer.fFourier.data[i].real);
+	printf("===========\n");
+	for(int i=0;i<10;i++)
+		printf("%f ",Mconv.data[i]);
+	printf("===========\n");
+	for(int i=0;i<10;i++)
+		printf("%f ", (*transformer.fReal).data[i]);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 	printf("inverseFourierTransform  time : %ld \n",time_use);
+
 	// Blob normalisation in Fourier space
 	RFLOAT normftblob = tab_ftblob(0.);
 

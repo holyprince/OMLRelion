@@ -181,6 +181,7 @@ void FourierTransformer::setReal(MultidimArray<RFLOAT> &input)
 
     if (recomputePlan)
     {
+
 		fFourier.reshape(ZSIZE(input),YSIZE(input),XSIZE(input)/2+1);
 		fReal=&input;
 
