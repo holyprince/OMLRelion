@@ -1243,9 +1243,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			{
 				DIRECT_MULTIDIM_ELEM(Fconv, n) = DIRECT_MULTIDIM_ELEM(Fnewweight, n) * DIRECT_MULTIDIM_ELEM(Fweight, n);
 			}
-			for(int i=0;i<10;i++)
-				printf("%f ",Fconv.data[i].real);
-			printf("\n");
+
 			//printdatatofile(Fconv.data,Fconv.nzyxdim);
 			// convolute through Fourier-transform (as both grids are rectangular)
 			// Note that convoluteRealSpace acts on the complex array inside the transformer
@@ -1826,60 +1824,22 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			// but each "sampling point" counts "Fweight" times!
 			// That is why Fnewweight is multiplied by Fweight prior to the convolution
 
-			vector_Multi(d_Fnewweight,d_Fweight,d_fourierData,Fconvnum);
-
-			cudaFree(d_Fnewweight);
-			cudaFree(d_Fweight);
 
 			FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
 			{
 				DIRECT_MULTIDIM_ELEM(Fconv, n) = DIRECT_MULTIDIM_ELEM(Fnewweight, n) * DIRECT_MULTIDIM_ELEM(Fweight, n);
 			}
 
-			convoluteBlobRealSpace_gpu(transformer, false, nr_threads);
-
-			// convolute through Fourier-transform (as both grids are rectangular)
-			// Note that convoluteRealSpace acts on the complex array inside the transformer
-/*
-			int Ndim[3];
-			Ndim[0]=pad_size;
-			Ndim[1]=pad_size;
-			Ndim[2]=pad_size;
-			printf("pad_size : %d \n",pad_size);
-			cufftResult cr;
-			cufftHandle cufftForwrdHandle, cufftInverseHandle;
-			cr=  (cufftPlan3d( &cufftInverseHandle, Ndim[0], Ndim[1], Ndim[2] , CUFFT_C2R));
-
-			printf("%d \n",cr);
-			cufftReal *d_real;
-			cudaMalloc((void**) &d_real, Ndim[0]*Ndim[1]*Ndim[2] * sizeof(cufftReal));
-			cr= ( cufftExecC2R(cufftInverseHandle, d_fourierData, d_real));*/
-
-
-
-
-
-/*
-			FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY3D(Mconv)
-		    {
-				int kp = (k < padhdim) ? k : k - pad_size;
-				int ip = (i < padhdim) ? i : i - pad_size;
-				int jp = (j < padhdim) ? j : j - pad_size;
-		    	RFLOAT rval = sqrt ( (RFLOAT)(kp * kp + ip * ip + jp * jp) ) / (ori_size * padding_factor);
-		    	if (do_mask && rval > 1./(2. * padding_factor))
-		    		DIRECT_A3D_ELEM(Mconv, k, i, j) = 0.;
-		    	else
-		    		DIRECT_A3D_ELEM(Mconv, k, i, j) *= (tab_ftblob(rval) / normftblob);
-		    }*/
-
-
-
+			convoluteBlobRealSpace(transformer, false, nr_threads);
 
 
 			RFLOAT w, corr_min = LARGE_NUMBER, corr_max = -LARGE_NUMBER, corr_avg=0., corr_nn=0.;
 
+
             FOR_ALL_ELEMENTS_IN_FFTW_TRANSFORM(Fconv)
             {
+
+
 				if (kp * kp + ip * ip + jp * jp < max_r2)
 				{
 
@@ -1894,6 +1854,8 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 					DIRECT_A3D_ELEM(Fnewweight, k, i, j) /= w;
 				}
 			}
+
+
 			RCTOCREC(ReconTimer,ReconS_6);
 	#ifdef DEBUG_RECONSTRUCT
 			std::cerr << " PREWEIGHTING ITERATION: "<< iter + 1 << " OF " << max_iter_preweight << std::endl;
@@ -1904,7 +1866,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	#endif
 
 		}
-/*
+
 		RCTICREC(ReconTimer,ReconS_7);
 	#ifdef DEBUG_RECONSTRUCT
 		Image<double> tttt;
@@ -1939,7 +1901,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 		// Clear memory
 		Fnewweight.clear();
-		RCTOCREC(ReconTimer,ReconS_7);*/
+		RCTOCREC(ReconTimer,ReconS_7);
 	} // end if skip_gridding
 
 // Gridding theory says one now has to interpolate the fine grid onto the coarse one using a blob kernel
@@ -2487,7 +2449,7 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 	//blob.order = 0;
 	//blob.radius = 1.9 * padding_factor;
 	//blob.alpha = 15;
-	gettimeofday (&tv1, &tz);
+
     // Multiply with FT of the blob kernel
 
 	FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY3D(Mconv)
@@ -2507,21 +2469,10 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
     		DIRECT_A3D_ELEM(Mconv, k, i, j) *= (tab_ftblob(rval) / normftblob);
     }
 
-	for(int i=0;i<10;i++)
-		printf("%f ",Mconv.data[i]);
-	printf("\n==========\n");
-	for(int i=5000;i<5000+10;i++)
-		printf("%f ",Mconv.data[i]);
-	printf("\n");
-	gettimeofday (&tv2, &tz);
-	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-
     // forward FFT to go back to Fourier-space
-	gettimeofday (&tv1, &tz);
+
     transformer.FourierTransform();
-	gettimeofday (&tv2, &tz);
-	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-	printf("FourierTransform time : %ld \n",time_use);
+
 
 }
 
@@ -2551,24 +2502,51 @@ void BackProjector::convoluteBlobRealSpace_gpu(FourierTransformer &transformer, 
 
 	RFLOAT normftblob = tab_ftblob(0.);
 
-	double *d_tab_ftblob;
+/*	double *d_tab_ftblob;
 	int tabxdim=tab_ftblob.tabulatedValues.xdim;
 	d_tab_ftblob=gpusetdata_double(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);
 	double *d_Mconv;
 	d_Mconv = gpusetdata_double(d_Mconv,Mconv.nzyxdim,Mconv.data);
-	volume_Multi(d_Mconv,d_tab_ftblob,Mconv.nzyxdim,tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob);
+	volume_Multi((float *)d_Mconv,d_tab_ftblob,Mconv.nzyxdim,tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob);
+*/
 
+	// TMP DEBUGGING
+	//struct blobtype blob;
+	//blob.order = 0;
+	//blob.radius = 1.9 * padding_factor;
+	//blob.alpha = 15;
 
-	/*
+    // Multiply with FT of the blob kernel
 
-	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-	printf("apply blob  time : %ld \n",time_use);
-    // forward FFT to go back to Fourier-space
-	gettimeofday (&tv1, &tz);
+	FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY3D(Mconv)
+    {
+
+		int kp = (k < padhdim) ? k : k - pad_size;
+		int ip = (i < padhdim) ? i : i - pad_size;
+		int jp = (j < padhdim) ? j : j - pad_size;
+    	RFLOAT rval = sqrt ( (RFLOAT)(kp * kp + ip * ip + jp * jp) ) / (ori_size * padding_factor);
+    	//if (kp==0 && ip==0 && jp > 0)
+		//	std::cerr << " jp= " << jp << " rval= " << rval << " tab_ftblob(rval) / normftblob= " << tab_ftblob(rval) / normftblob << " ori_size/2= " << ori_size/2 << std::endl;
+    	// In the final reconstruction: mask the real-space map beyond its original size to prevent aliasing ghosts
+    	// Note that rval goes until 1/2 in the oversampled map
+    	if (do_mask && rval > 1./(2. * padding_factor))
+    		DIRECT_A3D_ELEM(Mconv, k, i, j) = 0.;
+    	else
+    		DIRECT_A3D_ELEM(Mconv, k, i, j) *= (tab_ftblob(rval) / normftblob);
+    }
+
+/*
     transformer.FourierTransform();
-	gettimeofday (&tv2, &tz);
-	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-	printf("FourierTransform time : %ld \n",time_use);*/
+    long int normsize=(*transformer.fReal).nzyxdim;
+    cufftComplex *cu_data,*du_data;
+    du_data = gpumallocdata(du_data,normsize );
+    cudaMemcpy(du_data, transformer.fFourier.data, normsize* sizeof(cufftComplex),cudaMemcpyHostToDevice);
+    vector_Normlize(du_data,normsize,normsize);
+    cu_data = (cufftComplex *)malloc(sizeof(cufftComplex)*100);
+    cpugetdata(cu_data,du_data,100);
+    for(int i=0;i<10;i++)
+    	printf("%f %f \n",cu_data[i].x,cu_data[i].y);*/
+
 
 }
 

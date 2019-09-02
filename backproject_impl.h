@@ -23,5 +23,8 @@ cufftComplex * gpumallocdata(cufftComplex *d_outData,int N);
 void cpugetdata(tComplex<float> *c_outData, cufftComplex *d_outData,int N);
 void printdatatofile(Complex *data,int N);
 
-void volume_Multi(double *data1, double *data2, int numElements, int xdim, double sampling , \
+void volume_Multi(float *data1, double *data2, int numElements, int xdim, double sampling , \
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob);
+
+void vector_Normlize(cufftComplex *data1, long int normsize, long int numElements);
+void fft_Divide(cufftComplex *data1, double *Fnewweight, long int numElements,int xysize,int xsize,int zsize,int ysize,int max_r2);

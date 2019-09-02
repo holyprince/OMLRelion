@@ -84,10 +84,10 @@ int main(int argc, char *argv[])
 	}
 
 	// Now perform the unregularized reconstruction
-	int gridding_nr_iter=1;
+	int gridding_nr_iter=10;
 	bool do_fsc0999 = false;
-//	backprojector.reconstruct(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
-	backprojector.reconstruct_gpu(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
+	backprojector.reconstruct(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
+//	backprojector.reconstruct_gpu(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
 
 
 /*
