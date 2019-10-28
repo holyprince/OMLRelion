@@ -101,10 +101,12 @@ int main(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+
 	int ori_size=100;
 	int ref_dim=3;
 	BackProjector backprojector(ori_size,ref_dim,"D2");
 	backprojector.pad_size=203;
+
 //set back project para :
 	backprojector.data.coreAllocate(1,203,203,102);
 	backprojector.weight.coreAllocate(1,203,203,102);
@@ -177,7 +179,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Now perform the unregularized reconstruction
-	int gridding_nr_iter=10;
+	int gridding_nr_iter=1;
 	bool do_fsc0999 = false;
 //	backprojector.reconstruct(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
 	backprojector.reconstruct_gpu(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);

@@ -1243,9 +1243,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			{
 				DIRECT_MULTIDIM_ELEM(Fconv, n) = DIRECT_MULTIDIM_ELEM(Fnewweight, n) * DIRECT_MULTIDIM_ELEM(Fweight, n);
 			}
-			for(int i=0;i<10;i++)
-				printf("%f ",Fconv.data[i].real);
-			printf("\n");
+
 			//printdatatofile(Fconv.data,Fconv.nzyxdim);
 			// convolute through Fourier-transform (as both grids are rectangular)
 			// Note that convoluteRealSpace acts on the complex array inside the transformer
@@ -1267,9 +1265,23 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 					corr_nn += 1.;
 					// Apply division of Eq. [14] in Pipe & Menon (1999)
 					DIRECT_A3D_ELEM(Fnewweight, k, i, j) /= w;
+					int index2 = (k)*YXSIZE(Fnewweight)+((i)*XSIZE(Fnewweight))+(j);
+					int index1 = (k)*YXSIZE(Fconv)+((i)*XSIZE(Fconv))+(j);
+					if(index2 == 21122*102)
+					{
+						printf("index2 : %f %d %f\n",Fnewweight.data[index2],index1,Fconv.data[index1].real);
+						printf("index2 : %d %d %d \n", k ,i ,j );
+						printf("index2 : %d %d %d \n", kp ,ip ,jp );
+					}
+
 				}
 			}
 			RCTOCREC(ReconTimer,ReconS_6);
+
+
+		    //layoutchangecomp(Fnewweight,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim,pad_size,c_Fconv2);
+			printdatatofile(Fnewweight.data,Fnewweight.xdim*Fnewweight.ydim*Fnewweight.zdim,Fnewweight.xdim,1);
+
 	#ifdef DEBUG_RECONSTRUCT
 			std::cerr << " PREWEIGHTING ITERATION: "<< iter + 1 << " OF " << max_iter_preweight << std::endl;
 			// report of maximum and minimum values of current conv_weight
@@ -1741,7 +1753,14 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
         }
 
     }
-
+//==============================================================================add GPU version
+	initgpu();
+	RFLOAT *d_Fweight;
+	double *d_Fnewweight;
+	cufftHandle  cufftHandle,cufftHandle2;
+	cufftComplex *c_Fconv,*c_Fconv2;
+	cufftComplex *d_Fconv;
+	long int fullsize= pad_size*pad_size*pad_size;
 
     RCTOCREC(ReconTimer,ReconS_2_5);
 	if (skip_gridding)
@@ -1796,96 +1815,87 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			else
 				A3D_ELEM(weight, k, i, j) = 0.;
 		}
+
+
+
 		decenter(weight, Fnewweight, max_r2);
 		RCTOCREC(ReconTimer,ReconS_5);
 		// Iterative algorithm as in  Eq. [14] in Pipe & Menon (1999)
 		// or Eq. (4) in Matej (2001)
 
 
-		initgpu();
 
-		cufftComplex *d_fourierData;
-		double *d_Fnewweight;
-		RFLOAT *d_Fweight;
-		int Fconvnum=Fconv.nzyxdim;
+
+
+		long int Fconvnum=Fconv.nzyxdim;
+
+
+		int Ndim[3];
+		Ndim[0]=pad_size;
+		Ndim[1]=pad_size;
+		Ndim[2]=pad_size;
+		long int normsize= Ndim[0]*Ndim[1]*Ndim[2];
+		int halfxdim=Fconv.xdim;
+
 		printf("%d %d %d \n",Fconv.xdim,Fconv.ydim,Fconv.zdim);
+		printf("Fnewweight: %d %d %d \n",Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
 		//int Fconvnum=pad_size* pad_size* pad_size;
-		d_fourierData = gpumallocdata(d_fourierData,Fconvnum);
 
+		c_Fconv = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
+		c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		//cufftComplex *c_output = (cufftComplex*) malloc(Fconvnum * sizeof(cufftComplex));
+
+
+		cudaMalloc((void**) &d_Fnewweight, sizeof(double)*Fnewweight.nzyxdim);
+
+		d_Fweight = gpusetdata_float(d_Fweight,Fweight.nzyxdim,Fweight.data);
+		d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
+		cudaMalloc((void**) &d_Fconv, Ndim[0]*Ndim[1]*Ndim[2] * sizeof(cufftComplex));
+
+	    cufftPlan3d( &cufftHandle, Ndim[0], Ndim[1], Ndim[2] , CUFFT_C2C);
+	    cufftPlan3d( &cufftHandle2, Ndim[0], Ndim[1], Ndim[2] , CUFFT_C2R);
 		for (int iter = 0; iter < max_iter_preweight; iter++)
 		{
+
             //std::cout << "    iteration " << (iter+1) << "/" << max_iter_preweight << "\n";
 			RCTICREC(ReconTimer,ReconS_6);
-			// Set Fnewweight * Fweight in the transformer
-			// In Matej et al (2001), weights w_P^i are convoluted with the kernel,
-			// and the initial w_P^0 are 1 at each sampling point
-			// Here the initial weights are also 1 (see initialisation Fnewweight above),
-			// but each "sampling point" counts "Fweight" times!
-			// That is why Fnewweight is multiplied by Fweight prior to the convolution
-			struct timeval tv1,tv2;
-			struct timezone tz;
-			double time_use;
-			gettimeofday (&tv1, &tz);
-            d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
-			d_Fweight = gpusetdata_float(d_Fweight,Fweight.nzyxdim,Fweight.data);
-			vector_Multi(d_Fnewweight,d_Fweight,d_fourierData,Fconvnum);
 
-			cudaFree(d_Fnewweight);
-			cudaFree(d_Fweight);
+			vector_Multi(d_Fnewweight,d_Fweight,d_Fconv,Fconvnum);
+			cudaMemcpy(c_Fconv,d_Fconv,pad_size*pad_size*pad_size*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
 
-			// convolute through Fourier-transform (as both grids are rectangular)
-			// Note that convoluteRealSpace acts on the complex array inside the transformer
-			int Ndim[3];
-			Ndim[0]=pad_size;
-			Ndim[1]=pad_size;
-			Ndim[2]=pad_size;
-			long int normsize= Ndim[0]*Ndim[1]*Ndim[2];
-			printf("pad_size : %d \n",pad_size);
-			cufftResult cr;
-			cufftHandle cufftForwrdHandle, cufftInverseHandle;
-			cr=  (cufftPlan3d( &cufftInverseHandle, Ndim[0], Ndim[1], Ndim[2] , CUFFT_C2R));
+			layoutchange(c_Fconv,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
+			cudaMemcpy(d_Fconv,c_Fconv2,pad_size*pad_size*pad_size*sizeof(cufftComplex),cudaMemcpyHostToDevice);
+			//cufftReal *d_Fdata;
+			//cudaMalloc((void**) &d_Fdata, Ndim[0]*Ndim[1]*Ndim[2] * sizeof(cufftReal));
+			//cufftExecC2R(cufftHandle2, d_Fconv, d_Fdata);
+		    cufftExecC2C(cufftHandle, d_Fconv, d_Fconv, CUFFT_INVERSE);
 
-			printf("%d \n",cr);
-			cufftReal *d_real;
-			cudaMalloc((void**) &d_real, Ndim[0]*Ndim[1]*Ndim[2] * sizeof(cufftReal));
-			cr= ( cufftExecC2R(cufftInverseHandle, d_fourierData, d_real));
-			printf(" After FFT inverse : %d \n",cr);
 			cudaDeviceSynchronize();
-			cufftDestroy(cufftInverseHandle);
 			RFLOAT normftblob = tab_ftblob(0.);
-
 			float *d_tab_ftblob;
 			int tabxdim=tab_ftblob.tabulatedValues.xdim;
-			printf("tabxdim : %d \n",tabxdim);
 			d_tab_ftblob=gpusetdata_float(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);
-			volume_Multi_float((float *)d_real,d_tab_ftblob, Ndim[0]*Ndim[1]*Ndim[2], tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob);
+			//gpu_kernel2
+			volume_Multi_float(d_Fconv,d_tab_ftblob, Ndim[0]*Ndim[1]*Ndim[2], tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob);
 			cudaDeviceSynchronize();
+			//float *datareal= (float *)malloc(sizeof(float)*Ndim[0]*Ndim[1]*Ndim[2]);
 
-			printf("=====================\n");
 
-			cr=  (cufftPlan3d( &cufftForwrdHandle, Ndim[0], Ndim[1], Ndim[2] , CUFFT_R2C));
-			printf("%d \n",cr);
-			cr= ( cufftExecR2C(cufftForwrdHandle, d_real, d_fourierData));
-			printf("After FFT forward : %d \n",cr);
-			cufftDestroy(cufftForwrdHandle);
-			cudaFree(d_real);
-			printf(" normsize :  %ld \n",normsize);
-			vector_Normlize(d_fourierData, normsize ,Fconvnum);
-			
-	gettimeofday (&tv2, &tz);
-	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-			printf("time : %f \n",time_use);
+			cufftExecC2C(cufftHandle, d_Fconv, d_Fconv, CUFFT_FORWARD);
+			cudaDeviceSynchronize();
+			vector_Normlize(d_Fconv, normsize ,Ndim[0]*Ndim[1]*Ndim[2]);
 
-          //  convoluteBlobRealSpace(transformer, false, nr_threads);
-         
-			d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
-		
-			fft_Divide(d_fourierData,d_Fnewweight,Fconvnum,YSIZE(Fconv)*XSIZE(Fconv),XSIZE(Fconv),ZSIZE(Fconv),YSIZE(Fconv),max_r2);
+			//gpu_kernel3
+
+//			cudaMemcpy(c_Fconv,d_Fconv,pad_size*pad_size*pad_size*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+
+			fft_Divide(d_Fconv,d_Fnewweight,fullsize,pad_size*pad_size,pad_size,pad_size,pad_size,halfxdim,max_r2);
+
+
 			cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
-  			cudaFree(d_Fnewweight);
 
 			RCTOCREC(ReconTimer,ReconS_6);
+
 	#ifdef DEBUG_RECONSTRUCT
 			std::cerr << " PREWEIGHTING ITERATION: "<< iter + 1 << " OF " << max_iter_preweight << std::endl;
 			// report of maximum and minimum values of current conv_weight
@@ -1895,8 +1905,12 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	#endif
 
 		}
+		//cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
+
+
 
 		RCTICREC(ReconTimer,ReconS_7);
+
 	#ifdef DEBUG_RECONSTRUCT
 		Image<double> tttt;
 		tttt()=Fnewweight;
@@ -2019,8 +2033,88 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	// Pass the transformer to prevent making and clearing a new one before clearing the one declared above....
 	// The latter may give memory problems as detected by electric fence....
 	RCTICREC(ReconTimer,ReconS_17);
-	windowToOridimRealSpace(transformer, vol_out, nr_threads, printTimes);
+
+	// Size of padded real-space volume
+	int padoridim = ROUND(padding_factor * ori_size);
+	// make sure padoridim is even
+	padoridim += padoridim%2;
+    vol_out.reshape(padoridim, padoridim, padoridim);
+    vol_out.setXmippOrigin();
+//	cufftComplex *d_Fconv_window;
+//	cudaMalloc((void**) &d_Fconv_window, sizeof(cufftComplex)*padoridim*padoridim*padoridim);
+
+
+/*
+ * failed method x dim not consistent
+	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv);
+	cufftComplex *c_Fconv_window = (cufftComplex *)malloc(sizeof(cufftComplex)*padoridim*padoridim*padoridim);
+	windowFourier(c_Fconv,c_Fconv_window,pad_size,padoridim);
+	cudaMemcpy(d_Fconv,c_Fconv_window,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
+	int status;
+	status = cufftPlan3d( &cufftHandle, padoridim, padoridim, padoridim , CUFFT_C2C);
+	printf("status 1 : %d ",status);
+	status = cufftExecC2C(cufftHandle, d_Fconv, d_Fconv, CUFFT_INVERSE);
+	printf("status 2 : %d ",status);
+   cudaMemcpy(c_Fconv_window,d_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+    vol_out.reshape(padoridim, padoridim, padoridim);
+    vol_out.setXmippOrigin();
+    for(int i=0;i<padoridim *padoridim*padoridim;i++)
+    	vol_out.data[i]=c_Fconv_window[i].x;
+*/
+	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv);
+	cufftComplex *c_Fconv_window = (cufftComplex *)malloc(sizeof(cufftComplex)*padoridim*padoridim*padoridim);
+	windowFourier(c_Fconv,c_Fconv_window,pad_size,padoridim);
+
+	windowFourierTransform(Fconv, padoridim);
+	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv);
+
+	cudaMemcpy(d_Fconv,c_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
+	cufftPlan3d( &cufftHandle2, padoridim, padoridim, padoridim , CUFFT_C2C);
+	cufftExecC2C(cufftHandle2, d_Fconv, d_Fconv, CUFFT_INVERSE);
+	cudaMemcpy(c_Fconv,d_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+    for(int i=0;i<padoridim *padoridim*padoridim;i++)
+    	vol_out.data[i]=c_Fconv[i].x;
+
+/*
+ *  method 1
+	cufftReal *d_Freal;
+	cudaMalloc((void**) &d_Freal, sizeof(cufftReal)*padoridim*padoridim*padoridim);
+	printf("Before %d \n",Fconv.nzyxdim);
+	windowFourierTransform(Fconv, padoridim);
+	printf("After %d \n",Fconv.nzyxdim);
+	cudaMemcpy(d_Fconv,Fconv.data,Fconv.nzyxdim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
+	cufftPlan3d( &cufftHandle2, padoridim, padoridim, padoridim , CUFFT_C2R);
+	cufftExecC2R(cufftHandle2, d_Fconv, d_Freal);
+	vol_out.reshape(padoridim, padoridim, padoridim);
+	vol_out.setXmippOrigin();
+	cudaMemcpy(vol_out.data,d_Freal,vol_out.nzyxdim *sizeof(cufftReal),cudaMemcpyDeviceToHost);
+	*/
+
+
+    CenterFFT(vol_out,true);
+
+	// Window in real-space
+	if (ref_dim==2)
+	{
+		vol_out.window(FIRST_XMIPP_INDEX(ori_size), FIRST_XMIPP_INDEX(ori_size),
+				       LAST_XMIPP_INDEX(ori_size), LAST_XMIPP_INDEX(ori_size));
+	}
+	else
+	{
+		vol_out.window(FIRST_XMIPP_INDEX(ori_size), FIRST_XMIPP_INDEX(ori_size), FIRST_XMIPP_INDEX(ori_size),
+				       LAST_XMIPP_INDEX(ori_size), LAST_XMIPP_INDEX(ori_size), LAST_XMIPP_INDEX(ori_size));
+	}
+	vol_out.setXmippOrigin();
+
+	// Normalisation factor of FFTW
+	// The Fourier Transforms are all "normalised" for 2D transforms of size = ori_size x ori_size
+	float normfft = (RFLOAT)(padding_factor * padding_factor * padding_factor * ori_size);
+	vol_out /= normfft;
+	// Mask out corners to prevent aliasing artefacts
+	softMaskOutsideMap(vol_out);
+	//windowToOridimRealSpace(transformer, vol_out, nr_threads, printTimes);
 	RCTOCREC(ReconTimer,ReconS_17);
+
 
 #endif
 
@@ -2096,6 +2190,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
     data_vs_prior_out = data_vs_prior;
     fourier_coverage_out = fourier_coverage;
 }
+
 
 void BackProjector::symmetrise(int nr_helical_asu, RFLOAT helical_twist, RFLOAT helical_rise)
 {
@@ -2449,9 +2544,6 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 {
 
 
-	struct timeval tv1,tv2;
-	struct timezone tz;
-	double time_use;
 	MultidimArray<RFLOAT> Mconv;
 	int padhdim = pad_size / 2;
 
@@ -2462,25 +2554,16 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 	else
 		Mconv.reshape(pad_size, pad_size, pad_size);
 
-	// inverse FFT
-	for(int i=0;i<10;i++)
-	{
-		printf("%f \n",transformer.fFourier.data[i].real);
-	}
+
 	transformer.setReal(Mconv);
-	gettimeofday (&tv1, &tz);
+
 	transformer.inverseFourierTransform();
-	gettimeofday (&tv2, &tz);
-	for(int i=0;i<10;i++)
-		printf("%f ",transformer.fFourier.data[i].real);
-	printf("===========\n");
-	for(int i=0;i<10;i++)
-		printf("%f ",Mconv.data[i]);
-	printf("===========\n");
-	for(int i=0;i<10;i++)
-		printf("%f ", (*transformer.fReal).data[i]);
-	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-	printf("inverseFourierTransform  time : %ld \n",time_use);
+
+
+//	printf("Mconv dim : %d %d %d \n",Mconv.xdim,Mconv.ydim,Mconv.zdim);
+//	printdatatofile(Mconv.data,pad_size*pad_size*pad_size,pad_size,1);
+
+
 	// Blob normalisation in Fourier space
 	RFLOAT normftblob = tab_ftblob(0.);
 
@@ -2489,7 +2572,7 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 	//blob.order = 0;
 	//blob.radius = 1.9 * padding_factor;
 	//blob.alpha = 15;
-	gettimeofday (&tv1, &tz);
+
     // Multiply with FT of the blob kernel
 	FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY3D(Mconv)
     {
@@ -2506,15 +2589,11 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
     	else
     		DIRECT_A3D_ELEM(Mconv, k, i, j) *= (tab_ftblob(rval) / normftblob);
     }
-	gettimeofday (&tv2, &tz);
-	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-	printf("apply blob  time : %ld \n",time_use);
-    // forward FFT to go back to Fourier-space
-	gettimeofday (&tv1, &tz);
+
+
+
     transformer.FourierTransform();
-	gettimeofday (&tv2, &tz);
-	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-	printf("FourierTransform time : %ld \n",time_use);
+
 
 }
 
@@ -2533,6 +2612,7 @@ void BackProjector::windowToOridimRealSpace(FourierTransformer &transformer, Mul
 	int OriDim8  = OriDimTimer.setNew(" OrD8_norm ");
 	int OriDim9  = OriDimTimer.setNew(" OrD9_softMask ");
 #endif
+
 
 	RCTIC(OriDimTimer,OriDim1);
 	MultidimArray<Complex>& Fin = transformer.getFourierReference();
@@ -2598,11 +2678,16 @@ void BackProjector::windowToOridimRealSpace(FourierTransformer &transformer, Mul
 		std::cout << std::endl << "FFTrealDims = (" << transformer.fReal->xdim << " , " << transformer.fReal->ydim << " , " << transformer.fReal->zdim << " ) " << std::endl;
 #endif
 	transformer.inverseFourierTransform();
+
+
+
 	RCTOC(OriDimTimer,OriDim5);
     //transformer.inverseFourierTransform(Fin, Mout);
     Fin.clear();
     transformer.fReal = NULL; // Make sure to re-calculate fftw plan
 	Mout.setXmippOrigin();
+
+
 
 	// Shift the map back to its origin
 
@@ -2631,6 +2716,7 @@ void BackProjector::windowToOridimRealSpace(FourierTransformer &transformer, Mul
 	// Normalisation factor of FFTW
 	// The Fourier Transforms are all "normalised" for 2D transforms of size = ori_size x ori_size
 	RCTIC(OriDimTimer,OriDim8);
+
 	Mout /= normfft;
 	RCTOC(OriDimTimer,OriDim8);
 #ifdef DEBUG_WINDOWORIDIMREALSPACE
@@ -2660,6 +2746,5 @@ void BackProjector::windowToOridimRealSpace(FourierTransformer &transformer, Mul
     if(printTimes)
     	OriDimTimer.printTimes(true);
 #endif
-
 
 }
