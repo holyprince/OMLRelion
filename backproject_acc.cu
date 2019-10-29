@@ -26,6 +26,7 @@ __global__ void vectorMulti(double *A, float *B, cufftComplex *C, int numElement
     if (i < numElements)
     {
         C[i].x = A[i] * B[i];
+        C[i].y = 0;
     }
 }
 

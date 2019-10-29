@@ -114,7 +114,7 @@ void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extr
 	}
 	//extra for 1 z
 	deltanxy = 0;
-	printf("NZ-extraz : %d \n", (dimz - extraz));
+
 	for (int j = (dimz - extraz); j < dimz; j++) {
 		cudaMemcpyAsync(plan[0].d_Data + (dimz - extraz) * dimx * dimy + deltanxy,
 				plan[1].d_Data + (dimz - extraz) * dimx * dimy + deltanxy,cpysize10, cudaMemcpyDeviceToDevice, stream1);
@@ -195,43 +195,3 @@ void multi_sync(MultiGPUplan *plan,int GPU_N)
 	}
 }
 
-void multi_fft_exec(cufftComplex *d_Fconv, int flag, int NX1, int NY2,int NZ3)
-{
-
-
-/*
-
-		//ALL To ALL
-
-
-		for (int i = 0; i < GPU_N; i++) {
-			cudaSetDevice(plan[i].devicenum);
-			cufftDestroy(zplan[i]);
-
-		}
-
-		for (int i = 0; i < GPU_N; i++) {
-			cudaSetDevice(plan[i].devicenum);
-			cudaDeviceSynchronize();
-		}
-
-
-
-
-		for (int i = 0; i < GPU_N; i++) {
-			cudaSetDevice(plan[i].devicenum);
-			cudaFree(plan[i].d_Data);
-			cudaDeviceSynchronize();
-		}
-
-	//	printwholeres(out);
-
-		for (int i = 0; i < NX * NY * NZ; i++) {
-			if (outdiv[i].x != out[i].x)
-				printf("%d ", i);
-		}
-	}
-	cudaFreeHost(f);
-	cudaFreeHost(out);
-*/
-}

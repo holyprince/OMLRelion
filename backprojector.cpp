@@ -1271,7 +1271,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 
 
 		    //layoutchangecomp(Fnewweight,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim,pad_size,c_Fconv2);
-			printdatatofile(Fnewweight.data,Fnewweight.xdim*Fnewweight.ydim*Fnewweight.zdim,Fnewweight.xdim,1);
+			//printdatatofile(Fnewweight.data,Fnewweight.xdim*Fnewweight.ydim*Fnewweight.zdim,Fnewweight.xdim,1);
 
 	#ifdef DEBUG_RECONSTRUCT
 			std::cerr << " PREWEIGHTING ITERATION: "<< iter + 1 << " OF " << max_iter_preweight << std::endl;
@@ -1755,7 +1755,8 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
     initgpu();
 	RFLOAT *d_Fweight;
 	double *d_Fnewweight;
-	cufftHandle  cuffthandle,cuffthandle2;
+	int offset;
+
 	MultiGPUplan *dataplan;
 	dataplan = (MultiGPUplan *)malloc(sizeof(MultiGPUplan)*2);
 	multi_plan_init(dataplan,GPU_N,fullsize,Ndim[0],Ndim[1],Ndim[2]);
@@ -1875,19 +1876,15 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 
 		c_Fconv = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
-		c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
-
-		cudaMalloc((void**) &d_Fnewweight, sizeof(double)*Fnewweight.nzyxdim);
+		//c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
+		cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
 
 		d_Fweight = gpusetdata_float(d_Fweight,Fweight.nzyxdim,Fweight.data);
 		d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
-		//cudaMalloc((void**) &d_Fconv, Ndim[0]*Ndim[1]*Ndim[2] * sizeof(cufftComplex));
 
 
-
-         cufftPlan3d( &cuffthandle, Ndim[0], Ndim[1], Ndim[2] , CUFFT_C2C);
          //==================2d fft plan
-     	int offset = 0;
+
 		for (int i = 0; i < GPU_N; i++) {
 		    cudaSetDevice(dataplan[i].devicenum);
 			cufftPlanMany(&xyplan[i], 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, NZ / 2);
@@ -1918,7 +1915,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			layoutchange(c_Fconv,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
 
 			multi_memcpy_data(dataplan,c_Fconv2,GPU_N,Ndim[0],Ndim[1]);
-
+			offset = 0;
 			for (int i = 0; i < GPU_N; i++) {
 				cudaSetDevice(dataplan[i].devicenum);
 				cufftExecC2C(xyplan[i], dataplan[i].d_Data + offset,dataplan[i].d_Data + offset, CUFFT_INVERSE);
@@ -1995,8 +1992,17 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 
 		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
-		for(int i=0;i<10;i++)
-			printf("%f ",Fnewweight.data[i]);
+
+		for (int i = 0; i < GPU_N; i++) {
+			cudaSetDevice(dataplan[i].devicenum);
+			cufftDestroy(xyplan[i]);
+			cufftDestroy(zplan[i]);
+			if (i == 1)
+				cufftDestroy(xyextra);
+		}
+		cudaFree(d_Fnewweight);
+		cudaFree(d_Fweight);
+
 		RCTICREC(ReconTimer,ReconS_7);
 
 	#ifdef DEBUG_RECONSTRUCT
@@ -2149,12 +2155,12 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
     for(int i=0;i<padoridim *padoridim*padoridim;i++)
     	vol_out.data[i]=c_Fconv_window[i].x;
 */
-	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv);
+/*	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv);
 	cufftComplex *c_Fconv_window = (cufftComplex *)malloc(sizeof(cufftComplex)*padoridim*padoridim*padoridim);
-	windowFourier(c_Fconv,c_Fconv_window,pad_size,padoridim);
+	windowFourier(c_Fconv,c_Fconv_window,pad_size,padoridim);*/
 
 	windowFourierTransform(Fconv, padoridim);
-	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv);
+	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv2);
 
 //init plan and for even data
 	fullsize = padoridim *padoridim*padoridim;
@@ -2170,7 +2176,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	xyN[0] = padoridim;
 	xyN[1] = padoridim;
     //==================2d fft plan
-	int offset = 0;
+
 	for (int i = 0; i < GPU_N; i++) {
 	    cudaSetDevice(dataplan[i].devicenum);
 		cufftPlanMany(&xyplan[i], 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, padoridim / 2);
@@ -2185,8 +2191,8 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	    cufftPlanMany(&zplan[i], 1, Ncol, inembed, padoridim * padoridim, 1,inembed, padoridim * padoridim, 1, CUFFT_C2C, padoridim * (dataplan[i].selfZ));
 	}
 
-	multi_memcpy_data(dataplan,c_Fconv,GPU_N,padoridim,padoridim);
-
+	multi_memcpy_data(dataplan,c_Fconv2,GPU_N,padoridim,padoridim);
+	offset = 0;
 	for (int i = 0; i < GPU_N; i++) {
 		cudaSetDevice(dataplan[i].devicenum);
 		cufftExecC2C(xyplan[i], dataplan[i].d_Data + offset,dataplan[i].d_Data + offset, CUFFT_INVERSE);
@@ -2202,7 +2208,15 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	}
 	multi_sync(dataplan,GPU_N);
 	mulit_alltoall_two(dataplan,padoridim,padoridim,padoridim,0,offsetz);
-	multi_memcpy_databack(dataplan,c_Fconv,GPU_N,padoridim,padoridim);
+	multi_memcpy_databack(dataplan,c_Fconv2,GPU_N,padoridim,padoridim);
+
+	for (int i = 0; i < GPU_N; i++) {
+		cudaSetDevice(dataplan[i].devicenum);
+		cufftDestroy(zplan[i]);
+		cufftDestroy(xyplan[i]);
+		cudaFree(dataplan[i].d_Data);
+		cudaDeviceSynchronize();
+	}
 
 
 //	cudaMemcpy(dataplan[0].d_Data,c_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
@@ -2210,8 +2224,12 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 //	cufftExecC2C(cuffthandle2, dataplan[0].d_Data, dataplan[0].d_Data, CUFFT_INVERSE);
 	//cudaMemcpy(c_Fconv,dataplan[0].d_Data,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyDeviceToHost);
     for(int i=0;i<padoridim *padoridim*padoridim;i++)
-    	vol_out.data[i]=c_Fconv[i].x;
+    	vol_out.data[i]=c_Fconv2[i].x;
 
+
+
+    free(c_Fconv);
+    cudaFreeHost(c_Fconv2);
 /*
  *  method 1
 	cufftReal *d_Freal;
@@ -2697,10 +2715,6 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 	transformer.inverseFourierTransform();
 
 
-//	printf("Mconv dim : %d %d %d \n",Mconv.xdim,Mconv.ydim,Mconv.zdim);
-//	printdatatofile(Mconv.data,pad_size*pad_size*pad_size,pad_size,1);
-
-
 	// Blob normalisation in Fourier space
 	RFLOAT normftblob = tab_ftblob(0.);
 
@@ -2726,7 +2740,6 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
     	else
     		DIRECT_A3D_ELEM(Mconv, k, i, j) *= (tab_ftblob(rval) / normftblob);
     }
-
 
 
     transformer.FourierTransform();
