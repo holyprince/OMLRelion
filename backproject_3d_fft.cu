@@ -80,11 +80,13 @@ void multi_memcpy_databack(MultiGPUplan *plan, cufftComplex *out,int GPU_N,int d
 	cudaMemcpyAsync(out, plan[0].d_Data,(plan[0].selfZ * dimx * dimy) * sizeof(cufftComplex),cudaMemcpyDeviceToHost);
 	offset += plan[0].selfZ * dimx * dimy;
 	cudaMemcpyAsync(out + offset, plan[1].d_Data + offset,(plan[1].selfZ * dimx * dimy) * sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+
 	for (int i = 0; i < GPU_N; i++) {
 		cudaSetDevice(plan[i].devicenum);
 		cudaDeviceSynchronize();
 	}
 }
+
 void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ)
 {
 	cudaSetDevice(0);
@@ -106,7 +108,7 @@ void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extr
 		sliceoffset120 = halfslice2 + deltanxy;
 
 		cudaMemcpyAsync(plan[1].d_Data + sliceoffset021, plan[0].d_Data + sliceoffset021, cpysize01,cudaMemcpyDeviceToDevice, stream1);
-		cudaMemcpyAsync(plan[0].d_Data + sliceoffset120,plan[1].d_Data + sliceoffset120, cpysize10,cudaMemcpyDeviceToDevice, stream2);
+		cudaMemcpyAsync(plan[0].d_Data + sliceoffset120, plan[1].d_Data + sliceoffset120, cpysize10,cudaMemcpyDeviceToDevice, stream2);
 
 		deltanxy += nxy;
 	}
@@ -120,6 +122,7 @@ void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extr
 	}
 	cudaStreamDestroy(stream1);
 	cudaStreamDestroy(stream2);
+
 
 }
 void mulit_alltoall_two(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ)
@@ -156,32 +159,41 @@ void mulit_alltoall_two(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extr
 	}
 	cudaStreamDestroy(stream1);
 	cudaStreamDestroy(stream2);
+
 }
 
-void mulit_alltoall_all(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ)
+void mulit_alltoall_all1to0(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ)
 {
 	int nxy = dimx * dimy;
 	int halfslice1 = (offsetZ[0]) * dimx; //Z reperesent Y
-	int halfslice2 = (offsetZ[0]) * dimx * dimy;
 	int cpysize01 = (offsetZ[1]) * dimx * sizeof(cufftComplex);
-	int cpysize10 = (offsetZ[0]) * dimx * sizeof(cufftComplex);
 	int deltanxy = 0;
-	int sliceoffset021,sliceoffset120;
-	cudaStream_t stream1, stream2;
-	cudaStreamCreate(&stream1);
-	cudaStreamCreate(&stream2);
+	int sliceoffset021;
 
 	for (int j = 0; j < dimz; j++) {
 		sliceoffset021 = halfslice1 + deltanxy;
-		cudaMemcpyAsync(plan[0].d_Data + sliceoffset021, plan[1].d_Data + sliceoffset021, cpysize01,cudaMemcpyDeviceToDevice, stream1);
+		cudaMemcpyAsync(plan[0].d_Data + sliceoffset021, plan[1].d_Data + sliceoffset021, cpysize01,cudaMemcpyDeviceToDevice);
 
 		deltanxy += nxy;
 	}
-	cudaStreamDestroy(stream1);
-	cudaStreamDestroy(stream2);
+
+}
+void mulit_datacopy_0to1(MultiGPUplan *plan, int dimx,int dimy,int *offsetZ)
+{
+
+	int sliceoffset = (offsetZ[0]) * dimx * dimy;
+	int cpysize = (offsetZ[1]) * dimx *dimy * sizeof(cufftComplex);
+	cudaMemcpy(plan[1].d_Data + sliceoffset, plan[0].d_Data + sliceoffset, cpysize,cudaMemcpyDeviceToDevice);
+
 }
 
-
+void multi_sync(MultiGPUplan *plan,int GPU_N)
+{
+	for (int i = 0; i < GPU_N; i++) {
+		cudaSetDevice(plan[i].devicenum);
+		cudaDeviceSynchronize();
+	}
+}
 
 void multi_fft_exec(cufftComplex *d_Fconv, int flag, int NX1, int NY2,int NZ3)
 {

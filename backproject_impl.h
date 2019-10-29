@@ -66,6 +66,8 @@ void multi_memcpy_data(MultiGPUplan *plan, cufftComplex *f,int GPU_N,int dimx,in
 void multi_memcpy_databack(MultiGPUplan *plan, cufftComplex *f,int GPU_N,int dimx,int dimy);
 void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ);
 void mulit_alltoall_two(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ);
-void mulit_alltoall_all(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ);
+void mulit_alltoall_all1to0(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ);
+void mulit_datacopy_0to1(MultiGPUplan *plan, int dimx,int dimy,int *offsetZ);
 void multi_fft_exec(cufftComplex *d_Fconv, int flag, int NX, int NY,int NZ);
+void multi_sync(MultiGPUplan *plan,int GPU_N);
 
