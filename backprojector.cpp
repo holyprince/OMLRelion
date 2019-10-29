@@ -1265,15 +1265,6 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 					corr_nn += 1.;
 					// Apply division of Eq. [14] in Pipe & Menon (1999)
 					DIRECT_A3D_ELEM(Fnewweight, k, i, j) /= w;
-					int index2 = (k)*YXSIZE(Fnewweight)+((i)*XSIZE(Fnewweight))+(j);
-					int index1 = (k)*YXSIZE(Fconv)+((i)*XSIZE(Fconv))+(j);
-					if(index2 == 21122*102)
-					{
-						printf("index2 : %f %d %f\n",Fnewweight.data[index2],index1,Fconv.data[index1].real);
-						printf("index2 : %d %d %d \n", k ,i ,j );
-						printf("index2 : %d %d %d \n", kp ,ip ,jp );
-					}
-
 				}
 			}
 			RCTOCREC(ReconTimer,ReconS_6);
@@ -1754,13 +1745,25 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
     }
 //==============================================================================add GPU version
-	initgpu();
+
+	int Ndim[3];
+	int GPU_N=2;
+	Ndim[0]=pad_size;
+	Ndim[1]=pad_size;
+	Ndim[2]=pad_size;
+	size_t fullsize= pad_size*pad_size*pad_size;
+    initgpu();
 	RFLOAT *d_Fweight;
 	double *d_Fnewweight;
-	cufftHandle  cufftHandle,cufftHandle2;
+	cufftHandle  cuffthandle,cuffthandle2;
+	MultiGPUplan *dataplan;
+	dataplan = (MultiGPUplan *)malloc(sizeof(MultiGPUplan)*2);
+	multi_plan_init(dataplan,GPU_N,fullsize,Ndim[0],Ndim[1],Ndim[2]);
 	cufftComplex *c_Fconv,*c_Fconv2;
-	cufftComplex *d_Fconv;
-	long int fullsize= pad_size*pad_size*pad_size;
+
+	int xdddd;
+
+
 
     RCTOCREC(ReconTimer,ReconS_2_5);
 	if (skip_gridding)
@@ -1825,50 +1828,134 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 
 
-
-
 		long int Fconvnum=Fconv.nzyxdim;
 
 
-		int Ndim[3];
-		Ndim[0]=pad_size;
-		Ndim[1]=pad_size;
-		Ndim[2]=pad_size;
+
 		long int normsize= Ndim[0]*Ndim[1]*Ndim[2];
 		int halfxdim=Fconv.xdim;
 
-		printf("%d %d %d \n",Fconv.xdim,Fconv.ydim,Fconv.zdim);
-		printf("Fnewweight: %d %d %d \n",Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
-		//int Fconvnum=pad_size* pad_size* pad_size;
+		printf("%ld %ld %ld \n",Fconv.xdim,Fconv.ydim,Fconv.zdim);
+		printf("Fnewweight: %ld %ld %ld \n",Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
+
+		int NZ= Ndim[2];
+//======for whole divide num along Z ============================================
+		int offsetZ[4];
+		int dividnum=2;
+		int i;
+		for (i = 0; i < dividnum; i++)
+			offsetZ[i] = NZ / dividnum;
+		offsetZ[i - 1] = NZ - (NZ / dividnum) * (dividnum-1);
+		int extraz = offsetZ[i-1] - offsetZ[i-2];
+		printf("offset :%d %d extraz: %d \n", offsetZ[0], offsetZ[1], extraz);
+//=============================
+		dataplan[0].selfZ = offsetZ[0]; //+ offsetZ[1];
+		dataplan[1].selfZ = offsetZ[1]; //+ offsetZ[3];
+
+//=================================
+		int xyN[2];
+		xyN[0] = Ndim[0];
+		xyN[1] = Ndim[1];
+		cufftHandle xyplan[2];
+		cufftHandle xyextra;
+
+//===================================
+
+
+		multi_enable_access(dataplan,GPU_N);
+
+
 
 		c_Fconv = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
-		//cufftComplex *c_output = (cufftComplex*) malloc(Fconvnum * sizeof(cufftComplex));
-
 
 		cudaMalloc((void**) &d_Fnewweight, sizeof(double)*Fnewweight.nzyxdim);
 
 		d_Fweight = gpusetdata_float(d_Fweight,Fweight.nzyxdim,Fweight.data);
 		d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
-		cudaMalloc((void**) &d_Fconv, Ndim[0]*Ndim[1]*Ndim[2] * sizeof(cufftComplex));
+		//cudaMalloc((void**) &d_Fconv, Ndim[0]*Ndim[1]*Ndim[2] * sizeof(cufftComplex));
 
-	    cufftPlan3d( &cufftHandle, Ndim[0], Ndim[1], Ndim[2] , CUFFT_C2C);
-	    cufftPlan3d( &cufftHandle2, Ndim[0], Ndim[1], Ndim[2] , CUFFT_C2R);
+		for (int i = 0; i < GPU_N; ++i) {
+			cudaSetDevice(dataplan[i].devicenum);
+			cudaMalloc((void**) &(dataplan[i].d_Data),sizeof(cufftComplex) * dataplan[i].datasize);
+		}
+
+         cufftPlan3d( &cuffthandle, Ndim[0], Ndim[1], Ndim[2] , CUFFT_C2C);
+
 		for (int iter = 0; iter < max_iter_preweight; iter++)
 		{
 
             //std::cout << "    iteration " << (iter+1) << "/" << max_iter_preweight << "\n";
 			RCTICREC(ReconTimer,ReconS_6);
 
-			vector_Multi(d_Fnewweight,d_Fweight,d_Fconv,Fconvnum);
-			cudaMemcpy(c_Fconv,d_Fconv,pad_size*pad_size*pad_size*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
-
+			vector_Multi(d_Fnewweight,d_Fweight,dataplan[0].d_Data,Fconvnum);
+			cudaMemcpy(c_Fconv,dataplan[0].d_Data,Fconvnum*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
 			layoutchange(c_Fconv,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
-			cudaMemcpy(d_Fconv,c_Fconv2,pad_size*pad_size*pad_size*sizeof(cufftComplex),cudaMemcpyHostToDevice);
-			//cufftReal *d_Fdata;
-			//cudaMalloc((void**) &d_Fdata, Ndim[0]*Ndim[1]*Ndim[2] * sizeof(cufftReal));
-			//cufftExecC2R(cufftHandle2, d_Fconv, d_Fdata);
-		    cufftExecC2C(cufftHandle, d_Fconv, d_Fconv, CUFFT_INVERSE);
+
+			multi_memcpy_data(dataplan,c_Fconv2,GPU_N,Ndim[0],Ndim[1]);
+		    for (int i = 0; i < GPU_N; i++) {
+		    	cudaSetDevice(dataplan[i].devicenum);
+				cufftPlanMany(&xyplan[i], 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, NZ / 2);
+				if (i == 1)
+					cufftPlanMany(&xyextra, 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, extraz);
+		    }
+			int offset = 0;
+			for (int i = 0; i < GPU_N; i++) {
+				cudaSetDevice(dataplan[i].devicenum);
+				cufftExecC2C(xyplan[i], dataplan[i].d_Data + offset,dataplan[i].d_Data + offset, CUFFT_INVERSE);
+				offset += Ndim[0] * Ndim[1] * (Ndim[2] / 2);
+				cufftDestroy(xyplan[i]);
+			}
+			//extra FFT
+			cufftExecC2C(xyextra, dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1],
+					dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1], CUFFT_INVERSE);
+			cufftDestroy(xyextra);
+			for (int i = 0; i < GPU_N; i++) {
+				cudaSetDevice(dataplan[i].devicenum);
+				cudaDeviceSynchronize();
+			}
+			mulit_alltoall_one(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
+
+			cufftHandle zplan[2];
+			cufftHandle zplanextra;
+
+			int Ncol[1];
+			Ncol[0] = Ndim[1];
+			int inembed[3], extraembed[3];
+			inembed[0] = Ndim[0];
+			inembed[1] = offsetZ[0];
+			inembed[2] = Ndim[2];
+			extraembed[0] = Ndim[0];
+			extraembed[1] = offsetZ[1];
+			extraembed[2] = Ndim[2];
+
+			cudaSetDevice(0);
+			cufftPlanMany(&zplan[0], 1, Ncol, inembed, Ndim[0] * Ndim[1], 1,inembed, Ndim[0] * Ndim[1], 1, CUFFT_C2C, Ndim[0] * (offsetZ[0]));
+			cudaSetDevice(1);
+			cufftPlanMany(&zplan[1], 1, Ncol, extraembed, Ndim[0] * Ndim[1], 1, extraembed, Ndim[0] * Ndim[1], 1, CUFFT_C2C, Ndim[0] * (offsetZ[1]));
+			int fftoffset[2];
+			fftoffset[0] = 0;
+			fftoffset[1] = Ndim[0] * (Ndim[1] / 2);
+			cudaSetDevice(0);
+			cufftExecC2C(zplan[0], dataplan[0].d_Data + fftoffset[0],dataplan[0].d_Data + fftoffset[0], CUFFT_INVERSE);
+			cudaSetDevice(1);
+			cufftExecC2C(zplan[1], dataplan[1].d_Data + fftoffset[1],
+					dataplan[1].d_Data + fftoffset[1], CUFFT_INVERSE);
+
+
+			for (int i = 0; i < GPU_N; i++) {
+				cudaSetDevice(dataplan[i].devicenum);
+				cudaDeviceSynchronize();
+			}
+			mulit_alltoall_all(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
+//			mulit_alltoall_two(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
+//			multi_memcpy_databack(dataplan,c_Fconv,GPU_N,Ndim[0],Ndim[1]);
+
+//			printdatatofile(c_Fconv,pad_size*pad_size*pad_size,pad_size,0);
+
+//			cudaMemcpy(d_Fconv,c_Fconv2,pad_size*pad_size*pad_size*sizeof(cufftComplex),cudaMemcpyHostToDevice);
+
+		   // multi_fft_exec(d_Fconv, d_Fconv, CUFFT_INVERSE, Ndim[0],Ndim[1],Ndim[2]);
 
 			cudaDeviceSynchronize();
 			RFLOAT normftblob = tab_ftblob(0.);
@@ -1876,23 +1963,18 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			int tabxdim=tab_ftblob.tabulatedValues.xdim;
 			d_tab_ftblob=gpusetdata_float(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);
 			//gpu_kernel2
-			volume_Multi_float(d_Fconv,d_tab_ftblob, Ndim[0]*Ndim[1]*Ndim[2], tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob);
+			volume_Multi_float(dataplan[0].d_Data,d_tab_ftblob, Ndim[0]*Ndim[1]*Ndim[2], tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob);
 			cudaDeviceSynchronize();
-			//float *datareal= (float *)malloc(sizeof(float)*Ndim[0]*Ndim[1]*Ndim[2]);
 
 
-			cufftExecC2C(cufftHandle, d_Fconv, d_Fconv, CUFFT_FORWARD);
+
+			cufftExecC2C(cuffthandle, dataplan[0].d_Data, dataplan[0].d_Data, CUFFT_FORWARD);
 			cudaDeviceSynchronize();
-			vector_Normlize(d_Fconv, normsize ,Ndim[0]*Ndim[1]*Ndim[2]);
+			vector_Normlize(dataplan[0].d_Data, normsize ,Ndim[0]*Ndim[1]*Ndim[2]);
 
 			//gpu_kernel3
 
-//			cudaMemcpy(c_Fconv,d_Fconv,pad_size*pad_size*pad_size*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
-
-			fft_Divide(d_Fconv,d_Fnewweight,fullsize,pad_size*pad_size,pad_size,pad_size,pad_size,halfxdim,max_r2);
-
-
-			cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
+			fft_Divide(dataplan[0].d_Data,d_Fnewweight,fullsize,pad_size*pad_size,pad_size,pad_size,pad_size,halfxdim,max_r2);
 
 			RCTOCREC(ReconTimer,ReconS_6);
 
@@ -1905,10 +1987,9 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	#endif
 
 		}
-		//cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
-
-
-
+		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
+		for(int i=0;i<10;i++)
+			printf("%f ",Fnewweight.data[i]);
 		RCTICREC(ReconTimer,ReconS_7);
 
 	#ifdef DEBUG_RECONSTRUCT
@@ -2068,10 +2149,10 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	windowFourierTransform(Fconv, padoridim);
 	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv);
 
-	cudaMemcpy(d_Fconv,c_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
-	cufftPlan3d( &cufftHandle2, padoridim, padoridim, padoridim , CUFFT_C2C);
-	cufftExecC2C(cufftHandle2, d_Fconv, d_Fconv, CUFFT_INVERSE);
-	cudaMemcpy(c_Fconv,d_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+	cudaMemcpy(dataplan[0].d_Data,c_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
+	cufftPlan3d( &cuffthandle2, padoridim, padoridim, padoridim , CUFFT_C2C);
+	cufftExecC2C(cuffthandle2, dataplan[0].d_Data, dataplan[0].d_Data, CUFFT_INVERSE);
+	cudaMemcpy(c_Fconv,dataplan[0].d_Data,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyDeviceToHost);
     for(int i=0;i<padoridim *padoridim*padoridim;i++)
     	vol_out.data[i]=c_Fconv[i].x;
 

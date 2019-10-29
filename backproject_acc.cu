@@ -125,7 +125,6 @@ void initgpu()
 	int devCount;
 	cudaGetDeviceCount(&devCount);
 	printf("GPU num for max %d \n",devCount);
-	cudaSetDevice(0);
 }
 
 
