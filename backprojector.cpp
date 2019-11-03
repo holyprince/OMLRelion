@@ -2160,10 +2160,14 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	windowFourier(c_Fconv,c_Fconv_window,pad_size,padoridim);*/
 
 	windowFourierTransform(Fconv, padoridim);
-	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv2);
-
-//init plan and for even data
+    cudaFreeHost(c_Fconv2);
 	fullsize = padoridim *padoridim*padoridim;
+    cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
+//	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
+	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv2);
+//	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
+//init plan and for even data
+
 	multi_plan_init(dataplan,GPU_N,fullsize,padoridim,padoridim,padoridim);
 
 	dataplan[0].selfZ=padoridim/2;
