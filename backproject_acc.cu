@@ -126,6 +126,15 @@ void initgpu()
 	int devCount;
 	cudaGetDeviceCount(&devCount);
 	printf("GPU num for max %d \n",devCount);
+
+
+	for (int i = 0; i < devCount; i++) {
+		cudaSetDevice(i);
+		size_t freedata1,total1;
+		cudaMemGetInfo( &freedata1, &total1 );
+		printf("before alloccation  : %ld   %ld and gpu num %d \n",freedata1,total1,i);
+
+	}
 }
 
 

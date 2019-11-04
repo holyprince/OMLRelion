@@ -761,7 +761,7 @@ void MlOptimiser::parseInitial(int argc, char **argv)
 	maximum_significants = textToInteger(parser.getOption("--maxsig", "", "0", true));
 	skip_gridding = parser.checkOption("--skip_gridding", "", "false", true);
 	do_fsc0999 = checkParameter(argc, argv, "--fsc0999");
-
+	do_sequential_halves_recons = true; //add
 #ifdef DEBUG_READ
     std::cerr<<"MlOptimiser::parseInitial Done"<<std::endl;
 #endif

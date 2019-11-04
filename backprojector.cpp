@@ -2134,41 +2134,28 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	padoridim += padoridim%2;
     vol_out.reshape(padoridim, padoridim, padoridim);
     vol_out.setXmippOrigin();
-//	cufftComplex *d_Fconv_window;
-//	cudaMalloc((void**) &d_Fconv_window, sizeof(cufftComplex)*padoridim*padoridim*padoridim);
+	fullsize = padoridim *padoridim*padoridim;
+	multi_plan_init(dataplan,GPU_N,fullsize,padoridim,padoridim,padoridim);
+	if(padoridim > pad_size)
+	{
+		for (int i = 0; i < GPU_N; ++i) {
+			cudaSetDevice(dataplan[i].devicenum);
+			cudaFree((dataplan[i].d_Data));
+			cudaMalloc((void**) &(dataplan[i].d_Data),sizeof(cufftComplex) * dataplan[i].datasize);
+		}
+	    cudaFreeHost(c_Fconv2);
+	    cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
 
-
-/*
- * failed method x dim not consistent
-	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv);
-	cufftComplex *c_Fconv_window = (cufftComplex *)malloc(sizeof(cufftComplex)*padoridim*padoridim*padoridim);
-	windowFourier(c_Fconv,c_Fconv_window,pad_size,padoridim);
-	cudaMemcpy(d_Fconv,c_Fconv_window,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
-	int status;
-	status = cufftPlan3d( &cufftHandle, padoridim, padoridim, padoridim , CUFFT_C2C);
-	printf("status 1 : %d ",status);
-	status = cufftExecC2C(cufftHandle, d_Fconv, d_Fconv, CUFFT_INVERSE);
-	printf("status 2 : %d ",status);
-   cudaMemcpy(c_Fconv_window,d_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyDeviceToHost);
-    vol_out.reshape(padoridim, padoridim, padoridim);
-    vol_out.setXmippOrigin();
-    for(int i=0;i<padoridim *padoridim*padoridim;i++)
-    	vol_out.data[i]=c_Fconv_window[i].x;
-*/
-/*	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv);
-	cufftComplex *c_Fconv_window = (cufftComplex *)malloc(sizeof(cufftComplex)*padoridim*padoridim*padoridim);
-	windowFourier(c_Fconv,c_Fconv_window,pad_size,padoridim);*/
+	}
 
 	windowFourierTransform(Fconv, padoridim);
-    cudaFreeHost(c_Fconv2);
-	fullsize = padoridim *padoridim*padoridim;
-    cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
+
 //	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
 	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv2);
 //	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
 //init plan and for even data
 
-	multi_plan_init(dataplan,GPU_N,fullsize,padoridim,padoridim,padoridim);
+
 
 	dataplan[0].selfZ=padoridim/2;
 	dataplan[1].selfZ=padoridim/2;
@@ -2214,6 +2201,9 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	mulit_alltoall_two(dataplan,padoridim,padoridim,padoridim,0,offsetz);
 	multi_memcpy_databack(dataplan,c_Fconv2,GPU_N,padoridim,padoridim);
 
+
+
+
 	for (int i = 0; i < GPU_N; i++) {
 		cudaSetDevice(dataplan[i].devicenum);
 		cufftDestroy(zplan[i]);
@@ -2221,6 +2211,15 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 		cudaFree(dataplan[i].d_Data);
 		cudaDeviceSynchronize();
 	}
+	for (int i = 0; i < GPU_N; i++) {
+		cudaSetDevice(dataplan[i].devicenum);
+		size_t freedata1,total1;
+		cudaMemGetInfo( &freedata1, &total1 );
+		printf("After alloccation  : %ld   %ld and gpu num %d \n",freedata1,total1,i);
+		float * testmem;
+		cudaMalloc((void **)&testmem,sizeof(float)*100000);
+	}
+
 
 
 //	cudaMemcpy(dataplan[0].d_Data,c_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
