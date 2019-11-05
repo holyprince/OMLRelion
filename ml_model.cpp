@@ -1795,6 +1795,7 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces
         REPORT_ERROR("MlWsumModel::pack: idx != idx_stop-idx_start");
 
     }
+    printf("%llu  %llu \n",packed_size,ori_idx);
 
 }
 

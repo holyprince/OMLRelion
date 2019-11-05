@@ -105,7 +105,12 @@ void MlOptimiserMpi::initialise()
 	//Setup GPU related resources
     int devCount, deviceAffinity;
 	bool is_split(false);
-
+#ifdef TIMEICT
+	struct timeval tv1,tv2;
+	struct timezone tz;
+	float time_use;
+	gettimeofday (&tv1, &tz);
+#endif
 	if (do_gpu)
 	{
 		MPI_Status status;
@@ -411,7 +416,6 @@ void MlOptimiserMpi::initialise()
 				for (int i = 0; i < cudaDevices.size(); i ++)
 				{
 					MlDeviceBundle b(this);
-					printf("cudaDevices %d \n ",cudaDevices[i]);
 					b.setDevice(cudaDevices[i]);
 					size_t t = b.checkFixedSizedObjects(cudaDeviceShares[i]);
 					boxLim = ((t < boxLim) ? t : boxLim );
@@ -461,12 +465,27 @@ will still yield good performance and possibly a more stable execution. \n" << s
 	/************************************************************************/
 #endif // CUDA
 
+#ifdef TIMEICT
+	gettimeofday (&tv1, &tz);
+#endif
 
     MlOptimiser::initialiseGeneral(node->rank);
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("2. initialiseGeneral : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 
+#ifdef TIMEICT
+	gettimeofday (&tv1, &tz);
+#endif
 
     initialiseWorkLoad();
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("3. initialiseWorkLoad : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 #ifdef ALTCPU
 	// Don't start threading until after most I/O is over
 	if (do_cpu)
@@ -518,16 +537,39 @@ will still yield good performance and possibly a more stable execution. \n" << s
 		// Calculate initial sigma noise model from power_class spectra of the individual images
 		// This is done in parallel
 		//std::cout << " Hello world1! I am node " << node->rank << " out of " << node->size <<" and my hostname= "<< getenv("HOSTNAME")<< std::endl;
+#ifdef TIMEICT
+	gettimeofday (&tv1, &tz);
+#endif
 		calculateSumOfPowerSpectraAndAverageImage(Mavg);
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("4. calculateSumOfPowerSpectraAndAverageImage : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 		// Set sigma2_noise and Iref from averaged poser spectra and Mavg
 		if (!node->isMaster())
+		{
+#ifdef TIMEICT
+	gettimeofday (&tv1, &tz);
+#endif
 			MlOptimiser::setSigmaNoiseEstimatesAndSetAverageImage(Mavg);
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("5. setSigmaNoiseEstimatesAndSetAverageImage : %f and process id is %d \n", time_use,node->rank) ;
+#endif
+		}
 		//std::cout << " Hello world3! I am node " << node->rank << " out of " << node->size <<" and my hostname= "<< getenv("HOSTNAME")<< std::endl;
 	}
-
-
+#ifdef TIMEICT
+	gettimeofday (&tv1, &tz);
+#endif
 	MlOptimiser::initialLowPassFilterReferences();
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("6. initialLowPassFilterReferences : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 
 	// Initialise the data_versus_prior ratio to get the initial current_size right
 	if (iter == 0 && !do_initialise_bodies && !node->isMaster())
@@ -536,6 +578,9 @@ will still yield good performance and possibly a more stable execution. \n" << s
 	//std::cout << " Hello world! I am node " << node->rank << " out of " << node->size <<" and my hostname= "<< getenv("HOSTNAME")<< std::endl;
 
 	// Only master writes out initial mymodel (do not gather metadata yet)
+#ifdef TIMEICT
+	gettimeofday (&tv1, &tz);
+#endif
 	int my_nr_subsets = (do_split_random_halves) ? 2 : 1;
 	if (node->isMaster() && !do_movies_in_batches)
 		MlOptimiser::write(DONT_WRITE_SAMPLING, DO_WRITE_DATA, DONT_WRITE_OPTIMISER, DONT_WRITE_MODEL, node->rank);
@@ -580,7 +625,11 @@ will still yield good performance and possibly a more stable execution. \n" << s
 			do_use_all_data = true;
 		}
 	}
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("7. write op : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 
 #ifdef DEBUG
     std::cerr<<"MlOptimiserMpi::initialise Done"<<std::endl;
@@ -778,12 +827,26 @@ void MlOptimiserMpi::expectation()
 
 	// Initialise some stuff
 	// A. Update current size (may have been changed to ori_size in autoAdjustAngularSampling) and resolution pointers
-	updateImageSizeAndResolutionPointers();
+#ifdef TIMEICT
+	struct timeval tv1,tv2;
+	struct timezone tz;
+	float time_use;
+	gettimeofday (&tv1, &tz);
+#endif
 
+	updateImageSizeAndResolutionPointers();
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Expe1. updateImageSizeAndResolutionPointers : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 	// B. Set the PPref Fourier transforms, initialise wsum_model, etc.
 	// The master only holds metadata, it does not set up the wsum_model (to save memory)
 #ifdef TIMING
 		timer.tic(TIMING_EXP_1a);
+#endif
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
 #endif
 	if (!node->isMaster())
 	{
@@ -801,7 +864,11 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMING
 		timer.toc(TIMING_EXP_1a);
 #endif
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Expe2. setup : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 	if(!do_split_random_halves)
 	{
 		if (!node->isMaster())
@@ -848,6 +915,9 @@ void MlOptimiserMpi::expectation()
 		timer.toc(TIMING_EXP_1);
 		timer.tic(TIMING_EXP_2);
 #endif
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
+#endif
 	// C. Calculate expected angular errors
 	// Do not do this for maxCC
 	// Only the first (reconstructing) slave (i.e. from half1) calculates expected angular errors
@@ -891,9 +961,17 @@ void MlOptimiserMpi::expectation()
 		node->relion_MPI_Bcast(&acc_rot, 1, MY_MPI_DOUBLE, first_slave, MPI_COMM_WORLD);
 		node->relion_MPI_Bcast(&acc_trans, 1, MY_MPI_DOUBLE, first_slave, MPI_COMM_WORLD);
 	}
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Expe3. calc expect : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 #ifdef TIMING
 		timer.toc(TIMING_EXP_2);
 		timer.tic(TIMING_EXP_3);
+#endif
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
 #endif
 	// D. Update the angular sampling (all nodes except master)
 	if (!node->isMaster() && (do_auto_refine || do_sgd) && iter > 1)
@@ -930,7 +1008,14 @@ void MlOptimiserMpi::expectation()
 		if (all_fixed > 0)
 			return;
 	}
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Expe4. update sampling : %f and process id is %d \n", time_use,node->rank) ;
+#endif
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
+#endif
 	// E. All nodes, except the master, check memory and precalculate AB-matrices for on-the-fly shifts
 	if (!node->isMaster())
 	{
@@ -1044,6 +1129,11 @@ void MlOptimiserMpi::expectation()
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Expe5. GPU set up  : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 
 	if (do_gpu && ! node->isMaster())
 	{
@@ -1108,8 +1198,16 @@ void MlOptimiserMpi::expectation()
 	fftw_plan_with_nthreads(1);
 #endif
 
+
+struct timeval tparticle1,tparticle2;
+struct timezone tparticle;
+float sumtime=0;
+time_use =0;
 #ifdef TIMING
 		timer.toc(TIMING_EXP_4);
+#endif
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
 #endif
 	long int my_nr_ori_particles = (subset_size > 0) ? subset_size : mydata.numberOfOriginalParticles();
 	if (node->isMaster())
@@ -1309,13 +1407,22 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMING
 		timer.toc(TIMING_EXP_5);
 #endif
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Expe6. job distributed from master : %f and process id is %d \n", time_use,node->rank) ;
+#endif
+
     }
     else  // if not Master
     {
 #ifdef TIMING
 		timer.tic(TIMING_EXP_6);
 #endif
-    	try
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
+#endif
+		try
     	{
 
     		if (halt_all_slaves_except_this > 0)
@@ -1439,7 +1546,17 @@ void MlOptimiserMpi::expectation()
                     struct timezone tz;
                     gettimeofday (&tv1, &tz);*/
 
+#ifdef TIMEICT
+		gettimeofday (&tparticle1, &tparticle);
+#endif
+
                     expectationSomeParticles(JOB_FIRST, JOB_LAST);
+
+#ifdef TIMEICT
+	gettimeofday (&tparticle2, &tparticle);
+	sumtime +=(1000 * (tparticle2.tv_sec-tparticle1.tv_sec)+ (tparticle2.tv_usec-tparticle1.tv_usec)/1000);
+#endif
+
 /*                    gettimeofday (&tv2, &tz);
                     finish = MPI_Wtime();
                     printf("MPI time is %f  and the thread is %d\n",finish-start,node->rank);
@@ -1457,15 +1574,26 @@ void MlOptimiserMpi::expectation()
 					// Also send the metadata belonging to those
 					node->relion_MPI_Send(MULTIDIM_ARRAY(exp_metadata), MULTIDIM_SIZE(exp_metadata), MY_MPI_DOUBLE, 0, MPITAG_METADATA, MPI_COMM_WORLD);
 
+					printf(" Expectation size %ld \n",MULTIDIM_SIZE(exp_metadata));
 #ifdef TIMING
 					timer.toc(TIMING_MPISLAVEWAIT3);
+#endif
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+
 #endif
 
 				}
 
 			}
-
+		printf("Expe6.1 running time   slave : %f and process id is %d \n", sumtime,node->rank) ;
+		printf("Expe6.2 job distributed slave : %f and process id is %d \n", time_use,node->rank) ;
 //		TODO: define MPI_COMM_SLAVES!!!!	MPI_Barrier(node->MPI_COMM_SLAVES);
+
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
+#endif
 
 #ifdef CUDA
 			if (do_gpu)
@@ -1639,7 +1767,11 @@ void MlOptimiserMpi::expectation()
 		for (int iclass = 0; iclass < mymodel.nr_classes; iclass++)
 			mymodel.PPref[iclass].initialiseData(0);
 	}
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("exp7. end and free : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 
 #ifdef DEBUG
 	std::cerr << "MlOptimiserMpi::expectation: done" << std::endl;
@@ -1773,6 +1905,7 @@ void MlOptimiserMpi::combineAllWeightedSums()
 	std::cerr << " starting combineAllWeightedSums..." << std::endl;
 #endif
 	// Only combine weighted sums if there are more than one slaves per subset!
+	printf("combine condition:  %d \n",(node->size - 1)/nr_halfsets);
 	if ((node->size - 1)/nr_halfsets > 1)
 	{
 		// Loop over possibly multiple instances of Mpack of maximum size
@@ -1788,6 +1921,8 @@ void MlOptimiserMpi::combineAllWeightedSums()
 			if (!node->isMaster())
 			{
 				wsum_model.pack(Mpack, piece, nr_pieces);
+				printf("Mpack.nzyxdim,piece,nr_pieces : %ld %d %d ",Mpack.nzyxdim,piece,nr_pieces);
+
 				// The first slave(s) set Msum equal to Mpack, the others initialise to zero
 				if (node->rank <= nr_halfsets)
 					Msum = Mpack;
@@ -2040,6 +2175,12 @@ void MlOptimiserMpi::maximization()
 #ifdef TIMING
 		timer.tic(TIMING_RECONS);
 #endif
+#ifdef TIMEICT
+	struct timeval tv1,tv2;
+	struct timezone tz;
+	float time_use;
+	gettimeofday (&tv1, &tz);
+#endif
 
 	// For multi-body refinement: check if all bodies are fixed. If so, just return
 	if (mymodel.nr_bodies > 1)
@@ -2087,7 +2228,6 @@ void MlOptimiserMpi::maximization()
 				if (node->rank == reconstruct_rank1)
 				{
 
-					printf("%f \n",(wsum_model.BPref[iclass].weight).sum());
 					if ((wsum_model.BPref[iclass].weight).sum() > XMIPP_EQUAL_ACCURACY)
 					{
 
@@ -2293,7 +2433,6 @@ void MlOptimiserMpi::maximization()
 						// But rank 2 always does the unfiltered reconstruction
 						if (do_auto_refine && has_converged)
 						{
-							printf("Before rank2 ArraysAndReconstruct \n");
 							readTemporaryDataAndWeightArraysAndReconstruct(ith_recons, 2);
 						}
 						printf("After rank2 \n");
@@ -2322,7 +2461,12 @@ void MlOptimiserMpi::maximization()
 	std::cerr << "rank= "<<node->rank<<" has reached barrier of reconstruction" << std::endl;
 #endif
 	MPI_Barrier(MPI_COMM_WORLD);
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Maximazation. reconstruction : %f and process id is %d \n", time_use,node->rank) ;
+	gettimeofday (&tv1, &tz);
+#endif
 #ifdef DEBUG
 	std::cerr << "All classes have been reconstructed" << std::endl;
 #endif
@@ -2441,24 +2585,45 @@ void MlOptimiserMpi::maximization()
 		}
 	}
 	RCTOC(timer,RCT_2);
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Maximazation . send data : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 #ifdef TIMING
 		timer.toc(TIMING_RECONS);
 #endif
 
 	if (node->isMaster())
 	{
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
+#endif
 		RCTIC(timer,RCT_4);
 		// The master also updates the changes in hidden variables
 		updateOverallChangesInHiddenVariables();
 		RCTOC(timer,RCT_4);
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Maximazation . updateOverallChangesInHiddenVariables : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 	}
 	else
 	{
 		// Now do the maximisation of all other parameters (and calculate the tau2_class-spectra of the reconstructions
 		// The lazy master never does this: it only handles metadata and does not have the weighted sums
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
+#endif
 		RCTIC(timer,RCT_3);
 		maximizationOtherParameters();
 		RCTOC(timer,RCT_3);
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("Maximazation . maximizationOtherParameters : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 	}
 
 	// The master broadcasts the changes in hidden variables to all other nodes
@@ -2507,9 +2672,9 @@ void MlOptimiserMpi::maximization()
 
 void MlOptimiserMpi::joinTwoHalvesAtLowResolution()
 {
-#ifdef DEBUG
+//#ifdef DEBUG
 	std::cerr << "MlOptimiserMpi::joinTwoHalvesAtLowResolution: Entering " << std::endl;
-#endif
+//#endif
 
 	if (!do_split_random_halves)
 		REPORT_ERROR("BUG: you should not be in MlOptimiserMpi::joinTwoHalvesAtLowResolution!");
@@ -2533,6 +2698,7 @@ void MlOptimiserMpi::joinTwoHalvesAtLowResolution()
 		std::cerr << " ibody= " << ibody << " node->rank= " << node->rank << " reconstruct_rank1= " << reconstruct_rank1 << " reconstruct_rank2= " << reconstruct_rank2 << std::endl;
 #endif
 
+
 		if (node->rank == reconstruct_rank1 || node->rank == reconstruct_rank2)
 		{
 			MultidimArray<Complex > lowres_data;
@@ -2550,6 +2716,7 @@ void MlOptimiserMpi::joinTwoHalvesAtLowResolution()
 				// The second slave sends its lowres_data and lowres_weight to the first slave
 				node->relion_MPI_Send(MULTIDIM_ARRAY(lowres_data), 2*MULTIDIM_SIZE(lowres_data), MY_MPI_DOUBLE, reconstruct_rank1, MPITAG_IMAGE, MPI_COMM_WORLD);
 				node->relion_MPI_Send(MULTIDIM_ARRAY(lowres_weight), MULTIDIM_SIZE(lowres_weight), MY_MPI_DOUBLE, reconstruct_rank1, MPITAG_RFLOAT, MPI_COMM_WORLD);
+
 
 				// Now the first slave is calculating the average....
 #ifdef DEBUG
@@ -2619,6 +2786,7 @@ void MlOptimiserMpi::joinTwoHalvesAtLowResolution()
 void MlOptimiserMpi::reconstructUnregularisedMapAndCalculateSolventCorrectedFSC()
 {
 
+	printf("reconstructUnregularisedMapAndCalculateSolventCorrectedFSC \n");
 	if (do_sgd || subset_size > 0)
 		REPORT_ERROR("BUG! You cannot do solvent-corrected FSCs and subsets!");
 
@@ -2802,7 +2970,7 @@ void MlOptimiserMpi::reconstructUnregularisedMapAndCalculateSolventCorrectedFSC(
 void MlOptimiserMpi::writeTemporaryDataAndWeightArrays()
 {
 
-	printf("writeTemporaryDataAndWeightArrays\n");
+
 	if ( (node->rank == 1 || (do_split_random_halves && node->rank == 2) ) )
 	{
 		Image<RFLOAT> It;
@@ -2942,9 +3110,9 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct(int iclass, 
 
 void MlOptimiserMpi::compareTwoHalves()
 {
-#ifdef DEBUG
+//#ifdef DEBUG
 	std::cerr << "MlOptimiserMpi::compareTwoHalves: Entering " << std::endl;
-#endif
+//#endif
 
 	if (!do_split_random_halves)
 		REPORT_ERROR("ERROR: you should not be in MlOptimiserMpi::compareTwoHalves if !do_split_random_halves");
@@ -2995,7 +3163,9 @@ void MlOptimiserMpi::compareTwoHalves()
 			{
 				// The second slave sends its average to the first slave
 				node->relion_MPI_Send(MULTIDIM_ARRAY(avg1), 2*MULTIDIM_SIZE(avg1), MY_MPI_DOUBLE, 1, MPITAG_IMAGE, MPI_COMM_WORLD);
+				printf("FSC datasize : %ld \n",2*MULTIDIM_SIZE(avg1));
 			}
+
 			else if (node->rank == 1)
 			{
 
@@ -3087,16 +3257,32 @@ void MlOptimiserMpi::iterate()
 #ifdef DEBUG
 		std::cerr << " before combineAllWeightedSums..." << std::endl;
 #endif
+
+#ifdef TIMEICT
+	struct timeval tv1,tv2;
+	struct timezone tz;
+	float time_use;
+	gettimeofday (&tv1, &tz);
+#endif
+
+
 		if (combine_weights_thru_disc)
 			combineAllWeightedSumsViaFile();
 		else
 			combineAllWeightedSums();
+
+
 #ifdef DEBUG
 		std::cerr << " after combineAllWeightedSums..." << std::endl;
 #endif
 
 		MPI_Barrier(MPI_COMM_WORLD);
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" EM : combineAllWeightedSums : %f and process id is %d \n", time_use,node->rank) ;
+	gettimeofday (&tv1, &tz);
+#endif
 		// Sjors & Shaoda Apr 2015
 		// This function does enforceHermitianSymmetry, applyHelicalSymmetry and applyPointGroupSymmetry sequentially.
 		// First it enforces Hermitian symmetry to the back-projected Fourier 3D matrix.
@@ -3128,16 +3314,27 @@ void MlOptimiserMpi::iterate()
 		if ((do_auto_refine && has_converged) || do_keep_debug_reconstruct_files)
 #endif
 			writeTemporaryDataAndWeightArrays();
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" EM : sym reconstrcutcion : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 		// Inside iterative refinement: do FSC-calculation BEFORE the solvent flattening, otherwise over-estimation of resolution
 		// anyway, now that this is done inside BPref, there would be no other way...
 		if (do_split_random_halves)
 		{
-
+#ifdef TIMEICT
+			gettimeofday (&tv1, &tz);
+#endif
 			// For asymmetric molecules, join 2 half-reconstructions at the lowest resolutions to prevent them from diverging orientations
 			if (low_resol_join_halves > 0.)
 				joinTwoHalvesAtLowResolution();
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" EM : joinTwoHalvesAtLowResolution : %f and process id is %d \n", time_use,node->rank) ;
+	gettimeofday (&tv1, &tz);
+#endif
 #ifdef DEBUG
 			std::cerr << " before compareHalves..." << std::endl;
 #endif
@@ -3150,7 +3347,12 @@ void MlOptimiserMpi::iterate()
 #ifdef DEBUG
 			std::cerr << " after compareHalves..." << std::endl;
 #endif
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" EM : compareTwoHalves : %f and process id is %d \n", time_use,node->rank) ;
+	gettimeofday (&tv1, &tz);
+#endif
 			// For automated sampling procedure
 			if (!node->isMaster()) // the master does not have the correct mymodel.current_size, it only handles metadata!
 			{
@@ -3178,16 +3380,28 @@ void MlOptimiserMpi::iterate()
 						has_high_fsc_at_limit = (DIRECT_A1D_ELEM(mymodel.fsc_halves_class[ibody], mymodel.current_size/2 - 1) > 0.2);
 				}
 			}
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" EM : automated sampling : %f and process id is %d \n", time_use,node->rank) ;
 
+#endif
 			// Upon convergence join the two random halves
 			if (do_join_random_halves || do_always_join_random_halves)
 			{
-
+#ifdef TIMEICT
+				gettimeofday (&tv1, &tz);
+#endif
 				if (combine_weights_thru_disc)
 					combineWeightedSumsTwoRandomHalvesViaFile();
 				else
 					combineWeightedSumsTwoRandomHalves();
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" EM : combineWeightedSumsTwoRandomHalves : %f and process id is %d \n", time_use,node->rank) ;
 
+#endif
 			}
 		}
 
@@ -3197,8 +3411,9 @@ void MlOptimiserMpi::iterate()
 #endif
 
 		maximization();
-
-
+#ifdef TIMEICT
+	gettimeofday (&tv1, &tz);
+#endif
 		// Make sure all nodes have the same resolution, set the data_vs_prior array from half1 also for half2
 		// Because there is an if-statement on ave_Pmax to set the image size, also make sure this one is the same for both halves
 		if (do_split_random_halves)
@@ -3226,7 +3441,12 @@ void MlOptimiserMpi::iterate()
 #endif
 
 		MPI_Barrier(MPI_COMM_WORLD);
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" After Max : relion_MPI_Bcast : %f and process id is %d \n", time_use,node->rank) ;
+	gettimeofday (&tv1, &tz);
+#endif
 #ifdef TIMING
 		timer.tic(TIMING_ITER_HELICALREFINE);
 #endif
@@ -3274,15 +3494,27 @@ void MlOptimiserMpi::iterate()
 		// Directly use fn_out, without "_it" specifier, so unmasked refs will be overwritten at every iteration
 		if (do_write_unmasked_refs && node->rank == 1)
 			mymodel.write(fn_out+"_unmasked", sampling, false, true);
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" After Max : write model : %f and process id is %d \n", time_use,node->rank) ;
+	gettimeofday (&tv1, &tz);
+#endif
 		// Mask the reconstructions to get rid of noisy solvent areas
 		// Skip masking upon convergence (for validation purposes)
 #ifdef TIMING
         timer.toc(TIMING_ITER_HELICALREFINE);
         timer.tic(TIMING_SOLVFLAT);
 #endif
+
         if (do_solvent && !has_converged)
         	solventFlatten();
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" After Max : solventFlatten : %f and process id is %d \n", time_use,node->rank) ;
+	gettimeofday (&tv1, &tz);
+#endif
 #ifdef TIMING
         timer.toc(TIMING_SOLVFLAT);
         timer.tic(TIMING_UPDATERES);
@@ -3306,7 +3538,12 @@ void MlOptimiserMpi::iterate()
 		else if (node->isMaster())
 			// The master only writes the data file (he's the only one who has and manages these data!)
 			MlOptimiser::write(DONT_WRITE_SAMPLING, DO_WRITE_DATA, DONT_WRITE_OPTIMISER, DONT_WRITE_MODEL, node->rank);
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" After Max : write2  : %f and process id is %d \n", time_use,node->rank) ;
+	gettimeofday (&tv1, &tz);
+#endif
 #ifdef TIMING
 		timer.toc(TIMING_ITER_WRITE);
 #endif
@@ -3353,7 +3590,12 @@ void MlOptimiserMpi::iterate()
 			}
 			break;
 		}
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf(" After Max : print info  : %f and process id is %d \n", time_use,node->rank) ;
+	gettimeofday (&tv1, &tz);
+#endif
 #ifdef TIMING
 		// Only first slave prints it timing information
 		if (node->rank == 1)
