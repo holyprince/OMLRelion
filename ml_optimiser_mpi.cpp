@@ -1724,7 +1724,11 @@ time_use =0;
 				tbbCpuOptimiser.clear();
 			}
 #endif  // ALTCPU
-
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("exp6.3. slave end and free  : %f and process id is %d \n", time_use,node->rank) ;
+#endif
     	}
         catch (RelionError XE)
         {
@@ -1741,7 +1745,9 @@ time_use =0;
 	// portion of expectation
 	fftw_plan_with_nthreads(nr_threads);
 #endif
-
+#ifdef TIMEICT
+	gettimeofday (&tv1, &tz);
+#endif
     // Just make sure the temporary arrays are empty...
 	exp_imagedata.clear();
 	exp_metadata.clear();
