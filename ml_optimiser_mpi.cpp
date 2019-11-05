@@ -464,6 +464,11 @@ will still yield good performance and possibly a more stable execution. \n" << s
 	}
 	/************************************************************************/
 #endif // CUDA
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	printf("1. device arrange : %f and process id is %d \n", time_use,node->rank) ;
+#endif
 
 #ifdef TIMEICT
 	gettimeofday (&tv1, &tz);
@@ -1574,19 +1579,20 @@ time_use =0;
 					// Also send the metadata belonging to those
 					node->relion_MPI_Send(MULTIDIM_ARRAY(exp_metadata), MULTIDIM_SIZE(exp_metadata), MY_MPI_DOUBLE, 0, MPITAG_METADATA, MPI_COMM_WORLD);
 
-					printf(" Expectation size %ld \n",MULTIDIM_SIZE(exp_metadata));
 #ifdef TIMING
 					timer.toc(TIMING_MPISLAVEWAIT3);
 #endif
-#ifdef TIMEICT
-	gettimeofday (&tv2, &tz);
-	time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 
-#endif
 
 				}
 
 			}
+
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use =1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+
+#endif
 		printf("Expe6.1 running time   slave : %f and process id is %d \n", sumtime,node->rank) ;
 		printf("Expe6.2 job distributed slave : %f and process id is %d \n", time_use,node->rank) ;
 //		TODO: define MPI_COMM_SLAVES!!!!	MPI_Barrier(node->MPI_COMM_SLAVES);
@@ -1605,13 +1611,7 @@ time_use =0;
 #endif
 					MlDeviceBundle* b = ((MlDeviceBundle*)accDataBundles[i]);
 					b->syncAllBackprojects();
-					printf(" backprojectors size %ld and wsum_model.BPref[j].data.nzyxdim  %ld  and x:%ld y: %ld z %ld:\n", \
-							b->backprojectors.size(),wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[0].data.xdim,wsum_model.BPref[0].data.ydim,wsum_model.BPref[0].data.zdim);
 
-					if(b->backprojectors.size()>1)
-					{
-						printf("and wsum_model.BPref[j].data.nzyxdim  %ld  and x:%ld y: %ld z %ld:\n", wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[1].data.xdim,wsum_model.BPref[1].data.ydim,wsum_model.BPref[1].data.zdim);
-					}
 					for (int j = 0; j < b->backprojectors.size(); j++)
 					{
 						unsigned long s = wsum_model.BPref[j].data.nzyxdim;
@@ -1905,7 +1905,6 @@ void MlOptimiserMpi::combineAllWeightedSums()
 	std::cerr << " starting combineAllWeightedSums..." << std::endl;
 #endif
 	// Only combine weighted sums if there are more than one slaves per subset!
-	printf("combine condition:  %d \n",(node->size - 1)/nr_halfsets);
 	if ((node->size - 1)/nr_halfsets > 1)
 	{
 		// Loop over possibly multiple instances of Mpack of maximum size
@@ -2327,11 +2326,9 @@ void MlOptimiserMpi::maximization()
 					// Also perform the unregularized reconstruction
 					if (do_auto_refine && has_converged)
 					{
-						printf("Before rank1 ArraysAndReconstruct \n");
 						readTemporaryDataAndWeightArraysAndReconstruct(ith_recons, 1);
 					}
 
-					printf("After rank1 \n");
 				}
 
 				// In some cases there is not enough memory to reconstruct two random halves in parallel
@@ -2435,7 +2432,6 @@ void MlOptimiserMpi::maximization()
 						{
 							readTemporaryDataAndWeightArraysAndReconstruct(ith_recons, 2);
 						}
-						printf("After rank2 \n");
 					}
 				}
 
@@ -2672,9 +2668,9 @@ void MlOptimiserMpi::maximization()
 
 void MlOptimiserMpi::joinTwoHalvesAtLowResolution()
 {
-//#ifdef DEBUG
+#ifdef DEBUG
 	std::cerr << "MlOptimiserMpi::joinTwoHalvesAtLowResolution: Entering " << std::endl;
-//#endif
+#endif
 
 	if (!do_split_random_halves)
 		REPORT_ERROR("BUG: you should not be in MlOptimiserMpi::joinTwoHalvesAtLowResolution!");
@@ -3110,9 +3106,9 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct(int iclass, 
 
 void MlOptimiserMpi::compareTwoHalves()
 {
-//#ifdef DEBUG
+#ifdef DEBUG
 	std::cerr << "MlOptimiserMpi::compareTwoHalves: Entering " << std::endl;
-//#endif
+#endif
 
 	if (!do_split_random_halves)
 		REPORT_ERROR("ERROR: you should not be in MlOptimiserMpi::compareTwoHalves if !do_split_random_halves");
