@@ -2970,8 +2970,20 @@ void accDoExpectationOneParticle(MlClass *myInstance, unsigned long my_ori_parti
 {
 	SamplingParameters sp;
 	MlOptimiser *baseMLO = myInstance->baseMLO;
-	std::string adata="abc";
-	relion_timer timer(adata);
+	std::string adata;
+	relion_timer timer;
+	if(my_ori_particle==2 )
+	{
+		adata="particle2";
+		timer.setfile(adata);
+	}
+	if(my_ori_particle==10000)
+	{
+		adata="particle10000";
+		timer.setfile(adata);
+	}
+
+	if(my_ori_particle==2 || my_ori_particle==10000 )
 	CTIC(timer,"oneParticle");
 
 #ifdef TIMING
@@ -3038,8 +3050,10 @@ void accDoExpectationOneParticle(MlClass *myInstance, unsigned long my_ori_parti
 if (thread_id == 0)
 baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_A);
 #endif
+		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"getFourierTransformsAndCtfs");
 		getFourierTransformsAndCtfs<MlClass>(my_ori_particle, op, sp, baseMLO, myInstance, ptrFactory, ibody);
+		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"getFourierTransformsAndCtfs");
 
 		if (baseMLO->do_realign_movies && baseMLO->movie_frame_running_avg_side > 0)
@@ -3094,6 +3108,7 @@ baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_A);
 
 		std::vector < AccPtrBundle > bundleD2(sp.nr_particles, ptrFactory.makeBundle());
 		std::vector < AccPtrBundle > bundleSWS(sp.nr_particles, ptrFactory.makeBundle());
+		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"weightPass");
 		for (int ipass = 0; ipass < nr_sampling_passes; ipass++)
 		{
@@ -3141,13 +3156,15 @@ baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_B);
 				Mweight.deviceAlloc();
 				deviceInitValue<XFLOAT>(Mweight, -std::numeric_limits<XFLOAT>::max());
 				Mweight.streamSync();
-
+				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"getAllSquaredDifferencesCoarse");
 				getAllSquaredDifferencesCoarse<MlClass>(ipass, op, sp, baseMLO, myInstance, Mweight, ptrFactory, ibody);
+				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"getAllSquaredDifferencesCoarse");
-
+				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"convertAllSquaredDifferencesToWeightsCoarse");
 				convertAllSquaredDifferencesToWeights<MlClass>(ipass, op, sp, baseMLO, myInstance, CoarsePassWeights, FinePassClassMasks, Mweight, ptrFactory, ibody);
+				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"convertAllSquaredDifferencesToWeightsCoarse");
 			}
 			else
@@ -3192,22 +3209,25 @@ baseMLO->timer.tic(baseMLO->TIMING_ESP_DIFF2_D);
 if (thread_id == 0)
 baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_D);
 #endif
-
+				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"getAllSquaredDifferencesFine");
 				getAllSquaredDifferencesFine<MlClass>(ipass, op, sp, baseMLO, myInstance, FinePassWeights, FinePassClassMasks, FineProjectionData, ptrFactory, ibody, bundleD2);
+				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"getAllSquaredDifferencesFine");
 				FinePassWeights[0].weights.cpToHost();
 
 				AccPtr<XFLOAT> Mweight = ptrFactory.make<XFLOAT>(); //DUMMY
-
+				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"convertAllSquaredDifferencesToWeightsFine");
 				convertAllSquaredDifferencesToWeights<MlClass>(ipass, op, sp, baseMLO, myInstance, FinePassWeights, FinePassClassMasks, Mweight, ptrFactory, ibody);
+				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"convertAllSquaredDifferencesToWeightsFine");
 
 			}
 
 
 		}
+		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"weightPass");
 #ifdef TIMING
 // Only time one thread
@@ -3229,8 +3249,10 @@ baseMLO->timer.tic(baseMLO->TIMING_ESP_DIFF2_E);
 if (thread_id == 0)
 baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_E);
 #endif
+if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"storeWeightedSums");
 		storeWeightedSums<MlClass>(op, sp, baseMLO, myInstance, FinePassWeights, FineProjectionData, FinePassClassMasks, ptrFactory, ibody, bundleSWS);
+		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"storeWeightedSums");
 
 		for (long int iframe = 0; iframe < sp.nr_particles; iframe++)
@@ -3238,10 +3260,13 @@ baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_E);
 			FinePassWeights[iframe].dual_free_all();
 		}
     }
-
-	CTOC(timer,"oneParticle");
-	if(my_ori_particle==2 || my_ori_particle==10000)
+	if(my_ori_particle==2 || my_ori_particle==10000 )
+	{
+		CTOC(timer,"oneParticle");
 		GATHERGPUTIMINGS(timer,my_ori_particle);
+		timer.closefile();
+	}
+
 /*	if (thread_id == 0)
 	{
 		printf("3244 test ===============\n");

@@ -12,7 +12,7 @@
 #include <string>
 #include <sstream>
 
-//#define TIMING_FILES
+#define TIMING_FILES
 
 #ifdef TIMING_FILES
 #define	CTIC(timer,timing) (timer.cuda_gpu_tic(timing))
@@ -67,6 +67,9 @@ relion_timer(std::string fnm)
 	fnm_gpu << "output/" << fnm << "_gpu.dat";
 	cuda_gpu_benchmark_fPtr = fopen(fnm_gpu.str().c_str(),"a");
 }
+relion_timer()
+{
+}
 
 int cuda_benchmark_find_id(std::string id, std::vector<std::string> v);
 
@@ -80,6 +83,8 @@ void cuda_gpu_toc(std::string id);
 
 void cuda_gpu_printtictoc(int id);
 
+void setfile(std::string id);
+void closefile();
 };
 
 #endif /* CUDA_BENCHMARK_UTILS_H_ */

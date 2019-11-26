@@ -19,6 +19,17 @@ int relion_timer::cuda_benchmark_find_id(std::string id, std::vector<std::string
 	return -1;
 }
 
+void relion_timer::setfile(std::string res)
+{
+	std::stringstream fnm_cpu;
+	fnm_cpu << "output/" << res << ".dat";
+	cuda_gpu_benchmark_fPtr = fopen(fnm_cpu.str().c_str(),"a+");
+}
+void relion_timer::closefile()
+{
+	fclose(cuda_gpu_benchmark_fPtr);
+}
+
 
 void relion_timer::cuda_cpu_tic(std::string id)
 {
