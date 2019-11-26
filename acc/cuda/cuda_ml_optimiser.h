@@ -105,9 +105,9 @@ public:
 	bool generateProjectionPlanOnTheFly;
 
 
-#ifdef TIMING_FILES
+//#ifdef TIMING_FILES
 	relion_timer timer;
-#endif
+//#endif
 
 	MlOptimiserCuda(MlOptimiser *baseMLOptimiser, MlDeviceBundle* bundle, const char * timing_fnm) :
 			baseMLO(baseMLOptimiser),
@@ -117,9 +117,9 @@ public:
 			dataIs3D(baseMLO->mymodel.data_dim == 3),
 			bundle(bundle),
 			device_id(bundle->device_id),
-#ifdef TIMING_FILES
+//#ifdef TIMING_FILES
 			timer(timing_fnm),
-#endif
+//#endif
 			errorStatus((cudaError_t)0),
 			allocator(bundle->allocator),
 			generateProjectionPlanOnTheFly(bundle->generateProjectionPlanOnTheFly)

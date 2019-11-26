@@ -2,7 +2,7 @@ static pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #include "../ml_optimiser_mpi.h"
 
-#define TIMING
+//#define TIMING
 
 // ----------------------------------------------------------------------------
 // -------------------- getFourierTransformsAndCtfs ---------------------------
@@ -18,7 +18,7 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 		)
 {
 
-		GTIC2(accMLO->timer,"getFourierTransformsAndCtfs"); //ttime  accMLO->timer
+	GTIC2(accMLO->timer,"getFourierTransformsAndCtfs"); //ttime  accMLO->timer
 #ifdef TIMING
 	if (op.my_ori_particle == baseMLO->exp_my_first_ori_particle)
 		baseMLO->timer.tic(baseMLO->TIMING_ESP_FT);

@@ -12,7 +12,7 @@
 #include <string>
 #include <sstream>
 
-#define TIMING_FILES
+//#define TIMING_FILES
 
 #ifdef TIMING_FILES
 #define	CTIC(timer,timing) (timer.cuda_gpu_tic(timing))
@@ -38,7 +38,11 @@
 	#define	CTOC(timer,timing)
 	#define	GTIC(timer,timing)
 	#define	GTOC(timer,timing)
-	#define	GATHERGPUTIMINGS(timer)
+	#define	GATHERGPUTIMINGS(timer,id)
+	#define	CTIC2(timer,timing)
+	#define	CTOC2(timer,timing)
+	#define	GTIC2(timer,timing)
+	#define	GTOC2(timer,timing)
 #endif
 
 class relion_timer
