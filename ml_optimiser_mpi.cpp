@@ -1204,14 +1204,16 @@ void MlOptimiserMpi::expectation()
 #endif
 
 
-struct timeval tparticle1,tparticle2;
-struct timezone tparticle;
-float sumtime=0;
-time_use =0;
+
 #ifdef TIMING
 		timer.toc(TIMING_EXP_4);
 #endif
 #ifdef TIMEICT
+		struct timeval tparticle1,tparticle2;
+		struct timezone tparticle;
+		float sumtime=0;
+		time_use =0;
+
 		gettimeofday (&tv1, &tz);
 #endif
 	long int my_nr_ori_particles = (subset_size > 0) ? subset_size : mydata.numberOfOriginalParticles();
@@ -1591,10 +1593,10 @@ time_use =0;
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use =1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-
+	printf("Expe6.1 running time   slave : %f and process id is %d iter num: %d\n", sumtime,node->rank,iter) ;
+	printf("Expe6.2 job distributed slave : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 #endif
-		printf("Expe6.1 running time   slave : %f and process id is %d iter num: %d\n", sumtime,node->rank,iter) ;
-		printf("Expe6.2 job distributed slave : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
+
 //		TODO: define MPI_COMM_SLAVES!!!!	MPI_Barrier(node->MPI_COMM_SLAVES);
 
 #ifdef TIMEICT

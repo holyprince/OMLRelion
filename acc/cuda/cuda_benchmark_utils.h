@@ -12,12 +12,20 @@
 #include <string>
 #include <sstream>
 
+#define TIMING_FILES
+
 #ifdef TIMING_FILES
-#define	CTIC(timer,timing) (timer.cuda_cpu_tic(timing))
-#define	CTOC(timer,timing) (timer.cuda_cpu_toc(timing))
+#define	CTIC(timer,timing) (timer.cuda_gpu_tic(timing))
+#define	CTOC(timer,timing) (timer.cuda_gpu_toc(timing))
 #define	GTIC(timer,timing) (timer.cuda_gpu_tic(timing))
 #define	GTOC(timer,timing) (timer.cuda_gpu_toc(timing))
-#define	GATHERGPUTIMINGS(timer) (timer.cuda_gpu_printtictoc())
+
+#define	CTIC2(timer,timing)
+#define	CTOC2(timer,timing)
+#define	GTIC2(timer,timing)
+#define	GTOC2(timer,timing)
+
+#define	GATHERGPUTIMINGS(timer,id) (timer.cuda_gpu_printtictoc(id))
 #elif defined CUDA_PROFILING
 	#include <nvToolsExt.h>
 	#define	CTIC(timer,timing) (nvtxRangePush(timing))
@@ -66,7 +74,7 @@ void cuda_gpu_tic(std::string id);
 
 void cuda_gpu_toc(std::string id);
 
-void cuda_gpu_printtictoc();
+void cuda_gpu_printtictoc(int id);
 
 };
 

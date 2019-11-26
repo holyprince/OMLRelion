@@ -58,6 +58,7 @@ void relion_timer::cuda_cpu_toc(std::string id)
 
 void relion_timer::cuda_gpu_tic(std::string id)
 {
+
 	if (cuda_benchmark_find_id(id, cuda_gpu_benchmark_identifiers) == -1)
 	{
 		cudaEvent_t start, stop;
@@ -92,7 +93,7 @@ void relion_timer::cuda_gpu_toc(std::string id)
 	}
 }
 
-void relion_timer::cuda_gpu_printtictoc()
+void relion_timer::cuda_gpu_printtictoc(int id)
 {
 	if (cuda_gpu_benchmark_identifiers.size() == 0)
 	{
@@ -102,12 +103,14 @@ void relion_timer::cuda_gpu_printtictoc()
 	else
 	{
 		float time;
+		fprintf(cuda_gpu_benchmark_fPtr,"particle num : %.2d\n",id);
 		for (int idx = 0; idx < cuda_gpu_benchmark_identifiers.size(); idx ++)
 		{
 			cudaEventElapsedTime(&time, cuda_gpu_benchmark_start_times[idx],
 					cuda_gpu_benchmark_stop_times[idx]);
 			cudaEventDestroy(cuda_gpu_benchmark_start_times[idx]);
 			cudaEventDestroy(cuda_gpu_benchmark_stop_times[idx]);
+
 			fprintf(cuda_gpu_benchmark_fPtr,"%.2f ms \t %s\n",
 					time, cuda_gpu_benchmark_identifiers[idx].c_str());
 		}
