@@ -40,10 +40,10 @@ float * gpusetdata_float(float *d_data,int N ,float *c_data);
 void vector_Multi(double *data1, float *data2, cufftComplex *res,int numElements);
 cufftComplex * gpumallocdata(cufftComplex *d_outData,int N);
 void cpugetdata(tComplex<float> *c_outData, cufftComplex *d_outData,int N);
-void printdatatofile(Complex *data,int N,int dimx, int flag);
+void printdatatofile(Complex *data,int N,int dimx,int flag,int iter);
 void printdatatofile(double *data,int N,int dimx,int flag);
 void printdatatofile(cufftComplex *data,int N,int dimx,int flag);
-void printdatatofile(float *data,int N,int dimx,int flag);
+void printdatatofile(float *data,int N,int dimx,int flag,int iter);
 void volume_Multi(float *data1, double *data2, int numElements, int xdim, double sampling , \
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob);
 

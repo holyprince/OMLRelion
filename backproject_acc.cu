@@ -234,12 +234,7 @@ void layoutchange(cufftComplex *data,int dimx,int dimy,int dimz, int padx, cufft
 			newdata[z*padx*dimy+y * padx + x].x= newdata[desz*padx*dimy+desy * padx + desx].x;
 			newdata[z*padx*dimy+y * padx + x].y= - newdata[desz*padx*dimy+desy * padx + desx].y;
 		}
-	/*	for(int z=0;z< NZ;z++)
-		for (int x = 0; x < NX; x++)
-			for (int y = 0; y < rawY; y++) {
-				data2[z*NX*NY+x*NY+y].x=data[z*NX*rawY+x*rawY+y].x;
-				data2[z*NX*NY+x*NY+y].y=data[z*NX*rawY+x*rawY+y].y;
-			}*/
+
 }
 void layoutchangecomp(Complex *data,int dimx,int dimy,int dimz, int padx, cufftComplex *newdata)
 {
@@ -295,25 +290,42 @@ void windowFourier(cufftComplex *d_Fconv,cufftComplex *d_Fconv_window,int rawdim
     		}
 }
 
-void printdatatofile(Complex *data,int N,int dimx,int flag)
+void printdatatofile(Complex *data,int N,int dimx,int flag,int iter)
 {
-	FILE *fp;
-	if(flag == 0)
+	FILE *fp1;
+	FILE *fp2;
+	char filename[100];
+	memset(filename,0,100*sizeof(char));
+	sprintf(filename,"%003d_",iter);
+	sprintf(filename+4,"float_real.out");
+
+	char filename2[100];
+	memset(filename2,0,100*sizeof(char));
+	sprintf(filename2,"%003d_",iter);
+	sprintf(filename2+4,"float_imag.out");
+
+	fp1= fopen(filename,"w+");
+	fp2= fopen(filename2,"w+");
+/*	if(flag == 0)
 	{
 		fp= fopen("complex_gpu.out","w+");
 	}
 	else
 	{
 		fp= fopen("complex_cpu.out","w+");
-	}
+	}*/
 	for(int i=0;i< N ;i++)
 	{
 		//fprintf(fp,"%f %f ",data[i].real,data[i].imag);
-		fprintf(fp,"%f ",data[i].real);
+		fprintf(fp1,"%f ",data[i].real);
 		if(i%dimx==0 && i!=0)
-			fprintf(fp,"\n");
+			fprintf(fp1,"\n");
+		fprintf(fp2,"%f ",data[i].imag);
+		if(i%dimx==0 && i!=0)
+			fprintf(fp2,"\n");
 	}
-	fclose(fp);
+	fclose(fp1);
+	fclose(fp2);
 }
 void printdatatofile(double *data,int N,int dimx,int flag)
 {
@@ -334,17 +346,23 @@ void printdatatofile(double *data,int N,int dimx,int flag)
 	}
 	fclose(fp);
 }
-void printdatatofile(float *data,int N,int dimx,int flag)
+void printdatatofile(float *data,int N,int dimx,int flag,int iter)
 {
 	FILE *fp;
-	if(flag == 0)
+
+	char filename[100];
+	memset(filename,0,100*sizeof(char));
+	sprintf(filename,"%003d_",iter);
+	sprintf(filename+4,"float_cpu.out");
+	fp= fopen(filename,"w+");
+/*	if(flag == 0)
 	{
 		fp= fopen("float_gpu.out","w+");
 	}
 	else
 	{
 		fp= fopen("float_cpu.out","w+");
-	}
+	}*/
 	for(int i=0;i< N ;i++)
 	{
 		fprintf(fp,"%f ",data[i]);
@@ -373,3 +391,6 @@ void printdatatofile(cufftComplex *data,int N,int dimx,int flag)
 	}
 	fclose(fp);
 }
+
+
+

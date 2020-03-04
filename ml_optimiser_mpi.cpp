@@ -1058,6 +1058,8 @@ void MlOptimiserMpi::expectation()
 #define JOB_NPAR  (JOB_LAST - JOB_FIRST + 1)
 
 #ifdef CUDA
+
+
 	/************************************************************************/
 	//GPU memory setup
 

@@ -1208,6 +1208,7 @@ void MlModel::setFourierTransformMaps(bool update_tau2_spectra, int nr_threads, 
 		if(PPrefRank.size() > 1)
 			do_heavy = PPrefRank[iclass];
 
+		printf("%d %d %d %d %d\n",update_tau2_spectra,nr_threads,nr_classes,nr_bodies,do_heavy);
         if (update_tau2_spectra && iclass < nr_classes * nr_bodies)
         {
         	PPref[iclass].computeFourierTransformMap(Irefp, tau2_class[iclass], current_size, nr_threads, true, do_heavy);

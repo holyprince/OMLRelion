@@ -693,7 +693,7 @@ public:
         }
         else
         {
-            data = new T [nzyxdim];
+            data =  new T [nzyxdim];
             if (data == NULL)
                 REPORT_ERROR( "Allocate: No space left");
         }

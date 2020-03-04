@@ -28,6 +28,8 @@
 #include "backprojector.h"
 #include "time.h"
 #include "backproject_impl.h"
+#include "fftw3.h"
+
 #define TIMINGREC
 #ifdef TIMINGREC
 	#define RCTICREC(timer,label) (timer.tic(label))
@@ -955,6 +957,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 	int ReconS_24 = ReconTimer.setNew(" RcS24_extra ");
 #endif
 
+	printf("At beginning : %f %f \n",weight.data[0],weight.data[1]);
     // never rely on references (handed to you from the outside) for computation:
     // they could be the same (i.e. reconstruct(..., dummy, dummy, dummy, dummy, ...); )
     MultidimArray<RFLOAT> sigma2, data_vs_prior, fourier_coverage;
@@ -1224,8 +1227,23 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			else
 				A3D_ELEM(weight, k, i, j) = 0.;
 		}
+
 		decenter(weight, Fnewweight, max_r2);
 		RCTOCREC(ReconTimer,ReconS_5);
+
+		//for(int z=0;z=)
+/*		int z=0;
+		for(int y=0;y<Fnewweight.ydim;y++)
+		{
+			for(int x=0;x<Fnewweight.xdim;x++)
+			{
+				printf("%f ",Fnewweight.data[z*Fnewweight.xdim*Fnewweight.ydim+y*Fnewweight.xdim+x]);
+			}
+			printf("\n");
+		}
+
+		return ;*/
+
 		// Iterative algorithm as in  Eq. [14] in Pipe & Menon (1999)
 		// or Eq. (4) in Matej (2001)
 		for (int iter = 0; iter < max_iter_preweight; iter++)
@@ -1239,15 +1257,52 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			// but each "sampling point" counts "Fweight" times!
 			// That is why Fnewweight is multiplied by Fweight prior to the convolution
 
+
+			printf("data: %ld %ld %ld %ld \n",Fnewweight.ndim,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
+
 			FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
 			{
 				DIRECT_MULTIDIM_ELEM(Fconv, n) = DIRECT_MULTIDIM_ELEM(Fnewweight, n) * DIRECT_MULTIDIM_ELEM(Fweight, n);
 			}
+			size_t fullsize= pad_size*pad_size*pad_size;
+			cufftComplex *c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
+			layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
 
+			FILE *fp1,*fp2;
+			fp1= fopen("/mnt/sdb/wangzihao/Fconvreal.out","w+");
+			fp2= fopen("/mnt/sdb/wangzihao/Fconvimag.out","w+");
+
+			double fsum = 0;
+			for(int i=0;i<fullsize;i++)
+			{
+				fprintf(fp1,"%f ",c_Fconv2[i].x);
+				fprintf(fp2,"%f ",c_Fconv2[i].y);
+				fsum +=c_Fconv2[i].x;
+			}
+			printf("fsum: %f \n",fsum);
+			fclose(fp1);
+			fclose(fp2);
+/*
+			fftw_complex *input, *out;
+			fullsize=200*200*200;
+			input= (fftw_complex *)malloc(fullsize* 2 * sizeof(fftw_complex));
+			for(int i=0;i<fullsize;i++)
+			{
+				input[i][0]=i%100;
+				input[i][1]=0;
+			}
+			fftw_plan p;
+
+			p= fftw_plan_dft_3d(200, 200, 200 ,input, input, FFTW_BACKWARD, FFTW_ESTIMATE);
+			fftw_execute(p);
+			for(int i=0;i<10;i++)
+				printf("%f %f \n",input[i][0],input[i][1]);*/
 			//printdatatofile(Fconv.data,Fconv.nzyxdim);
 			// convolute through Fourier-transform (as both grids are rectangular)
 			// Note that convoluteRealSpace acts on the complex array inside the transformer
-            convoluteBlobRealSpace(transformer, false, nr_threads);
+			//nr_threads -> iter;
+            convoluteBlobRealSpace(transformer, false, iter);
+
 
 			RFLOAT w, corr_min = LARGE_NUMBER, corr_max = -LARGE_NUMBER, corr_avg=0., corr_nn=0.;
 
@@ -2711,16 +2766,60 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 		Mconv.reshape(pad_size, pad_size);
 	else
 		Mconv.reshape(pad_size, pad_size, pad_size);
+	printf("======conv1 ===========\n");
+	for (int i = 0; i < 10; i++) {
+		printf("%f %f\n", transformer.fFourier.data[i].real,transformer.fFourier.data[i].imag);
+	}
+
+	//printdatatofile(transformer.fFourier.data,transformer.fFourier.nzyxdim,transformer.fFourier.xdim,0,threads);
+/*
+	float maxdatareal=1;float mindatareal=1000000;
+	float maxdataimag=1;float mindataimag=1000000;
+	for(int i=0;i<transformer.fFourier.nzyxdim;i++)
+	{
+		if(transformer.fFourier.data[i].real>maxdatareal)
+			maxdatareal=transformer.fFourier.data[i].real;
+
+		if(transformer.fFourier.data[i].real!=0 && transformer.fFourier.data[i].real<mindatareal)
+			mindatareal=transformer.fFourier.data[i].real;
+
+		if(transformer.fFourier.data[i].imag>maxdataimag)
+			maxdataimag=transformer.fFourier.data[i].imag;
+		if(transformer.fFourier.data[i].imag!=0 && transformer.fFourier.data[i].imag<mindataimag)
+			mindataimag=transformer.fFourier.data[i].imag;
+	}
+	printf("%f %f %f %f \n",maxdatareal,mindatareal,maxdataimag,mindataimag);*/
 
 
 	transformer.setReal(Mconv);
 
 	transformer.inverseFourierTransform();
 
+/*	maxdatareal=1; mindatareal=1000000;
+
+	for(int i=0;i<Mconv.nzyxdim;i++)
+	{
+		if(Mconv.data[i]>maxdatareal)
+			maxdatareal=Mconv.data[i];
+
+		if(Mconv.data[i]!=0 && Mconv.data[i]<mindatareal)
+			mindatareal=Mconv.data[i];
+
+	}
+	printf("%f %f \n",maxdatareal,mindatareal);*/
+
+
+	for (int i = 0; i < 10; i++) {
+		printf("%f \n", Mconv.data[i]);
+	}
+
+	//printdatatofile(Mconv.data,Mconv.nzyxdim,Mconv.xdim,0,threads);
+
 
 	// Blob normalisation in Fourier space
 	RFLOAT normftblob = tab_ftblob(0.);
 
+	printf("%f \n",normftblob);
 	// TMP DEBUGGING
 	//struct blobtype blob;
 	//blob.order = 0;
