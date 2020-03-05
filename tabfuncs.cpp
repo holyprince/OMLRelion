@@ -108,7 +108,7 @@ void TabFtBlob::fillTable(const int _nr_elem)
 	{
 		RFLOAT xx = (RFLOAT) i * sampling;
 		tabulatedValues(i) = kaiser_Fourier_value(xx, radius, alpha, order);
-		printf("%f ",tabulatedValues(i));
+		//printf("%f ",tabulatedValues(i));
 	}
 }
 // Value access

@@ -957,7 +957,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 	int ReconS_24 = ReconTimer.setNew(" RcS24_extra ");
 #endif
 
-	printf("At beginning : %f %f \n",weight.data[0],weight.data[1]);
+	//printf("At beginning : %f %f \n",weight.data[0],weight.data[1]);
     // never rely on references (handed to you from the outside) for computation:
     // they could be the same (i.e. reconstruct(..., dummy, dummy, dummy, dummy, ...); )
     MultidimArray<RFLOAT> sigma2, data_vs_prior, fourier_coverage;
@@ -1258,13 +1258,13 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			// That is why Fnewweight is multiplied by Fweight prior to the convolution
 
 
-			printf("data: %ld %ld %ld %ld \n",Fnewweight.ndim,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
+			//printf("data: %ld %ld %ld %ld \n",Fnewweight.ndim,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
 
 			FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
 			{
 				DIRECT_MULTIDIM_ELEM(Fconv, n) = DIRECT_MULTIDIM_ELEM(Fnewweight, n) * DIRECT_MULTIDIM_ELEM(Fweight, n);
 			}
-			size_t fullsize= pad_size*pad_size*pad_size;
+/*			size_t fullsize= pad_size*pad_size*pad_size;
 			cufftComplex *c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 			layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
 
@@ -1281,7 +1281,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			}
 			printf("fsum: %f \n",fsum);
 			fclose(fp1);
-			fclose(fp2);
+			fclose(fp2);*/
 /*
 			fftw_complex *input, *out;
 			fullsize=200*200*200;
@@ -2766,10 +2766,7 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 		Mconv.reshape(pad_size, pad_size);
 	else
 		Mconv.reshape(pad_size, pad_size, pad_size);
-	printf("======conv1 ===========\n");
-	for (int i = 0; i < 10; i++) {
-		printf("%f %f\n", transformer.fFourier.data[i].real,transformer.fFourier.data[i].imag);
-	}
+
 
 	//printdatatofile(transformer.fFourier.data,transformer.fFourier.nzyxdim,transformer.fFourier.xdim,0,threads);
 /*
@@ -2809,17 +2806,13 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 	printf("%f %f \n",maxdatareal,mindatareal);*/
 
 
-	for (int i = 0; i < 10; i++) {
-		printf("%f \n", Mconv.data[i]);
-	}
-
 	//printdatatofile(Mconv.data,Mconv.nzyxdim,Mconv.xdim,0,threads);
 
 
 	// Blob normalisation in Fourier space
 	RFLOAT normftblob = tab_ftblob(0.);
 
-	printf("%f \n",normftblob);
+	//printf("%f \n",normftblob);
 	// TMP DEBUGGING
 	//struct blobtype blob;
 	//blob.order = 0;

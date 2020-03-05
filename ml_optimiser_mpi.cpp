@@ -1930,7 +1930,7 @@ void MlOptimiserMpi::combineAllWeightedSums()
 			if (!node->isMaster())
 			{
 				wsum_model.pack(Mpack, piece, nr_pieces);
-				printf("Mpack.nzyxdim,piece,nr_pieces : %ld %d %d ",Mpack.nzyxdim,piece,nr_pieces);
+				//printf("Mpack.nzyxdim,piece,nr_pieces : %ld %d %d ",Mpack.nzyxdim,piece,nr_pieces);
 
 				// The first slave(s) set Msum equal to Mpack, the others initialise to zero
 				if (node->rank <= nr_halfsets)
@@ -3081,7 +3081,7 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct(int iclass, 
 		A3D_ELEM(wsum_model.BPref[iclass].weight, k, i, j) = A3D_ELEM(Itmp(), k, i, j);
 	}
 
-	printf("Test recon \n ");
+	//printf("Test recon \n ");
 	// Now perform the unregularized reconstruction
 	wsum_model.BPref[iclass].reconstruct(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, nr_threads, -1, false, do_fsc0999);
 
@@ -3169,7 +3169,7 @@ void MlOptimiserMpi::compareTwoHalves()
 			{
 				// The second slave sends its average to the first slave
 				node->relion_MPI_Send(MULTIDIM_ARRAY(avg1), 2*MULTIDIM_SIZE(avg1), MY_MPI_DOUBLE, 1, MPITAG_IMAGE, MPI_COMM_WORLD);
-				printf("FSC datasize : %ld \n",2*MULTIDIM_SIZE(avg1));
+				//printf("FSC datasize : %ld \n",2*MULTIDIM_SIZE(avg1));
 			}
 
 			else if (node->rank == 1)

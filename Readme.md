@@ -12,3 +12,13 @@
 ### 11.26
 1. #define TIMING(acc_ml_optimiser_impl.h)  and TIMING_FILES(CUDA_BENCHMARK_UTILS_H_)  to test all module time for expectation 
 
+### 2020.3.4 
+backup 2019 from 51 server 
+makefile path : /GPUFS/ict_zyliu_2/code/relion-nsight/testDebug/build.sh
+
+
+### 2020.3.4 
+version for mixed-presion
+1.profile expectation again
+2.check tensor core avail
+
