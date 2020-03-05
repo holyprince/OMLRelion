@@ -10,7 +10,7 @@
 1. time version add iter
 
 ### 11.26
-1. #define TIMING(acc_ml_optimiser_impl.h)  and TIMING_FILES(CUDA_BENCHMARK_UTILS_H_)  to test all module time for expectation 
+1. #define TIMING  (the flag in file : acc_ml_optimiser_impl.h)  and TIMING_FILES( the flag in file : CUDA_BENCHMARK_UTILS_H_)  to test all module time for expectation 
 
 ### 2020.3.4 
 backup 2019 from 51 server 
