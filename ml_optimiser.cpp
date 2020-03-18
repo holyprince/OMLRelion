@@ -3003,7 +3003,7 @@ void MlOptimiser::expectationSetup()
 
 	// Initialise all weighted sums to zero
 	wsum_model.initZeros();
-
+	printf("BPref size : %d %d %d \n",wsum_model.BPref.data()->data.xdim,wsum_model.BPref.data()->data.ydim,wsum_model.BPref.data()->data.zdim);
 	// If we're doing SGD with gradual decrease of sigma2_fudge: calculate current fudge-factor here
 	if (do_sgd && sgd_sigma2fudge_halflife > 0)
 	{

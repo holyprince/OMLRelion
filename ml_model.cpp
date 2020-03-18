@@ -1438,9 +1438,10 @@ void MlWsumModel::initZeros()
     }
 }
 
-//#define DEBUG_PACK
+#define DEBUG_PACK
 #ifdef DEBUG_PACK
-#define MAX_PACK_SIZE     100000
+//#define MAX_PACK_SIZE     100000
+#define MAX_PACK_SIZE 671010000
 #else
 // Approximately 1024*1024*1024/8/2 ~ 0.5 Gb
 #define MAX_PACK_SIZE 671010000
@@ -1451,7 +1452,6 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed)
     // for LL & avePmax & sigma2_offset & avg_norm_correction & sigma2_rot & sigma2_tilt & sigma2_psi
     unsigned long long packed_size = 0;
     int spectral_size = (ori_size / 2) + 1;
-
     packed_size += 7 ;
     // for all group-related stuff
     packed_size += nr_groups * spectral_size;
@@ -1469,7 +1469,7 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed)
     // for priors for each class
     if (ref_dim==2)
     	packed_size += nr_classes*2;
-
+   printf("packinfo 2  packed_size : llu% \n ",packed_size);
     // Get memory for the packed array
     packed.clear();
     packed.resize(packed_size);
@@ -1640,6 +1640,7 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces
     unsigned long long packed_size = 0;
     unsigned long long idx_start, idx_stop;
 
+  printf("packinfo 1 : %d %d %d \n",nr_groups,nr_classes_bodies,nr_classes);
 	// for LL & avePmax & sigma2_offset & avg_norm_correction & sigma2_rot & sigma2_tilt & sigma2_psi
     packed_size += 7 ;
     // for all group-related stuff
@@ -1658,7 +1659,6 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces
     // for priors for each class
     if (ref_dim==2)
     	packed_size += nr_classes*2;
-
     if (piece < 0 && nr_pieces < 0)
     {
     	// Special case: prevent making multiple pieces if input piece and nr_pieces are both negative
@@ -1681,6 +1681,7 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces
     // increment piece so that pack will be called again
     piece++;
 #ifdef DEBUG_PACK
+    std::cerr << 
     std::cerr << " PACK: idx_start= " << idx_start << " idx_stop= " << idx_stop << " piece= " << piece << " nr_pieces= " << nr_pieces <<" packed_size= "<<packed_size<< std::endl;
     std::cerr << " nr_classes= " << nr_classes << " nr_groups= " << nr_groups << " packed_size= " << packed_size << std::endl;
     std::cerr << " MULTIDIM_SIZE(sigma2_noise[0])= " << MULTIDIM_SIZE(sigma2_noise[0]) << " MULTIDIM_SIZE(wsum_signal_product_spectra[0])= " << MULTIDIM_SIZE(wsum_signal_product_spectra[0]) << " MULTIDIM_SIZE(wsum_reference_power_spectra[0])= " << MULTIDIM_SIZE(wsum_reference_power_spectra[0]) << std::endl;

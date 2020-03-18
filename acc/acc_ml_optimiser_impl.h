@@ -143,6 +143,9 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 		// Orientational priors
 		if (baseMLO->mymodel.nr_bodies > 1 )
 		{
+                if(my_ori_particle==2 || my_ori_particle==10000 )
+                CTIC(timer,"nonZeroProb1");
+
 
 			// Centre local searches around the orientation from the previous iteration, this one goes with overall sigma2_ang
 			// On top of that, apply prior on the deviation from (0,0,0) with mymodel.sigma_tilt_bodies[ibody] and mymodel.sigma_psi_bodies[ibody]
@@ -161,10 +164,17 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 					op.pointer_psi_nonzeroprior, op.psi_prior, false, 3.,
 					baseMLO->mymodel.sigma_tilt_bodies[ibody],
 					baseMLO->mymodel.sigma_psi_bodies[ibody]);
+                if(my_ori_particle==2 || my_ori_particle==10000 )
+                CTOC(timer,"nonZeroProb1");
 
 		}
 		else if (baseMLO->mymodel.orientational_prior_mode != NOPRIOR && !(baseMLO->do_skip_align ||baseMLO-> do_skip_rotate))
 		{
+
+          if(my_ori_particle==2 || my_ori_particle==10000 )
+                CTIC(timer,"nonZeroProb2");
+
+
 			// First try if there are some fixed prior angles
 			// For multi-body refinements, ignore the original priors and get the refined residual angles from the previous iteration
 			RFLOAT prior_rot = DIRECT_A2D_ELEM(baseMLO->exp_metadata, op.metadata_offset + ipart, METADATA_ROT_PRIOR);
@@ -188,12 +198,26 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 				prior_psi = DIRECT_A2D_ELEM(baseMLO->exp_metadata,op. metadata_offset + ipart, METADATA_PSI);
 			if (prior_psi_flip_ratio > 998.99 && prior_psi_flip_ratio < 999.01)
 				prior_psi_flip_ratio = 0.5;
-
+          		if(my_ori_particle==2 || my_ori_particle==10000 )
+				printf("flag ans : %d %d %d\n",do_auto_refine_local_searches,do_classification_local_searches,do_local_angular_searches);
 			////////// How does this work now: each particle has a different sampling object?!!!
 			// Select only those orientations that have non-zero prior probability
 
+
+
+                         if(my_ori_particle==2 || my_ori_particle==10000 )
+                                {
+                                        printf("OOOOOOOOOOOOOOOOO\n");
+                                }
+
 			if (baseMLO->do_helical_refine)
 			{
+                         if(my_ori_particle==2 || my_ori_particle==10000 )
+                                {
+                                        printf("HHHHHHHHHHHHHHHHHHH\n");
+                                }
+
+
 				baseMLO->sampling.selectOrientationsWithNonZeroPriorProbabilityFor3DHelicalReconstruction(prior_rot, prior_tilt, prior_psi,
 										sqrt(baseMLO->mymodel.sigma2_rot), sqrt(baseMLO->mymodel.sigma2_tilt), sqrt(baseMLO->mymodel.sigma2_psi),
 										op.pointer_dir_nonzeroprior, op.directions_prior, op.pointer_psi_nonzeroprior, op.psi_prior,
@@ -201,10 +225,21 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			}
 			else
 			{
-				baseMLO->sampling.selectOrientationsWithNonZeroPriorProbability(prior_rot, prior_tilt, prior_psi,
-						sqrt(baseMLO->mymodel.sigma2_rot), sqrt(baseMLO->mymodel.sigma2_tilt), sqrt(baseMLO->mymodel.sigma2_psi),
-						op.pointer_dir_nonzeroprior, op.directions_prior, op.pointer_psi_nonzeroprior, op.psi_prior);
+				if(my_ori_particle==2 || my_ori_particle==10000 )
+				{
+					printf("XXXXXXXXXXXXXXXX\n");
+				}
+				baseMLO->sampling.selectOrientationsWithNonZeroPriorProbability(my_ori_particle,prior_rot, prior_tilt, prior_psi,sqrt(baseMLO->mymodel.sigma2_rot), sqrt(baseMLO->mymodel.sigma2_tilt), sqrt(baseMLO->mymodel.sigma2_psi),op.pointer_dir_nonzeroprior, op.directions_prior, op.pointer_psi_nonzeroprior, op.psi_prior);
 			}
+   if(my_ori_particle==2 || my_ori_particle==10000 )
+                                {
+                                        printf("PPPPPPPPPPPPPPP\n");
+                                }
+
+
+        if(my_ori_particle==2 || my_ori_particle==10000 )
+                CTOC(timer,"nonZeroProb2");
+
 
 			long int nr_orients = baseMLO->sampling.NrDirections(0, &op.pointer_dir_nonzeroprior) * baseMLO->sampling.NrPsiSamplings(0, &op.pointer_psi_nonzeroprior);
 			if (nr_orients == 0)

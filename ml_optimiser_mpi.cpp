@@ -467,6 +467,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("1. device arrange : %f and process id is %d \n", time_use,node->rank) ;
 #endif
 
@@ -478,6 +479,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("2. initialiseGeneral : %f and process id is %d \n", time_use,node->rank) ;
 #endif
 
@@ -489,6 +491,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("3. initialiseWorkLoad : %f and process id is %d \n", time_use,node->rank) ;
 #endif
 #ifdef ALTCPU
@@ -549,6 +552,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("4. calculateSumOfPowerSpectraAndAverageImage : %f and process id is %d \n", time_use,node->rank) ;
 #endif
 		// Set sigma2_noise and Iref from averaged poser spectra and Mavg
@@ -561,6 +565,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("5. setSigmaNoiseEstimatesAndSetAverageImage : %f and process id is %d \n", time_use,node->rank) ;
 #endif
 		}
@@ -573,6 +578,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("6. initialLowPassFilterReferences : %f and process id is %d \n", time_use,node->rank) ;
 #endif
 
@@ -633,6 +639,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("7. write op : %f and process id is %d \n", time_use,node->rank) ;
 #endif
 
@@ -843,6 +850,7 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Expe1. updateImageSizeAndResolutionPointers : %f and process id is %d and iter num: %d\n", time_use,node->rank,iter) ;
 #endif
 	// B. Set the PPref Fourier transforms, initialise wsum_model, etc.
@@ -872,6 +880,7 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Expe2. setup : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 #endif
 	if(!do_split_random_halves)
@@ -969,6 +978,7 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Expe3. calc expect : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 #endif
 #ifdef TIMING
@@ -1016,6 +1026,7 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Expe4. update sampling : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 #endif
 #ifdef TIMEICT
@@ -1139,6 +1150,7 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Expe5. GPU set up  : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 #endif
 
@@ -1419,6 +1431,7 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Expe6. job distributed from master : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 #endif
 
@@ -1595,7 +1608,9 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use =1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Expe6.1 running time   slave : %f and process id is %d iter num: %d\n", sumtime,node->rank,iter) ;
+	if(node->rank==100)
 	printf("Expe6.2 job distributed slave : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 #endif
 
@@ -1731,6 +1746,7 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("exp6.3. slave end and free  : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 #endif
     	}
@@ -1780,6 +1796,7 @@ void MlOptimiserMpi::expectation()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("exp7. end and free : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 #endif
 
@@ -2470,6 +2487,7 @@ void MlOptimiserMpi::maximization()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Maximazation. reconstruction : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 	gettimeofday (&tv1, &tz);
 #endif
@@ -2594,6 +2612,7 @@ void MlOptimiserMpi::maximization()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Maximazation . send data : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 #endif
 #ifdef TIMING
@@ -2612,6 +2631,7 @@ void MlOptimiserMpi::maximization()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Maximazation . updateOverallChangesInHiddenVariables : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 #endif
 	}
@@ -2628,6 +2648,7 @@ void MlOptimiserMpi::maximization()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf("Maximazation . maximizationOtherParameters : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 #endif
 	}
@@ -3286,6 +3307,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==1)
 	printf(" EM : combineAllWeightedSums : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 	gettimeofday (&tv1, &tz);
 #endif
@@ -3323,6 +3345,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" EM : sym reconstrcutcion : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 #endif
 		// Inside iterative refinement: do FSC-calculation BEFORE the solvent flattening, otherwise over-estimation of resolution
@@ -3338,6 +3361,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" EM : joinTwoHalvesAtLowResolution : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 	gettimeofday (&tv1, &tz);
 #endif
@@ -3356,6 +3380,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" EM : compareTwoHalves : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 	gettimeofday (&tv1, &tz);
 #endif
@@ -3389,6 +3414,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" EM : automated sampling : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 
 #endif
@@ -3405,6 +3431,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" EM : combineWeightedSumsTwoRandomHalves : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 
 #endif
@@ -3450,6 +3477,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" After Max : relion_MPI_Bcast : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 	gettimeofday (&tv1, &tz);
 #endif
@@ -3503,6 +3531,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" After Max : write model : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 	gettimeofday (&tv1, &tz);
 #endif
@@ -3518,6 +3547,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" After Max : solventFlatten : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 	gettimeofday (&tv1, &tz);
 #endif
@@ -3547,6 +3577,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" After Max : write2  : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
 	gettimeofday (&tv1, &tz);
 #endif
@@ -3599,6 +3630,7 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
 	printf(" After Max : print info  : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 	gettimeofday (&tv1, &tz);
 #endif
