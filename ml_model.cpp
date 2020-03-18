@@ -1640,7 +1640,6 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces
     unsigned long long packed_size = 0;
     unsigned long long idx_start, idx_stop;
 
-  printf("packinfo 1 : %d %d %d \n",nr_groups,nr_classes_bodies,nr_classes);
 	// for LL & avePmax & sigma2_offset & avg_norm_correction & sigma2_rot & sigma2_tilt & sigma2_psi
     packed_size += 7 ;
     // for all group-related stuff
@@ -1943,7 +1942,6 @@ void MlWsumModel::unpack(MultidimArray<RFLOAT> &packed, int piece, bool do_clear
        	std::cerr << "idx= " << idx << "ori_idx= " << ori_idx << " idx_start= " << idx_start << " idx_stop= " << idx_stop << " packed_size= " << packed_size << std::endl;
         REPORT_ERROR("MlWsumModel::unpack: idx != idx_stop-idx_start");
     }
-
 
 }
 

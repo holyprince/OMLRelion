@@ -1946,7 +1946,9 @@ void MlOptimiserMpi::combineAllWeightedSums()
 			// First all slaves pack up their wsum_model
 			if (!node->isMaster())
 			{
+				printf("id : before pack %d %d %d \n",node->rank,piece,nr_pieces);
 				wsum_model.pack(Mpack, piece, nr_pieces);
+				printf("id : after pack %d %d %d \n",node->rank,piece,nr_pieces);
 				//printf("Mpack.nzyxdim,piece,nr_pieces : %ld %d %d ",Mpack.nzyxdim,piece,nr_pieces);
 
 				// The first slave(s) set Msum equal to Mpack, the others initialise to zero
@@ -2047,7 +2049,9 @@ void MlOptimiserMpi::combineAllWeightedSums()
 			if (!node->isMaster())
 			{
 				// Subtract 1 from piece because it was incremented already...
+				printf("id : before unpack %d %d %d \n",node->rank,piece,nr_pieces);
 				wsum_model.unpack(Msum, piece - 1);
+				printf("id : after unpack %d %d %d \n",node->rank,piece,nr_pieces);
 			}
 
 
