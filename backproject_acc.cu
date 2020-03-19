@@ -297,18 +297,17 @@ void printdatatofile(Complex *data,int N,int dimx,int rank,int iter,int flag)
 	char filename[100];
 	memset(filename,0,100*sizeof(char));
 	if(flag==0)
-		sprintf(filename,"%003d_%003d_before_",iter,rank);
+		sprintf(filename,"%d_%d_before_float_real.out",iter,rank);
 	else
-		sprintf(filename,"%003d_%003d_after_",iter,rank);
-	sprintf(filename+16,"float_real.out");
+		sprintf(filename,"%d_%d_after_float_real.out",iter,rank);
+
 
 	char filename2[100];
 	memset(filename2,0,100*sizeof(char));
 	if(flag==0)
-		sprintf(filename2,"%003d_%003d_before_",iter,rank);
+		sprintf(filename2,"%d_%d_before_float_imag.out",iter,rank);
 	else
-		sprintf(filename2,"%003d_%003d_after_",iter,rank);
-	sprintf(filename2+16,"float_imag.out");
+		sprintf(filename2,"%d_%d_after_float_imag.out",iter,rank);
 
 	fp1= fopen(filename,"w+");
 	fp2= fopen(filename2,"w+");
@@ -352,11 +351,13 @@ void printdatatofile(float *data,int N,int dimx,int rank,int iter,int flag)
 
 	char filename[100];
 	memset(filename,0,100*sizeof(char));
+
+
 	if(flag==0)
-		sprintf(filename,"%003d_%003d_before_",iter,rank);
+		sprintf(filename,"%d_%d_before_float_weight.out",iter,rank);
 	else
-		sprintf(filename,"%003d_%003d_after_",iter,rank);
-	sprintf(filename+16,"float_weight.out");
+		sprintf(filename,"%d_%d_after_float_weight.out",iter,rank);
+
 	fp= fopen(filename,"w+");
 
 	for(int i=0;i< N ;i++)

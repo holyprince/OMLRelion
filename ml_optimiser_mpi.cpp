@@ -1943,14 +1943,6 @@ void MlOptimiserMpi::combineAllWeightedSums()
 
 
 
-	    if(iter==1 || iter==10  || iter==25 )
-	    {
-	    	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,0);
-	    	printdatatofile(wsum_model.BPref[0].data.data,wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[0].data.xdim,node->rank,iter,0);
-	    }
-
-
-
 		while (piece < nr_pieces)
 		{
 			// All nodes except those who will reset nr_pieces piece will pass while loop in next pass
@@ -2062,9 +2054,7 @@ void MlOptimiserMpi::combineAllWeightedSums()
 			if (!node->isMaster())
 			{
 				// Subtract 1 from piece because it was incremented already...
-				printf("id : before unpack %d %d %d \n",node->rank,piece,nr_pieces);
 				wsum_model.unpack(Msum, piece - 1);
-				printf("id : after unpack %d %d %d \n",node->rank,piece,nr_pieces);
 			}
 
 
@@ -2073,12 +2063,6 @@ void MlOptimiserMpi::combineAllWeightedSums()
 		MPI_Barrier(MPI_COMM_WORLD);
 	}
 
-
-    if((iter==1 || iter==10  || iter==25) && node->rank==1 )
-    {
-    	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,1);
-    	printdatatofile(wsum_model.BPref[0].data.data,wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[0].data.xdim,node->rank,iter,1);
-    }
 
 #ifdef TIMING
     timer.toc(TIMING_MPICOMBINENETW);
@@ -3315,12 +3299,24 @@ void MlOptimiserMpi::iterate()
 	float time_use;
 	gettimeofday (&tv1, &tz);
 #endif
+    if((iter==1 || iter==10  || iter==25 ))
+    {
+    	printf("wsum_model size : %d %d %d ",wsum_model.BPref[0].weight.xdim,wsum_model.BPref[0].weight.ydim,wsum_model.BPref[0].weight.zdim);
+    	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,0);
+    	printdatatofile(wsum_model.BPref[0].data.data,wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[0].data.xdim,node->rank,iter,0);
+    }
 
 
 		if (combine_weights_thru_disc)
 			combineAllWeightedSumsViaFile();
 		else
 			combineAllWeightedSums();
+	    if((iter==1 || iter==10  || iter==25) && node->rank==1 )
+	        {
+	        	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,1);
+	        	printdatatofile(wsum_model.BPref[0].data.data,wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[0].data.xdim,node->rank,iter,1);
+	        }
+
 
 
 #ifdef DEBUG
