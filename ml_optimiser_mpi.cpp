@@ -19,6 +19,7 @@
  ***************************************************************************/
 #include "ml_optimiser_mpi.h"
 #include "ml_optimiser.h"
+#include "backproject_impl.h"
 
 #ifdef CUDA
 #include "acc/cuda/cuda_ml_optimiser.h"
@@ -1934,10 +1935,22 @@ void MlOptimiserMpi::combineAllWeightedSums()
 	// Only combine weighted sums if there are more than one slaves per subset!
 	if ((node->size - 1)/nr_halfsets > 1)
 	{
+
 		// Loop over possibly multiple instances of Mpack of maximum size
 		int piece = 0;
 		int nr_pieces = 1;
 		long int pack_size;
+
+
+
+	    if(iter==1 || iter==10  || iter==25 )
+	    {
+	    	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,0);
+	    	printdatatofile(wsum_model.BPref[0].data.data,wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[0].data.xdim,node->rank,iter,0);
+	    }
+
+
+
 		while (piece < nr_pieces)
 		{
 			// All nodes except those who will reset nr_pieces piece will pass while loop in next pass
@@ -1946,9 +1959,7 @@ void MlOptimiserMpi::combineAllWeightedSums()
 			// First all slaves pack up their wsum_model
 			if (!node->isMaster())
 			{
-				printf("id : before pack %d %d %d \n",node->rank,piece,nr_pieces);
 				wsum_model.pack(Mpack, piece, nr_pieces);
-				printf("id : after pack %d %d %d \n",node->rank,piece,nr_pieces);
 				//printf("Mpack.nzyxdim,piece,nr_pieces : %ld %d %d ",Mpack.nzyxdim,piece,nr_pieces);
 
 				// The first slave(s) set Msum equal to Mpack, the others initialise to zero
@@ -1977,6 +1988,8 @@ void MlOptimiserMpi::combineAllWeightedSums()
 				{
 					if (node->rank == this_slave)
 					{
+						if(this_slave ==1)
+							printf("Start send and focus on next info\n");
 #ifdef DEBUG
 						std::cerr << " AA SEND node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
 								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
@@ -2059,6 +2072,13 @@ void MlOptimiserMpi::combineAllWeightedSums()
 
 		MPI_Barrier(MPI_COMM_WORLD);
 	}
+
+
+    if((iter==1 || iter==10  || iter==25) && node->rank==1 )
+    {
+    	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,1);
+    	printdatatofile(wsum_model.BPref[0].data.data,wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[0].data.xdim,node->rank,iter,1);
+    }
 
 #ifdef TIMING
     timer.toc(TIMING_MPICOMBINENETW);

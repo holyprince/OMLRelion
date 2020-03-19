@@ -1438,10 +1438,10 @@ void MlWsumModel::initZeros()
     }
 }
 
-#define DEBUG_PACK
+//#define DEBUG_PACK
 #ifdef DEBUG_PACK
-//#define MAX_PACK_SIZE     100000
-#define MAX_PACK_SIZE 671010000
+#define MAX_PACK_SIZE     100000
+//#define MAX_PACK_SIZE 671010000
 #else
 // Approximately 1024*1024*1024/8/2 ~ 0.5 Gb
 #define MAX_PACK_SIZE 671010000
@@ -1658,6 +1658,12 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces
     // for priors for each class
     if (ref_dim==2)
     	packed_size += nr_classes*2;
+
+
+
+
+
+
     if (piece < 0 && nr_pieces < 0)
     {
     	// Special case: prevent making multiple pieces if input piece and nr_pieces are both negative
