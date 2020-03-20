@@ -22,3 +22,9 @@ version for mixed-presion
 1.profile expectation again
 2.check tensor core avail
 
+### 2020.3.20
+1.MPI块数确定
+2.debug pack 去掉，只保留send之前的一句输出 ml.cpp 1978
+3.before combine data
+write data at 1,10,25
+
