@@ -74,6 +74,7 @@ void Projector::initialiseData(int current_size)
 	data.xinit=0;
 
 }
+
 void Projector::initZeros(int current_size)
 {
 	initialiseData(current_size);

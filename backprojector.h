@@ -170,6 +170,9 @@ public:
 
 	// Initialise data and weight arrays to the given size and set all values to zero
 	void initialiseDataAndWeight(int current_size = -1);
+	//add by wzh
+	void initialiseOnlyData(int current_size = -1);
+	void initialiseOnlyWeight(int current_size = -1);
 
 	// Initialise data and weight arrays to the given size and set all values to zero
 	void initZeros(int current_size = -1);

@@ -93,6 +93,7 @@ public:
     /** After expectation combine all weighted sum arrays across all nodes
      */
     void combineAllWeightedSums();
+    void combineAllWeightedSumslowpresion();
 
     /** Join the sums from two random halves
      */

@@ -70,6 +70,8 @@
 #define LARGE_NUMBER 99e36
 #define MY_MPI_DOUBLE  MPI_FLOAT
 #define MY_MPI_COMPLEX MPI_COMPLEX
+#define MY_MPI_INT  MPI_INT
+
 #else
 #define RFLOAT double
 #define LARGE_NUMBER 99e99
