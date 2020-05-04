@@ -12,12 +12,20 @@
 #include <string>
 #include <sstream>
 
+#define TIMING_FILES
+
 #ifdef TIMING_FILES
-#define	CTIC(timer,timing) (timer.cuda_cpu_tic(timing))
-#define	CTOC(timer,timing) (timer.cuda_cpu_toc(timing))
+#define	CTIC(timer,timing) (timer.cuda_gpu_tic(timing))
+#define	CTOC(timer,timing) (timer.cuda_gpu_toc(timing))
 #define	GTIC(timer,timing) (timer.cuda_gpu_tic(timing))
 #define	GTOC(timer,timing) (timer.cuda_gpu_toc(timing))
-#define	GATHERGPUTIMINGS(timer) (timer.cuda_gpu_printtictoc())
+
+#define	CTIC2(timer,timing)
+#define	CTOC2(timer,timing)
+#define	GTIC2(timer,timing)
+#define	GTOC2(timer,timing)
+
+#define	GATHERGPUTIMINGS(timer,id) (timer.cuda_gpu_printtictoc(id))
 #elif defined CUDA_PROFILING
 	#include <nvToolsExt.h>
 	#define	CTIC(timer,timing) (nvtxRangePush(timing))
@@ -30,7 +38,11 @@
 	#define	CTOC(timer,timing)
 	#define	GTIC(timer,timing)
 	#define	GTOC(timer,timing)
-	#define	GATHERGPUTIMINGS(timer)
+	#define	GATHERGPUTIMINGS(timer,id)
+	#define	CTIC2(timer,timing)
+	#define	CTOC2(timer,timing)
+	#define	GTIC2(timer,timing)
+	#define	GTOC2(timer,timing)
 #endif
 
 class relion_timer
@@ -55,6 +67,9 @@ relion_timer(std::string fnm)
 	fnm_gpu << "output/" << fnm << "_gpu.dat";
 	cuda_gpu_benchmark_fPtr = fopen(fnm_gpu.str().c_str(),"a");
 }
+relion_timer()
+{
+}
 
 int cuda_benchmark_find_id(std::string id, std::vector<std::string> v);
 
@@ -66,8 +81,10 @@ void cuda_gpu_tic(std::string id);
 
 void cuda_gpu_toc(std::string id);
 
-void cuda_gpu_printtictoc();
+void cuda_gpu_printtictoc(int id);
 
+void setfile(std::string id);
+void closefile();
 };
 
 #endif /* CUDA_BENCHMARK_UTILS_H_ */

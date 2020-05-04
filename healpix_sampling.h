@@ -228,8 +228,16 @@ public:
      * Also precalculate their prior probabilities and store in directions_prior and psi_prior
      */
     // Jun 04 - Shaoda & Sjors, Bimodel psi searches for helices
-    void selectOrientationsWithNonZeroPriorProbability(
+     void selectOrientationsWithNonZeroPriorProbability(
     		RFLOAT prior_rot, RFLOAT prior_tilt, RFLOAT prior_psi,
+    		RFLOAT sigma_rot, RFLOAT sigma_tilt, RFLOAT sigma_psi,
+    		std::vector<int> &pointer_dir_nonzeroprior, std::vector<RFLOAT> &directions_prior,
+    		std::vector<int> &pointer_psi_nonzeroprior, std::vector<RFLOAT> &psi_prior,
+			bool do_bimodal_search_psi = false,
+    		RFLOAT sigma_cutoff = 3., RFLOAT sigma_tilt_from_ninety = -1., RFLOAT sigma_psi_from_zero = -1.);
+
+   void selectOrientationsWithNonZeroPriorProbability(
+    		int num , RFLOAT prior_rot, RFLOAT prior_tilt, RFLOAT prior_psi,
     		RFLOAT sigma_rot, RFLOAT sigma_tilt, RFLOAT sigma_psi,
     		std::vector<int> &pointer_dir_nonzeroprior, std::vector<RFLOAT> &directions_prior,
     		std::vector<int> &pointer_psi_nonzeroprior, std::vector<RFLOAT> &psi_prior,

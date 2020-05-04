@@ -26,6 +26,7 @@ int main(int argc, char **argv)
 	try
 	{
 
+
 		// Read in parameters from the command line
 		optimiser.read(argc, argv);
 

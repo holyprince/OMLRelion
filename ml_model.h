@@ -493,9 +493,13 @@ public:
     // If the whole thing becomes bigger than 1Gb (see MAX_PACK_SIZE in ml_model.cpp), then break it up into pieces because MPI cannot handle very large messages
 	// When broken up: nr_pieces > 1
 	void pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces, bool do_clear=true);
+	void packpart1(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces,bool do_clear=true);
+	void packpart2(MultidimArray<int> &packed, int &piece, int &nr_pieces,bool do_clear=true);
 
 	// Fill the model again using unpack (this is the inverse operation from pack)
 	void unpack(MultidimArray<RFLOAT> &packed, int piece, bool do_clear=true);
+	void unpackpart1(MultidimArray<RFLOAT> &packed, int piece,bool do_clear=true);
+	void unpackpart2(MultidimArray<int> &packed, int piece,bool do_clear=true);
 
 };
 

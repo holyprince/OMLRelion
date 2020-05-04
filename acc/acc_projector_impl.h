@@ -103,6 +103,10 @@ bool AccProjector::setMdlDim(
 
 #else
 #ifdef CUDA
+
+	size_t freedata,total;
+	cudaMemGetInfo( &freedata, &total );
+	printf("%ld   %ld \n",freedata,total);
 	DEBUG_HANDLE_ERROR(cudaMalloc( (void**) &mdlReal, mdlXYZ * sizeof(XFLOAT)));
 	DEBUG_HANDLE_ERROR(cudaMalloc( (void**) &mdlImag, mdlXYZ * sizeof(XFLOAT)));
 #else

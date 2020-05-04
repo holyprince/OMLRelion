@@ -181,6 +181,7 @@ void FourierTransformer::setReal(MultidimArray<RFLOAT> &input)
 
     if (recomputePlan)
     {
+
 		fFourier.reshape(ZSIZE(input),YSIZE(input),XSIZE(input)/2+1);
 		fReal=&input;
 
@@ -350,6 +351,7 @@ void FourierTransformer::Transform(int sign)
         FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(fFourier)
             DIRECT_MULTIDIM_ELEM(fFourier,n) /= size;
 	RCTOC(TIMING_FFTW_NORMALISE);
+
     }
     else if (sign == FFTW_BACKWARD)
     {
@@ -363,6 +365,8 @@ void FourierTransformer::Transform(int sign)
 #endif
 	RCTOC(TIMING_FFTW_EXECUTE);
     }
+
+
 }
 
 void FourierTransformer::FourierTransform()

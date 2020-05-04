@@ -1995,7 +1995,7 @@ void MlOptimiser::initialiseWorkLoad()
 
 }
 
-void MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT> &Mavg, bool myverb, int myid)
+void MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT> &Mavg, bool myverb)
 {
 
 #ifdef DEBUG_INI
@@ -2003,7 +2003,7 @@ void MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT
 #endif
 
 
-    printf("id num : %d first : %lld - last : %lld\n", myid,my_first_ori_particle_id, my_last_ori_particle_id);
+   // printf("id num : %d first : %lld - last : %lld\n", myid,my_first_ori_particle_id, my_last_ori_particle_id);
     int barstep, my_nr_ori_particles = my_last_ori_particle_id - my_first_ori_particle_id + 1;
     if (my_nr_ori_particles < 1)
     {
@@ -2044,6 +2044,7 @@ void MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT
 		wsum_model.current_size  = mymodel.getPixelFromResolution(1./ini_high);
 	wsum_model.initZeros();
 
+	//printf("Fisrt and last : %d %d \n ",my_first_ori_particle_id,my_last_ori_particle_id);
 	for (long int ori_part_id = my_first_ori_particle_id; ori_part_id <= my_last_ori_particle_id; ori_part_id++, nr_ori_particles_done++)
 	{
 
@@ -2076,6 +2077,7 @@ void MlOptimiser::calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT
 						REPORT_ERROR("ml_optimiser.cpp::calculateSumOfPowerSpectraAndAverageImage: Tilt priors of helical segments are missing!");
 				}
 			}
+
 
 			// Read image from disc
             Image<RFLOAT> img;
@@ -2349,6 +2351,13 @@ void MlOptimiser::initialLowPassFilterReferences()
 		RFLOAT radius_p = radius + WIDTH_FMASK_EDGE;
 		FourierTransformer transformer;
 		MultidimArray<Complex > Faux;
+/*		double sum=0;
+		for(int i=0;i<mymodel.Iref[0].nzyxdim;i++)
+		{
+			sum+=mymodel.Iref[0].data[i];
+		}
+		printf("sum is : %f \n",sum);*/
+		//same input ref
 		for (int iclass = 0; iclass < mymodel.nr_classes; iclass++)
 		{
 			transformer.FourierTransform(mymodel.Iref[iclass], Faux);
@@ -2994,7 +3003,7 @@ void MlOptimiser::expectationSetup()
 
 	// Initialise all weighted sums to zero
 	wsum_model.initZeros();
-
+	printf("BPref size : %d %d %d \n",wsum_model.BPref.data()->data.xdim,wsum_model.BPref.data()->data.ydim,wsum_model.BPref.data()->data.zdim);
 	// If we're doing SGD with gradual decrease of sigma2_fudge: calculate current fudge-factor here
 	if (do_sgd && sgd_sigma2fudge_halflife > 0)
 	{
@@ -3823,6 +3832,7 @@ void MlOptimiser::symmetriseReconstructions()
 
 				wsum_model.BPref[ith_recons].applyPointGroupSymmetry();
 			}
+
 		}
 	}
 	return;
@@ -3954,7 +3964,7 @@ void MlOptimiser::maximization()
 					tau2_fudge = mymodel.tau2_fudge_factor;
 				}
 
-				(wsum_model.BPref[iclass]).reconstruct(mymodel.Iref[iclass], gridding_nr_iter, do_map,
+				(wsum_model.BPref[iclass]).reconstruct_gpu(mymodel.Iref[iclass], gridding_nr_iter, do_map,
 								tau2_fudge, mymodel.tau2_class[iclass], mymodel.sigma2_class[iclass],
 								mymodel.data_vs_prior_class[iclass], mymodel.fourier_coverage_class[iclass],
 								mymodel.fsc_halves_class[0], wsum_model.pdf_class[iclass], false, false, nr_threads, minres_map, (iclass==0), do_fsc0999);
@@ -5863,7 +5873,7 @@ void MlOptimiser::getAllSquaredDifferences(long int my_ori_particle, int ibody, 
 		std::vector<MultidimArray<RFLOAT> > &exp_local_Fctfs,
 		std::vector<RFLOAT> &exp_local_sqrtXi2)
 {
-int num=0;
+
 #ifdef TIMING
 	if (my_ori_particle == exp_my_first_ori_particle)
 	{
@@ -6455,7 +6465,7 @@ void MlOptimiser::convertAllSquaredDifferencesToWeights(long int my_ori_particle
 		std::vector<RFLOAT> &exp_directions_prior, std::vector<RFLOAT> &exp_psi_prior)
 {
 
-	int num=0;
+
 #ifdef TIMING
 	if (my_ori_particle == exp_my_first_ori_particle)
 	{
@@ -7038,7 +7048,7 @@ void MlOptimiser::storeWeightedSums(long int my_ori_particle, int ibody, int exp
 		std::vector<MultidimArray<RFLOAT> > &exp_local_Fctfs,
 		std::vector<RFLOAT> &exp_local_sqrtXi2)
 {
-	int num=0;
+
 #ifdef TIMING
 	if (my_ori_particle == exp_my_first_ori_particle)
 		timer.tic(TIMING_ESP_WSUM);
@@ -7148,8 +7158,7 @@ void MlOptimiser::storeWeightedSums(long int my_ori_particle, int ibody, int exp
 	// wsum_sigma2_offset is just a RFLOAT
 	thr_wsum_sigma2_offset = 0.;
 
-	int num2=0;
-	int num3=0;
+
 	// Loop from iclass_min to iclass_max to deal with seed generation in first iteration
 	for (int exp_iclass = exp_iclass_min; exp_iclass <= exp_iclass_max; exp_iclass++)
 	{
@@ -7159,11 +7168,11 @@ void MlOptimiser::storeWeightedSums(long int my_ori_particle, int ibody, int exp
 			{
 				long int iorientclass = exp_iclass * exp_nr_dir * exp_nr_psi + iorient;
 
-				num3++;
+
 				// Only proceed if any of the particles had any significant coarsely sampled translation
 				if (isSignificantAnyParticleAnyTranslation(iorientclass, exp_itrans_min, exp_itrans_max, exp_Mcoarse_significant))
 				{
-					num2++;
+
 					// Now get the oversampled (rot, tilt, psi) triplets
 					// This will be only the original (rot,tilt,psi) triplet if (adaptive_oversampling==0)
 					sampling.getOrientations(idir, ipsi, adaptive_oversampling, oversampled_rot, oversampled_tilt, oversampled_psi,
@@ -7806,7 +7815,7 @@ void MlOptimiser::storeWeightedSums(long int my_ori_particle, int ibody, int exp
 							// Perform this inside a mutex
 							int my_mutex = exp_iclass % NR_CLASS_MUTEXES;
 							pthread_mutex_lock(&global_mutex2[my_mutex]);
-						//	num++;
+
 							if (mymodel.nr_bodies > 1)
 								(wsum_model.BPref[ibody]).set2DFourierTransform(Fimg, Abody, IS_NOT_INV, &Fweight);
 							else

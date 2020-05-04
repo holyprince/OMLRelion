@@ -268,7 +268,7 @@ void MlOptimiserCuda::doThreadExpectationSomeParticles(int thread_id)
 
 	while (baseMLO->exp_ipart_ThreadTaskDistributor->getTasks(first_ipart, last_ipart))
 	{
-		CTIC(timer,"oneTask");
+		//CTIC(timer,"oneTask");
 		for (long unsigned ipart = first_ipart; ipart <= last_ipart; ipart++)
 		{
 #ifdef TIMING
@@ -282,7 +282,7 @@ void MlOptimiserCuda::doThreadExpectationSomeParticles(int thread_id)
             accDoExpectationOneParticle<MlOptimiserCuda>(this, my_ori_particle, thread_id, ptrFactory);
 
 		}
-		CTOC(timer,"oneTask");
+		//CTOC(timer,"oneTask");
 	}
 
 //	CTIC(cudaMLO->timer,"interParticle");

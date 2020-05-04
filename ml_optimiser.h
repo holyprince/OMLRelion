@@ -95,7 +95,7 @@
 #define MAX_NR_ITER_WO_LARGE_HIDDEN_VARIABLE_CHANGES 1
 
 // for profiling
-//#define TIMING
+#define TIMING
 
 class MlOptimiser;
 
@@ -652,6 +652,7 @@ public:
 	int ESS_1, ESS_2, ESS_3, ESS_4;
 	int EINS_1, EINS_2, EINS_3, EINS_4, EINS_5,EINS_6, EINS_7, EINS_8, EINS_9;
 	int EINS_10, EINS_11;
+	int timenorm2;
 #endif
 
 public:
@@ -807,7 +808,7 @@ public:
 	/* Calculates the sum of all individual power spectra and the average of all images for initial sigma_noise estimation
 	 * The rank is passed so that if one splits the data into random halves one can know which random half to treat
 	 */
-	void calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT> &Mavg, bool myverb = true, int myid = 0);
+	void calculateSumOfPowerSpectraAndAverageImage(MultidimArray<RFLOAT> &Mavg, bool myverb = true);
 
 	/** Use the sum of the individual power spectra to calculate their average and set this in sigma2_noise
 	 * Also subtract the power spectrum of the average images,

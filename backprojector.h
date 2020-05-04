@@ -170,6 +170,9 @@ public:
 
 	// Initialise data and weight arrays to the given size and set all values to zero
 	void initialiseDataAndWeight(int current_size = -1);
+	//add by wzh
+	void initialiseOnlyData(int current_size = -1);
+	void initialiseOnlyWeight(int current_size = -1);
 
 	// Initialise data and weight arrays to the given size and set all values to zero
 	void initZeros(int current_size = -1);
@@ -296,7 +299,22 @@ public:
                      bool printTimes= false,
 					 bool do_fsc0999 = false);
 
-
+	void reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
+                     int max_iter_preweight,
+                     bool do_map,
+                     RFLOAT tau2_fudge,
+                     MultidimArray<RFLOAT> &tau2_io,
+                     MultidimArray<RFLOAT> &sigma2_out,
+                     MultidimArray<RFLOAT> &evidence_vs_prior_out,
+                     MultidimArray<RFLOAT> &fourier_coverage_out,
+                     const MultidimArray<RFLOAT>& fsc,
+                     RFLOAT normalise = 1.,
+                     bool update_tau2_with_fsc = false,
+                     bool is_whole_instead_of_half = false,
+                     int nr_threads = 1,
+                     int minres_map = -1,
+                     bool printTimes= false,
+					 bool do_fsc0999 = false);
 	/*  Enforce Hermitian symmetry, apply helical symmetry as well as point-group symmetry
 	 */
 	void symmetrise(int nr_helical_asu = 1, RFLOAT helical_twist = 0., RFLOAT helical_rise = 0.);
@@ -320,7 +338,7 @@ public:
 	 * Note the convlution is done on the complex array inside the transformer object!!
 	 */
     void convoluteBlobRealSpace(FourierTransformer &transformer, bool do_mask = false, int threads = 1);
-
+    void convoluteBlobRealSpace_gpu(FourierTransformer &transformer, bool do_mask = false, int threads = 1);
 	/* Calculate the inverse FFT of Fin and windows the result to ori_size
 	 * Also pass the transformer, to prevent making and clearing a new one before clearing the one in reconstruct()
 	 */
