@@ -109,8 +109,8 @@ __global__ void cuda_kernel_wavg(
 
 			if (REFCTF)
 			{
-				ref_real *= __ldg(&g_ctfs[pixel]);
-				ref_imag *= __ldg(&g_ctfs[pixel]);
+				ref_real *= ldg(&g_ctfs[pixel]);
+				ref_imag *= ldg(&g_ctfs[pixel]);
 			}
 			else
 			{
@@ -118,12 +118,12 @@ __global__ void cuda_kernel_wavg(
 				ref_imag *= part_scale;
 			}
 
-			img_real = __ldg(&g_img_real[pixel]);
-			img_imag = __ldg(&g_img_imag[pixel]);
+			img_real = ldg(&g_img_real[pixel]);
+			img_imag = ldg(&g_img_imag[pixel]);
 
 			for (unsigned long itrans = 0; itrans < translation_num; itrans++)
 			{
-				XFLOAT weight = __ldg(&g_weights[bid * translation_num + itrans]);
+				XFLOAT weight = ldg(&g_weights[bid * translation_num + itrans]);
 
 				if (weight >= significant_weight)
 				{

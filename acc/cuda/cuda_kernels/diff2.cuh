@@ -276,22 +276,22 @@ __global__ void cuda_kernel_diff2_fine(
 				if(DATA3D)
 					projector.project3Dmodel(
 						x,y,z,
-						__ldg(&g_eulers[ix*9  ]), __ldg(&g_eulers[ix*9+1]), __ldg(&g_eulers[ix*9+2]),
-						__ldg(&g_eulers[ix*9+3]), __ldg(&g_eulers[ix*9+4]), __ldg(&g_eulers[ix*9+5]),
-						__ldg(&g_eulers[ix*9+6]), __ldg(&g_eulers[ix*9+7]), __ldg(&g_eulers[ix*9+8]),
+						ldg(&g_eulers[ix*9  ]), ldg(&g_eulers[ix*9+1]), ldg(&g_eulers[ix*9+2]),
+						ldg(&g_eulers[ix*9+3]), ldg(&g_eulers[ix*9+4]), ldg(&g_eulers[ix*9+5]),
+						ldg(&g_eulers[ix*9+6]), ldg(&g_eulers[ix*9+7]), ldg(&g_eulers[ix*9+8]),
 						ref_real, ref_imag);
 				else if(REF3D)
 					projector.project3Dmodel(
 						x,y,
-						__ldg(&g_eulers[ix*9  ]), __ldg(&g_eulers[ix*9+1]),
-						__ldg(&g_eulers[ix*9+3]), __ldg(&g_eulers[ix*9+4]),
-						__ldg(&g_eulers[ix*9+6]), __ldg(&g_eulers[ix*9+7]),
+						ldg(&g_eulers[ix*9  ]), ldg(&g_eulers[ix*9+1]),
+						ldg(&g_eulers[ix*9+3]), ldg(&g_eulers[ix*9+4]),
+						ldg(&g_eulers[ix*9+6]), ldg(&g_eulers[ix*9+7]),
 						ref_real, ref_imag);
 				else
 					projector.project2Dmodel(
 						x,y,
-						__ldg(&g_eulers[ix*9  ]), __ldg(&g_eulers[ix*9+1]),
-						__ldg(&g_eulers[ix*9+3]), __ldg(&g_eulers[ix*9+4]),
+						ldg(&g_eulers[ix*9  ]), ldg(&g_eulers[ix*9+1]),
+						ldg(&g_eulers[ix*9+3]), ldg(&g_eulers[ix*9+4]),
 						ref_real, ref_imag);
 
 				for (int itrans=0; itrans<trans_num; itrans++) // finish all translations in each partial pass
@@ -305,7 +305,7 @@ __global__ void cuda_kernel_diff2_fine(
 
 					diff_real =  ref_real - shifted_real;
 					diff_imag =  ref_imag - shifted_imag;
-					s[itrans*block_sz + tid] += (diff_real * diff_real + diff_imag * diff_imag) * (XFLOAT)0.5 * __ldg(&g_corr_img[pixel]);
+					s[itrans*block_sz + tid] += (diff_real * diff_real + diff_imag * diff_imag) * (XFLOAT)0.5 * ldg(&g_corr_img[pixel]);
 				}
 			}
 			__syncthreads();
@@ -369,15 +369,15 @@ __global__ void cuda_kernel_diff2_CC_coarse(
 	XFLOAT real, imag, ref_real, ref_imag;
 
 	XFLOAT e0,e1,e2,e3,e4,e5,e6,e7,e8;
-	e0 = __ldg(&g_eulers[iorient*9  ]);
-	e1 = __ldg(&g_eulers[iorient*9+1]);
-	e2 = __ldg(&g_eulers[iorient*9+2]);
-	e3 = __ldg(&g_eulers[iorient*9+3]);
-	e4 = __ldg(&g_eulers[iorient*9+4]);
-	e5 = __ldg(&g_eulers[iorient*9+5]);
-	e6 = __ldg(&g_eulers[iorient*9+6]);
-	e7 = __ldg(&g_eulers[iorient*9+7]);
-	e8 = __ldg(&g_eulers[iorient*9+8]);
+	e0 = ldg(&g_eulers[iorient*9  ]);
+	e1 = ldg(&g_eulers[iorient*9+1]);
+	e2 = ldg(&g_eulers[iorient*9+2]);
+	e3 = ldg(&g_eulers[iorient*9+3]);
+	e4 = ldg(&g_eulers[iorient*9+4]);
+	e5 = ldg(&g_eulers[iorient*9+5]);
+	e6 = ldg(&g_eulers[iorient*9+6]);
+	e7 = ldg(&g_eulers[iorient*9+7]);
+	e8 = ldg(&g_eulers[iorient*9+8]);
 
 	__syncthreads();
 
@@ -437,8 +437,8 @@ __global__ void cuda_kernel_diff2_CC_coarse(
 			else
 				translatePixel(x, y,    g_trans_x[itrans], g_trans_y[itrans],                    g_imgs_real[pixel], g_imgs_imag[pixel], real, imag);
 
-			s_weight[tid] += (ref_real * real     + ref_imag * imag)      * __ldg(&g_corr_img[pixel]);
-			s_norm[tid]   += (ref_real * ref_real + ref_imag * ref_imag ) * __ldg(&g_corr_img[pixel]);
+			s_weight[tid] += (ref_real * real     + ref_imag * imag)      * ldg(&g_corr_img[pixel]);
+			s_norm[tid]   += (ref_real * ref_real + ref_imag * ref_imag ) * ldg(&g_corr_img[pixel]);
 		}
 		__syncthreads();
 	}
@@ -550,22 +550,22 @@ __global__ void cuda_kernel_diff2_CC_fine(
 				if(DATA3D)
 					projector.project3Dmodel(
 						x,y,z,
-						__ldg(&g_eulers[ix*9  ]), __ldg(&g_eulers[ix*9+1]), __ldg(&g_eulers[ix*9+2]),
-						__ldg(&g_eulers[ix*9+3]), __ldg(&g_eulers[ix*9+4]), __ldg(&g_eulers[ix*9+5]),
-						__ldg(&g_eulers[ix*9+6]), __ldg(&g_eulers[ix*9+7]), __ldg(&g_eulers[ix*9+8]),
+						ldg(&g_eulers[ix*9  ]), ldg(&g_eulers[ix*9+1]), ldg(&g_eulers[ix*9+2]),
+						ldg(&g_eulers[ix*9+3]), ldg(&g_eulers[ix*9+4]), ldg(&g_eulers[ix*9+5]),
+						ldg(&g_eulers[ix*9+6]), ldg(&g_eulers[ix*9+7]), ldg(&g_eulers[ix*9+8]),
 						ref_real, ref_imag);
 				else if(REF3D)
 					projector.project3Dmodel(
 						x,y,
-						__ldg(&g_eulers[ix*9  ]), __ldg(&g_eulers[ix*9+1]),
-						__ldg(&g_eulers[ix*9+3]), __ldg(&g_eulers[ix*9+4]),
-						__ldg(&g_eulers[ix*9+6]), __ldg(&g_eulers[ix*9+7]),
+						ldg(&g_eulers[ix*9  ]), ldg(&g_eulers[ix*9+1]),
+						ldg(&g_eulers[ix*9+3]), ldg(&g_eulers[ix*9+4]),
+						ldg(&g_eulers[ix*9+6]), ldg(&g_eulers[ix*9+7]),
 						ref_real, ref_imag);
 				else
 					projector.project2Dmodel(
 						x,y,
-						__ldg(&g_eulers[ix*9  ]), __ldg(&g_eulers[ix*9+1]),
-						__ldg(&g_eulers[ix*9+3]), __ldg(&g_eulers[ix*9+4]),
+						ldg(&g_eulers[ix*9  ]), ldg(&g_eulers[ix*9+1]),
+						ldg(&g_eulers[ix*9+3]), ldg(&g_eulers[ix*9+4]),
 						ref_real, ref_imag);
 
 				for (int itrans=0; itrans<trans_num; itrans++) // finish all translations in each partial pass
@@ -577,8 +577,8 @@ __global__ void cuda_kernel_diff2_CC_fine(
 					else
 						translatePixel(x, y,    g_trans_x[iy], g_trans_y[iy],                g_imgs_real[pixel], g_imgs_imag[pixel], shifted_real, shifted_imag);
 
-					s[   itrans*block_sz + tid] += (ref_real * shifted_real + ref_imag * shifted_imag) * __ldg(&g_corr_img[pixel]);
-					s_cc[itrans*block_sz + tid] += (ref_real*ref_real + ref_imag*ref_imag) * __ldg(&g_corr_img[pixel]);
+					s[   itrans*block_sz + tid] += (ref_real * shifted_real + ref_imag * shifted_imag) * ldg(&g_corr_img[pixel]);
+					s_cc[itrans*block_sz + tid] += (ref_real*ref_real + ref_imag*ref_imag) * ldg(&g_corr_img[pixel]);
 				}
 			}
 			__syncthreads();

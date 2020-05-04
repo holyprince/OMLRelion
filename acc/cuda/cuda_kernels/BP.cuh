@@ -82,10 +82,11 @@ __global__ void cuda_kernel_backproject2D(
 			continue;
 
 		//WAVG
-		minvsigma2 = __ldg(&g_Minvsigma2s[pixel]);
-		ctf = __ldg(&g_ctfs[pixel]);
-		img_real = __ldg(&g_img_real[pixel]);
-		img_imag = __ldg(&g_img_imag[pixel]);
+		// __ldg
+		minvsigma2 =ldg(&g_Minvsigma2s[pixel]);
+		ctf = ldg(&g_ctfs[pixel]);
+		img_real = ldg(&g_img_real[pixel]);
+		img_imag = ldg(&g_img_imag[pixel]);
 		Fweight = (XFLOAT) 0.0;
 		real = (XFLOAT) 0.0;
 		imag = (XFLOAT) 0.0;
@@ -258,10 +259,10 @@ __global__ void cuda_kernel_backproject3D(
 				continue;
 
 		//WAVG
-		minvsigma2 = __ldg(&g_Minvsigma2s[pixel]);
-		ctf = __ldg(&g_ctfs[pixel]);
-		img_real = __ldg(&g_img_real[pixel]);
-		img_imag = __ldg(&g_img_imag[pixel]);
+		minvsigma2 = ldg(&g_Minvsigma2s[pixel]);
+		ctf = ldg(&g_ctfs[pixel]);
+		img_real = ldg(&g_img_real[pixel]);
+		img_imag = ldg(&g_img_imag[pixel]);
 		Fweight = (XFLOAT) 0.0;
 		real = (XFLOAT) 0.0;
 		imag = (XFLOAT) 0.0;
@@ -502,10 +503,10 @@ __global__ void cuda_kernel_backprojectSGD(
 				ref_real, ref_imag);
 
 		//WAVG
-		minvsigma2 = __ldg(&g_Minvsigma2s[pixel]);
-		ctf = __ldg(&g_ctfs[pixel]);
-		img_real = __ldg(&g_img_real[pixel]);
-		img_imag = __ldg(&g_img_imag[pixel]);
+		minvsigma2 = ldg(&g_Minvsigma2s[pixel]);
+		ctf = ldg(&g_ctfs[pixel]);
+		img_real = ldg(&g_img_real[pixel]);
+		img_imag = ldg(&g_img_imag[pixel]);
 		Fweight = (XFLOAT) 0.0;
 		real = (XFLOAT) 0.0;
 		imag = (XFLOAT) 0.0;

@@ -251,7 +251,7 @@ __global__ void cuda_kernel_softMaskOutsideMap(	XFLOAT *vol,
 				XFLOAT x,y,z;
 				if(texel<vol_size)
 				{
-					img_pixels[tid]=__ldg(&vol[texel]);
+					img_pixels[tid]=ldg(&vol[texel]);
 
 					z = floor( (float) texel                   / (float)((xdim)*(ydim)));
 					y = floor( (XFLOAT)(texel-z*(xdim)*(ydim)) / (XFLOAT) xdim );
@@ -304,7 +304,7 @@ __global__ void cuda_kernel_softMaskOutsideMap(	XFLOAT *vol,
 			XFLOAT x,y,z;
 			if(texel<vol_size)
 			{
-				img_pixels[tid]=__ldg(&vol[texel]);
+				img_pixels[tid]=ldg(&vol[texel]);
 
 				z =  floor( (float) texel                  / (float)((xdim)*(ydim)));
 				y = floor( (XFLOAT)(texel-z*(xdim)*(ydim)) / (XFLOAT)  xdim         );
@@ -378,7 +378,7 @@ __global__ void cuda_kernel_softMaskBackgroundValue(	XFLOAT *vol,
 		{
 			if(texel<vol_size)
 			{
-				img_pixels[tid]=__ldg(&vol[texel]);
+				img_pixels[tid]=ldg(&vol[texel]);
 				partial_sum[tid]+=img_pixels[tid];
 /*
 				z =   texel / (xdim*ydim) ;
@@ -449,7 +449,7 @@ __global__ void cuda_kernel_cosineFilter(	XFLOAT *vol,
 	{
 		if(texel<vol_size)
 		{
-			img_pixels[tid]=__ldg(&vol[texel]);
+			img_pixels[tid]=ldg(&vol[texel]);
 
 			z =   texel / (xdim*ydim) ;
 			y = ( texel % (xdim*ydim) ) / xdim ;

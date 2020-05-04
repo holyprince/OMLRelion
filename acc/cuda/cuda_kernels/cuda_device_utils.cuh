@@ -4,6 +4,17 @@
 #include <cuda_runtime.h>
 #include "../cuda_settings.h"
 
+
+template<typename T>
+__device__ __forceinline__ T ldg (const T* ptr){
+#if __CUDA_ARCH__ >=350
+	return __ldg(ptr);
+#else
+	return *ptr;
+#endif
+}
+
+
 #ifdef ACC_DOUBLE_PRECISION
 __device__ inline double cuda_atomic_add(double* address, double val)
 {
