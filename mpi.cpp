@@ -121,8 +121,8 @@ int MpiNode::relion_MPI_Send(void *buf, std::ptrdiff_t count, MPI_Datatype datat
         char * const buffer(reinterpret_cast<char*>(buf));
         const std::ptrdiff_t ntimes(totalsize/blocksize);
         const std::ptrdiff_t nremain(totalsize%blocksize);
-        if(rank == 1)
-        printf("send divide block %d \n",ntimes);
+//        if(rank == 1)
+//        printf("send divide block %d \n",ntimes);
         std::ptrdiff_t i(0);
         for(; i<ntimes; ++i) {
             result = MPI_Send(buffer+i*blocksize, blocksize, MPI_CHAR, dest, tag, comm);

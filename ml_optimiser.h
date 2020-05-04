@@ -95,7 +95,7 @@
 #define MAX_NR_ITER_WO_LARGE_HIDDEN_VARIABLE_CHANGES 1
 
 // for profiling
-#define TIMING
+//#define TIMING
 
 class MlOptimiser;
 

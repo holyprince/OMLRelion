@@ -17,6 +17,9 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 		int ibody = 0
 		)
 {
+
+
+#ifdef TIMING
 	std::string adata;
 	relion_timer timer;
 	if(my_ori_particle==2 )
@@ -33,7 +36,7 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 
 	if(my_ori_particle==2 || my_ori_particle==10000 )
 	CTIC(timer,"getFourierTransformsAndCtfs"); //ttime  timer
-#ifdef TIMING
+
 	if (op.my_ori_particle == baseMLO->exp_my_first_ori_particle)
 		baseMLO->timer.tic(baseMLO->TIMING_ESP_FT);
 #endif
@@ -42,8 +45,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 
 	for (unsigned long ipart = 0; ipart < baseMLO->mydata.ori_particles[my_ori_particle].particles_id.size(); ipart++)
 	{
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"init");
+#endif
 		FileName fn_img;
 		Image<RFLOAT> img, rec_img;
 		MultidimArray<Complex > Fimg;
@@ -136,16 +141,20 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			// For multi-body refinement: set the priors of the translations to zero (i.e. everything centred around consensus offset)
 			my_prior.initZeros();
 		}
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"init");
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"nonZeroProb");
+#endif
 		// Orientational priors
 		if (baseMLO->mymodel.nr_bodies > 1 )
 		{
+
+#ifdef TIMING
                 if(my_ori_particle==2 || my_ori_particle==10000 )
                 CTIC(timer,"nonZeroProb1");
-
+#endif
 
 			// Centre local searches around the orientation from the previous iteration, this one goes with overall sigma2_ang
 			// On top of that, apply prior on the deviation from (0,0,0) with mymodel.sigma_tilt_bodies[ibody] and mymodel.sigma_psi_bodies[ibody]
@@ -164,16 +173,18 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 					op.pointer_psi_nonzeroprior, op.psi_prior, false, 3.,
 					baseMLO->mymodel.sigma_tilt_bodies[ibody],
 					baseMLO->mymodel.sigma_psi_bodies[ibody]);
+#ifdef TIMING
                 if(my_ori_particle==2 || my_ori_particle==10000 )
                 CTOC(timer,"nonZeroProb1");
+#endif
 
 		}
 		else if (baseMLO->mymodel.orientational_prior_mode != NOPRIOR && !(baseMLO->do_skip_align ||baseMLO-> do_skip_rotate))
 		{
-
+#ifdef TIMING
           if(my_ori_particle==2 || my_ori_particle==10000 )
                 CTIC(timer,"nonZeroProb2");
-
+#endif
 
 			// First try if there are some fixed prior angles
 			// For multi-body refinements, ignore the original priors and get the refined residual angles from the previous iteration
@@ -198,26 +209,13 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 				prior_psi = DIRECT_A2D_ELEM(baseMLO->exp_metadata,op. metadata_offset + ipart, METADATA_PSI);
 			if (prior_psi_flip_ratio > 998.99 && prior_psi_flip_ratio < 999.01)
 				prior_psi_flip_ratio = 0.5;
-          		if(my_ori_particle==2 || my_ori_particle==10000 )
-				printf("flag ans : %d %d %d\n",do_auto_refine_local_searches,do_classification_local_searches,do_local_angular_searches);
 			////////// How does this work now: each particle has a different sampling object?!!!
 			// Select only those orientations that have non-zero prior probability
 
 
 
-                         if(my_ori_particle==2 || my_ori_particle==10000 )
-                                {
-                                        printf("OOOOOOOOOOOOOOOOO\n");
-                                }
-
 			if (baseMLO->do_helical_refine)
 			{
-                         if(my_ori_particle==2 || my_ori_particle==10000 )
-                                {
-                                        printf("HHHHHHHHHHHHHHHHHHH\n");
-                                }
-
-
 				baseMLO->sampling.selectOrientationsWithNonZeroPriorProbabilityFor3DHelicalReconstruction(prior_rot, prior_tilt, prior_psi,
 										sqrt(baseMLO->mymodel.sigma2_rot), sqrt(baseMLO->mymodel.sigma2_tilt), sqrt(baseMLO->mymodel.sigma2_psi),
 										op.pointer_dir_nonzeroprior, op.directions_prior, op.pointer_psi_nonzeroprior, op.psi_prior,
@@ -225,20 +223,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			}
 			else
 			{
-				if(my_ori_particle==2 || my_ori_particle==10000 )
-				{
-					printf("XXXXXXXXXXXXXXXX\n");
-				}
 				baseMLO->sampling.selectOrientationsWithNonZeroPriorProbability(my_ori_particle,prior_rot, prior_tilt, prior_psi,sqrt(baseMLO->mymodel.sigma2_rot), sqrt(baseMLO->mymodel.sigma2_tilt), sqrt(baseMLO->mymodel.sigma2_psi),op.pointer_dir_nonzeroprior, op.directions_prior, op.pointer_psi_nonzeroprior, op.psi_prior);
 			}
-   if(my_ori_particle==2 || my_ori_particle==10000 )
-                                {
-                                        printf("PPPPPPPPPPPPPPP\n");
-                                }
 
 
-        if(my_ori_particle==2 || my_ori_particle==10000 )
-                CTOC(timer,"nonZeroProb2");
 
 
 			long int nr_orients = baseMLO->sampling.NrDirections(0, &op.pointer_dir_nonzeroprior) * baseMLO->sampling.NrPsiSamplings(0, &op.pointer_psi_nonzeroprior);
@@ -250,12 +238,14 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			}
 
 		}
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"nonZeroProb");
 
 		// ------------------------------------------------------------------------------------------
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"readData");
+#endif
 		// Get the image and recimg data
 		if (baseMLO->do_parallel_disc_io)
 		{
@@ -265,33 +255,45 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			{
 
                 img().reshape(baseMLO->mydata.particles[part_id].img);
+#ifdef TIMING
                 if(my_ori_particle==2 || my_ori_particle==10000 )
                 CTIC(timer,"ParaReadPrereadImages");
+#endif
 				FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(baseMLO->mydata.particles[part_id].img)
 				{
                 	DIRECT_MULTIDIM_ELEM(img(), n) = (RFLOAT)DIRECT_MULTIDIM_ELEM(baseMLO->mydata.particles[part_id].img, n);
 				}
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"ParaReadPrereadImages");
+#endif
 			}
 			else
 			{
 				if (accMLO->dataIs3D)
 				{
+#ifdef TIMING
 					if(my_ori_particle==2 || my_ori_particle==10000 )
 					CTIC(timer,"ParaRead3DImages");
+#endif
 					img.read(fn_img);
 					img().setXmippOrigin();
+#ifdef TIMING
 					if(my_ori_particle==2 || my_ori_particle==10000 )
 					CTOC(timer,"ParaRead3DImages");
+#endif
 				}
 				else
 				{
+#ifdef TIMING
 					if(my_ori_particle==2 || my_ori_particle==10000 )
 					CTIC(timer,"ParaRead2DImages");
+#endif
 					img() = baseMLO->exp_imgs[istop];
+#ifdef TIMING
 					if(my_ori_particle==2 || my_ori_particle==10000 )
 					CTOC(timer,"ParaRead2DImages");
+#endif
 				}
 			}
 			if (baseMLO->has_converged && baseMLO->do_use_reconstruct_images)
@@ -338,8 +340,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			}
 			else
 			{
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"Read2DImages");
+#endif
 				img().resize(baseMLO->mymodel.ori_size, baseMLO->mymodel.ori_size);
 				FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY2D(img())
 				{
@@ -357,12 +361,16 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 					}
 					rec_img().setXmippOrigin();
 				}
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"Read2DImages");
+#endif
 			}
 		}
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"readData");
+#endif
 
 		// ------------------------------------------------------------------------------------------
 
@@ -373,8 +381,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 		Fimg.initZeros(current_size_z, current_size_y, current_size_x);
 
 		// ------------------------------------------------------------------------------------------
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"makeNoiseMask");
+#endif
         // Either mask with zeros or noise. Here, make a noise-image that will be optional in the softMask-kernel.
 		AccDataTypes::Image<XFLOAT> RandomImage(img(),ptrFactory);
 
@@ -405,13 +415,15 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 												RandomImage.is3D());
                 LAUNCH_PRIVATE_ERROR(cudaGetLastError(),accMLO->errorStatus);
         }
+#ifdef TIMING
         if(my_ori_particle==2 || my_ori_particle==10000 )
         CTOC(timer,"makeNoiseMask");
+
 
 		// ------------------------------------------------------------------------------------------
         if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"HelicalPrep");
-
+#endif
 		/* FIXME :  For some reason the device-allocation inside "selfTranslate" takes a much longer time than expected.
 		 * 			I tried moving it up and placing the size under a bunch of if()-cases, but this simply transferred the
 		 * 			allocation-cost to that region. /BjoernF,160129
@@ -451,17 +463,19 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			// TODO: Now re-calculate the my_old_offset in the real (or image) system of coordinate (rotate -psi angle)
 			transformCartesianAndHelicalCoords(my_old_offset_helix_coords, my_old_offset, rot_deg, tilt_deg, psi_deg, HELICAL_TO_CART_COORDS);
 		}
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
-		CTOC(timer,"HelicalPrep");
-
+			CTOC(timer,"HelicalPrep");
+#endif
 		// ------------------------------------------------------------------------------------------
 
 		my_old_offset.selfROUND();
 
 		// ------------------------------------------------------------------------------------------
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"TranslateAndNormCorrect");
-
+#endif
 		AccDataTypes::Image<XFLOAT> d_img(img.data, ptrFactory);
 		AccDataTypes::Image<XFLOAT> d_rec_img(img.data, ptrFactory);
 
@@ -478,17 +492,20 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 												ZZ(my_old_offset),
 												accMLO->dataIs3D);
 		LAUNCH_PRIVATE_ERROR(cudaGetLastError(),accMLO->errorStatus);
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"TranslateAndNormCorrect");
-
+#endif
 		// Set up the UNMASKED image to use for reconstruction, which may be a separate image altogether (rec_img)
 		//
 		//			d_img has the image information which will be masked
 		//
 		if(baseMLO->has_converged && baseMLO->do_use_reconstruct_images)
 		{
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTIC(timer,"TranslateAndNormCorrect_recImg");
+#endif
 			d_rec_img.allAlloc();
 			d_rec_img.allInit(0);
 			AccUtilities::TranslateAndNormCorrect(	rec_img.data,	// input   	host-side 	MultidimArray
@@ -499,10 +516,12 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 													ZZ(my_old_offset),
 													accMLO->dataIs3D);
 			LAUNCH_PRIVATE_ERROR(cudaGetLastError(),accMLO->errorStatus);
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTOC(timer,"TranslateAndNormCorrect_recImg");
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTIC(timer,"normalizeAndTransform_recImg2");  //cudaMLO
+#endif
 			// The image used to reconstruct is not masked, so we transform and beam-tilt it
 			AccUtilities::normalizeAndTransformImage<MlClass>(d_rec_img,		// input  acc-side  Array
 															  Fimg,			// output host-side MultidimArray
@@ -511,13 +530,17 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 															  current_size_y,
 															  current_size_z);
 			LAUNCH_PRIVATE_ERROR(cudaGetLastError(),accMLO->errorStatus);
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTOC(timer,"normalizeAndTransform_recImg2");
+#endif
 		}
 		else // if we don't have special images, just use the same as for alignment. But do it here, *before masking*
 		{
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTIC(timer,"normalizeAndTransform_recImg");///  //cudaMLO
+#endif
 			// The image used to reconstruct is not masked, so we transform and beam-tilt it
 			AccUtilities::normalizeAndTransformImage<MlClass>(	 d_img,		// input  acc-side  Array
 																 Fimg,		// output host-side MultidimArray
@@ -526,8 +549,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 																 current_size_y,
 																 current_size_z);
 			LAUNCH_PRIVATE_ERROR(cudaGetLastError(),accMLO->errorStatus);
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTOC(timer,"normalizeAndTransform_recImg"); //
+#endif
 		}
 
 		// ------------------------------------------------------------------------------------------
@@ -548,10 +573,11 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 		}
 		// Also store priors on translations
 		op.prior[ipart] = my_prior;
-
+#ifdef TIMING
 		// ------------------------------------------------------------------------------------------
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"selfApplyBeamTilt");
+#endif
 		// Here apply the beamtilt correction if necessary
 		// This will only be used for reconstruction, not for alignment
 		// But beamtilt only affects very high-resolution components anyway...
@@ -563,9 +589,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 		RFLOAT lambda = 12.2643247 / sqrt(V * (1. + V * 0.978466e-6));
 		if (ABS(beamtilt_x) > 0. || ABS(beamtilt_y) > 0.)
 			selfApplyBeamTilt(Fimg, beamtilt_x, beamtilt_y, lambda, Cs,baseMLO->mymodel.pixel_size, baseMLO->mymodel.ori_size);
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"selfApplyBeamTilt");
-
+#endif
 		op.Fimgs_nomask.at(ipart) = Fimg;
 
 		// ------------------------------------------------------------------------------------------
@@ -585,9 +612,6 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 
 		if (is_helical_segment)
 		{
-			if(my_ori_particle==2 || my_ori_particle==10000 )
-			CTIC(timer,"applyHelicalMask");
-
 			// download img...
 			d_img.cpToHost();
 			d_img.streamSync();
@@ -616,14 +640,14 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			// ... and re-upload img
 			d_img.setHost(img());
 			d_img.cpToDevice();
-			if(my_ori_particle==2 || my_ori_particle==10000 )
-			CTOC(timer,"applyHelicalMask");
+
 		}
 		else // this is not a helical segment
 		{
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTIC(timer,"applyMask");
-
+#endif
 			// Shared parameters for noise/zero masking
 			XFLOAT cosine_width = baseMLO->width_mask_edge;
 			XFLOAT radius = (XFLOAT) my_mask_radius;
@@ -676,13 +700,16 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 
 			LAUNCH_PRIVATE_ERROR(cudaGetLastError(),accMLO->errorStatus);
 			DEBUG_HANDLE_ERROR(cudaStreamSynchronize(cudaStreamPerThread));
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTOC(timer,"applyMask");
+#endif
 		}
-
+#ifdef TIMING
 		// ------------------------------------------------------------------------------------------
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"normalizeAndTransform2"); //
+#endif
 		//printf("has been operated %d\n",part_id);
 		AccUtilities::normalizeAndTransformImage<MlClass>(	 d_img,		// input
 															 Fimg,		// output
@@ -691,12 +718,14 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 															 current_size_y,
 															 current_size_z);
 		LAUNCH_PRIVATE_ERROR(cudaGetLastError(),accMLO->errorStatus);
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"normalizeAndTransform2"); //cudaMLO
 
 		// ------------------------------------------------------------------------------------------
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"powerClass");
+#endif
 		// Store the power_class spectrum of the whole image (to fill sigma2_noise between current_size and ori_size
 		if (baseMLO->mymodel.current_size < baseMLO->mymodel.ori_size)
 		{
@@ -745,10 +774,12 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 		{
 			op.highres_Xi2_imgs.at(ipart) = 0.;
 		}
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"powerClass");
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"ctfCorr");
+#endif
 		Fctf.resize(Fimg);
 		// Now calculate the actual CTF
 		if (baseMLO->do_ctf_correction)
@@ -758,8 +789,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 				Image<RFLOAT> Ictf;
 				if (baseMLO->do_parallel_disc_io)
 				{
+#ifdef TIMING
 					if(my_ori_particle==2 || my_ori_particle==10000 )
 					CTIC(timer,"CTFRead3D_disk");
+#endif
 					// Read CTF-image from disc
 					FileName fn_ctf;
 					if (!baseMLO->mydata.getImageNameOnScratch(part_id, fn_ctf, true))
@@ -770,26 +803,33 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 							getline(split, fn_ctf);
 					}
 					Ictf.read(fn_ctf);
+#ifdef TIMING
 					if(my_ori_particle==2 || my_ori_particle==10000 )
 					CTOC(timer,"CTFRead3D_disk");
+#endif
 				}
 				else
 				{
+#ifdef TIMING
 					if(my_ori_particle==2 || my_ori_particle==10000 )
 					CTIC(timer,"CTFRead3D_array");
+#endif
 					// Unpack the CTF-image from the exp_imagedata array
 					Ictf().resize(baseMLO->mymodel.ori_size, baseMLO->mymodel.ori_size, baseMLO->mymodel.ori_size);
 					FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY3D(Ictf())
 					{
 						DIRECT_A3D_ELEM(Ictf(), k, i, j) = DIRECT_A3D_ELEM(baseMLO->exp_imagedata, baseMLO->mymodel.ori_size + k, i, j);
 					}
+#ifdef TIMING
 					if(my_ori_particle==2 || my_ori_particle==10000 )
 					CTOC(timer,"CTFRead3D_array");
+#endif
 				}
 				// Set the CTF-image in Fctf
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"CTFSet3D_array");
-
+#endif
 				// If there is a redundant half, get rid of it
 				if (XSIZE(Ictf()) == YSIZE(Ictf()))
 				{
@@ -815,8 +855,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			}
 			else
 			{
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"CTFRead2D");
+#endif
 				CTF ctf;
 				ctf.setValues(DIRECT_A2D_ELEM(baseMLO->exp_metadata, op.metadata_offset + ipart, METADATA_CTF_DEFOCUS_U),
 							  DIRECT_A2D_ELEM(baseMLO->exp_metadata, op.metadata_offset + ipart, METADATA_CTF_DEFOCUS_V),
@@ -830,16 +872,20 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 
 				ctf.getFftwImage(Fctf, baseMLO->mymodel.ori_size, baseMLO->mymodel.ori_size, baseMLO->mymodel.pixel_size,
 						baseMLO->ctf_phase_flipped, baseMLO->only_flip_phases, baseMLO->intact_ctf_first_peak, true);
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"CTFRead2D");
+#endif
 			}
 		}
 		else
 		{
 			Fctf.initConstant(1.);
 		}
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"ctfCorr");
+#endif
 		// Store Fimg and Fctf
 		op.Fimgs.at(ipart) = Fimg;
 		op.Fctfs.at(ipart) = Fctf;
@@ -926,10 +972,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			// Only do this if the flag below is true. Otherwise, use the original particles for reconstruction
 			if (baseMLO->do_reconstruct_subtracted_bodies)
 				op.Fimgs_nomask.at(ipart) -= Fsum_obody;
-
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"fftandtransform");
-
+#endif
 			// For the masked one, have to mask outside the circular mask to prevent negative values outside the mask in the subtracted image!
 			windowFourierTransform(Fsum_obody, Faux, baseMLO->mymodel.ori_size);
 			accMLO->transformer.inverseFourierTransform(Faux, img());
@@ -944,12 +990,13 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 
 			// Subtract the other-body FT from the masked exp_Fimgs
 			op.Fimgs.at(ipart) -= Fsum_obody;
-
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTOC(timer,"fftandtransform");
 
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTIC(timer,"shiftimage");
+#endif
 			// 23jul17: NEW: as we haven't applied the (nonROUNDED!!)  my_refined_ibody_offset yet, do this now in the FourierTransform
 			Faux = op.Fimgs.at(ipart);
 			shiftImageInFourierTransform(Faux, op.Fimgs.at(ipart), (RFLOAT)baseMLO->mymodel.ori_size,
@@ -957,9 +1004,10 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 			Faux = op.Fimgs_nomask.at(ipart);
 			shiftImageInFourierTransform(Faux, op.Fimgs_nomask.at(ipart), (RFLOAT)baseMLO->mymodel.ori_size,
 					XX(my_refined_ibody_offset), YY(my_refined_ibody_offset), ZZ(my_refined_ibody_offset));
-
+#ifdef TIMING
 			if(my_ori_particle==2 || my_ori_particle==10000 )
 			CTOC(timer,"shiftimage");
+#endif
 
 		} // end if mymodel.nr_bodies > 1
 
@@ -971,13 +1019,14 @@ void getFourierTransformsAndCtfs(long int my_ori_particle,
 		baseMLO->timer.toc(baseMLO->TIMING_ESP_FT);
 #endif
 
-
+#ifdef TIMING
 	if(my_ori_particle==2 || my_ori_particle==10000 )
 	{
 		CTOC(timer,"getFourierTransformsAndCtfs");
 		GATHERGPUTIMINGS(timer,my_ori_particle);
 		timer.closefile();
 	}
+#endif
 
 	//GATHERGPUTIMINGS(accMLO->timer);
 }
@@ -3073,6 +3122,7 @@ void accDoExpectationOneParticle(MlClass *myInstance, unsigned long my_ori_parti
 {
 	SamplingParameters sp;
 	MlOptimiser *baseMLO = myInstance->baseMLO;
+#ifdef TIMING
 	std::string adata;
 	relion_timer timer;
 	if(my_ori_particle==2 )
@@ -3088,7 +3138,7 @@ void accDoExpectationOneParticle(MlClass *myInstance, unsigned long my_ori_parti
 
 	if(my_ori_particle==2 || my_ori_particle==10000 )
 	CTIC(timer,"oneParticle");
-
+#endif
 #ifdef TIMING
 	// Only time one thread
 	if (thread_id == 0)
@@ -3153,12 +3203,15 @@ void accDoExpectationOneParticle(MlClass *myInstance, unsigned long my_ori_parti
 if (thread_id == 0)
 baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_A);
 #endif
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"getFourierTransformsAndCtfs");
+#endif
 		getFourierTransformsAndCtfs<MlClass>(my_ori_particle, op, sp, baseMLO, myInstance, ptrFactory, ibody);
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"getFourierTransformsAndCtfs");
-
+#endif
 		if (baseMLO->do_realign_movies && baseMLO->movie_frame_running_avg_side > 0)
 		{
 			baseMLO->calculateRunningAveragesOfMovieFrames(my_ori_particle, op.Fimgs, op.power_imgs, op.highres_Xi2_imgs);
@@ -3211,8 +3264,10 @@ baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_A);
 
 		std::vector < AccPtrBundle > bundleD2(sp.nr_particles, ptrFactory.makeBundle());
 		std::vector < AccPtrBundle > bundleSWS(sp.nr_particles, ptrFactory.makeBundle());
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"weightPass");
+#endif
 		for (int ipass = 0; ipass < nr_sampling_passes; ipass++)
 		{
 
@@ -3259,16 +3314,22 @@ baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_B);
 				Mweight.deviceAlloc();
 				deviceInitValue<XFLOAT>(Mweight, -std::numeric_limits<XFLOAT>::max());
 				Mweight.streamSync();
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"getAllSquaredDifferencesCoarse");
+#endif
 				getAllSquaredDifferencesCoarse<MlClass>(ipass, op, sp, baseMLO, myInstance, Mweight, ptrFactory, ibody);
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"getAllSquaredDifferencesCoarse");
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"convertAllSquaredDifferencesToWeightsCoarse");
+#endif
 				convertAllSquaredDifferencesToWeights<MlClass>(ipass, op, sp, baseMLO, myInstance, CoarsePassWeights, FinePassClassMasks, Mweight, ptrFactory, ibody);
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"convertAllSquaredDifferencesToWeightsCoarse");
+#endif
 			}
 			else
 			{
@@ -3288,15 +3349,18 @@ baseMLO->timer.tic(baseMLO->TIMING_ESP_DIFF2_D);
 						if(exp_iclass>0)
 							FineProjectionData[iframe].class_idx[exp_iclass] = FineProjectionData[iframe].rots.size();
 						FineProjectionData[iframe].class_entries[exp_iclass] = 0;
-
+#ifdef TIMING
 						CTIC(timer,"generateProjectionSetup");
+#endif
 						FineProjectionData[iframe].orientationNumAllClasses += generateProjectionSetupFine(
 								op,
 								sp,
 								baseMLO,
 								exp_iclass,
 								FineProjectionData[iframe]);
+#ifdef TIMING
 						CTOC(timer,"generateProjectionSetup");
+#endif
 
 					}
 					//set a maximum possible size for all weights (to be reduced by significance-checks)
@@ -3312,26 +3376,35 @@ baseMLO->timer.tic(baseMLO->TIMING_ESP_DIFF2_D);
 if (thread_id == 0)
 baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_D);
 #endif
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"getAllSquaredDifferencesFine");
+#endif
 				getAllSquaredDifferencesFine<MlClass>(ipass, op, sp, baseMLO, myInstance, FinePassWeights, FinePassClassMasks, FineProjectionData, ptrFactory, ibody, bundleD2);
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"getAllSquaredDifferencesFine");
+#endif
 				FinePassWeights[0].weights.cpToHost();
 
 				AccPtr<XFLOAT> Mweight = ptrFactory.make<XFLOAT>(); //DUMMY
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTIC(timer,"convertAllSquaredDifferencesToWeightsFine");
+#endif
 				convertAllSquaredDifferencesToWeights<MlClass>(ipass, op, sp, baseMLO, myInstance, FinePassWeights, FinePassClassMasks, Mweight, ptrFactory, ibody);
+#ifdef TIMING
 				if(my_ori_particle==2 || my_ori_particle==10000 )
 				CTOC(timer,"convertAllSquaredDifferencesToWeightsFine");
-
+#endif
 			}
 
 
 		}
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"weightPass");
+#endif
 #ifdef TIMING
 // Only time one thread
 if (thread_id == 0)
@@ -3352,24 +3425,28 @@ baseMLO->timer.tic(baseMLO->TIMING_ESP_DIFF2_E);
 if (thread_id == 0)
 baseMLO->timer.toc(baseMLO->TIMING_ESP_DIFF2_E);
 #endif
+#ifdef TIMING
 if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTIC(timer,"storeWeightedSums");
+#endif
 		storeWeightedSums<MlClass>(op, sp, baseMLO, myInstance, FinePassWeights, FineProjectionData, FinePassClassMasks, ptrFactory, ibody, bundleSWS);
+#ifdef TIMING
 		if(my_ori_particle==2 || my_ori_particle==10000 )
 		CTOC(timer,"storeWeightedSums");
-
+#endif
 		for (long int iframe = 0; iframe < sp.nr_particles; iframe++)
 		{
 			FinePassWeights[iframe].dual_free_all();
 		}
     }
+#ifdef TIMING
 	if(my_ori_particle==2 || my_ori_particle==10000 )
 	{
 		CTOC(timer,"oneParticle");
 		GATHERGPUTIMINGS(timer,my_ori_particle);
 		timer.closefile();
 	}
-
+#endif
 /*	if (thread_id == 0)
 	{
 		printf("3244 test ===============\n");

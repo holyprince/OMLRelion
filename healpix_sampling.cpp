@@ -1012,11 +1012,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 {
 	pointer_dir_nonzeroprior.clear();
 	directions_prior.clear();
-	if(num==2)
-	{
-		printf("AAAAAAAAAAAAA\n");
-		fflush(stdout);
-	}
 
 	if (is_3D)
 	{
@@ -1033,10 +1028,10 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 		// Keep track of the closest distance to prevent 0 orientations
 		RFLOAT best_ang = 9999.;
 		long int best_idir = -999;
- 		if(num==2 || num==10000 )
+/* 		if(num==2 || num==10000 )
 		{
 			printf("rotangle size : %d \n",rot_angles.size());
-		}		
+		}	*/
 		for (long int idir = 0; idir < rot_angles.size(); idir++)
 		{
 			bool is_nonzero_pdf = false;
@@ -1055,11 +1050,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 				// Loop over all symmetry operators to find the operator that brings this direction nearest to the prior
 				RFLOAT best_dotProduct = dotProduct(prior_direction, my_direction);
 				best_direction = my_direction;
-
-                if((num==2 || num==10000) && idir==0 )
-                {
-                        printf("con1 and %d : \n", R_repository.size());
-                }
 
 
 
@@ -1102,11 +1092,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 			}
 			else if (sigma_rot > 0.)
 			{
-
-                if((num==2 || num==10000) && idir==0 )
-                {
-                        printf("con2 and %d : \n", R_repository.size());
-                }
 
 
 
@@ -1157,11 +1142,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 					diffang = ABS(diffang - 360.);
 				RFLOAT best_diffang = diffang;
 
-                if((num==2 || num==10000) && idir==0 )
-                {
-                        printf("con3 and %d : \n", R_repository.size());
-                }
-
 
 
 				for (int j = 0; j < R_repository.size(); j++)
@@ -1195,12 +1175,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 			else
 			{
 
-                if((num==2 || num==10000) && idir==0 )
-                {
-                        printf("con4 \n");
-                }
-
-
 				// If no prior on the directions: just add all of them
 				pointer_dir_nonzeroprior.push_back(idir);
 				directions_prior.push_back(1.);
@@ -1211,13 +1185,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 			// For priors on deviations from (0,90)-degree (rot,tilt) angles in multi-body refinement
 			if (sigma_tilt_from_ninety > 0. && is_nonzero_pdf)
 			{
-
-                if((num==2 || num==10000) && idir==0 )
-                {
-                        printf("con5 and : \n");
-                }
-
-
 
 				// Get the current direction in the loop (re-do, as sometimes sigma_rot and sigma_tilt are both zero!
 				Matrix1D<RFLOAT> my_direction, best_direction, sym_direction;
@@ -1264,11 +1231,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 		} // end for idir
 
 
-                if((num==2 || num==10000)  )
-                {
-                        printf("con6 and %d : \n", directions_prior.size());
-                }
-
 
 		//Normalise the prior probability distribution to have sum 1 over all psi-angles
 		for (long int idir = 0; idir < directions_prior.size(); idir++)
@@ -1282,11 +1244,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 		// If there were no directions at all, just select the single nearest one:
 		if (directions_prior.size() == 0)
 		{
-
-               if((num==2 || num==10000)  )
-                {
-                        printf("con7 and  \n");
-                }
 
 			if (best_idir < 0)
 				REPORT_ERROR("HealpixSampling::selectOrientationsWithNonZeroPriorProbability BUG: best_idir < 0");
@@ -1310,8 +1267,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 		directions_prior.push_back(1.);
 	}
 
-	if(num==2)
-       	printf("samplingconpsi and %d  \n", psi_angles.size());
 
 	// Psi-angles
 	pointer_psi_nonzeroprior.clear();
@@ -1327,8 +1282,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 		// Sjors 12jul2017: for small tilt-angles, rot-angle may become anything, psi-angle then follows that
 		// Therefore, psi-prior may be completely wrong.... The following line would however be a very expensive fix....
 		//if (sigma_psi > 0. && prior_tilt > 10.)
-		if(num==2 && ipsi <10)
-			printf("sigma psi : %f \n",sigma_psi);
 		if (sigma_psi > 0.)
 		{
 			RFLOAT diffpsi = ABS(psi_angles[ipsi] - prior_psi);
@@ -1370,8 +1323,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 			sumprior += 1.;
 			is_nonzero_pdf = true;
 		}
-                if(num==2 && ipsi<10)
-                       printf("flag  psi : %f and %d \n",sigma_psi_from_zero,is_nonzero_pdf);
 
 		// For priors on deviations from 0 psi angles in multi-body refinement
 		if (sigma_psi_from_zero > 0. && is_nonzero_pdf)

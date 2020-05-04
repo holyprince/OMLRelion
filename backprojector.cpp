@@ -1949,7 +1949,6 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 		long int Fconvnum=Fconv.nzyxdim;
 
 
-
 		long int normsize= Ndim[0]*Ndim[1]*Ndim[2];
 		int halfxdim=Fconv.xdim;
 
@@ -1972,10 +1971,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 
 
-
 		multi_enable_access(dataplan,GPU_N);
-
-
 
 		c_Fconv = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		//c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));

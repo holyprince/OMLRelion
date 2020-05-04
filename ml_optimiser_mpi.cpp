@@ -1088,7 +1088,7 @@ void MlOptimiserMpi::expectation()
 #endif
 			MlDeviceBundle *b = new MlDeviceBundle(this);
 			b->setDevice(cudaDevices[i]);
-			printf("cuda ID : %d and my process :  %d \n",cudaDevices[i],node->rank);
+			//printf("cuda ID : %d and my process :  %d \n",cudaDevices[i],node->rank);
 			b->setupFixedSizedObjects();
 			accDataBundles.push_back((void*)b);
 #ifdef TIMING
@@ -1124,7 +1124,7 @@ void MlOptimiserMpi::expectation()
 
 			size_t free, total, allocationSize;
 			HANDLE_ERROR(cudaMemGetInfo( &free, &total ));
-			printf("%ld   %ld \n",free,total);
+			//printf("%ld   %ld \n",free,total);
 			free = (float) free / (float)cudaDeviceShares[i];
 			size_t required_free = requested_free_gpu_memory + GPU_THREAD_MEMORY_OVERHEAD_MB*1000*1000*threadcountOnDevice[i];
 
@@ -2558,7 +2558,7 @@ void MlOptimiserMpi::maximization()
 							MultidimArray<RFLOAT> Iref_old;
 							if(do_sgd)
 								Iref_old = mymodel.Iref[ith_recons];
-							printf("Before rank2 reconstruction \n");
+							//printf("Before rank2 reconstruction \n");
 							(wsum_model.BPref[ith_recons]).reconstruct(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
 									mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
 									mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
@@ -3479,23 +3479,19 @@ void MlOptimiserMpi::iterate()
     	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,0);
     	printdatatofile(wsum_model.BPref[0].data.data,wsum_model.BPref[0].data.nzyxdim,wsum_model.BPref[0].data.xdim,node->rank,iter,0);
     }*/
-	struct timeval tv1,tv2;
-	struct timezone tz;
-	float time_use;
-		gettimeofday (&tv1, &tz);
+//	struct timeval tv1,tv2;
+//	struct timezone tz;
+//	float time_use;
+//		gettimeofday (&tv1, &tz);
 		if (combine_weights_thru_disc)
 			combineAllWeightedSumsViaFile();
 		else
-		{
-			if(iter>25)
-				combineAllWeightedSums();
-			else
-				combineAllWeightedSumslowpresion();
-		}
-		gettimeofday (&tv2, &tz);
-		time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
-		if(node->rank==1)
-		printf(" EM : combineAllWeightedSums : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
+			combineAllWeightedSums();
+
+//		gettimeofday (&tv2, &tz);
+//		time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+//		if(node->rank==1)
+//		printf(" EM : combineAllWeightedSums : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 /*	    if((iter==1 || iter==10  || iter==25) && node->rank==1 )
 	        {
 	        	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,1);

@@ -12,7 +12,7 @@
 #include <string>
 #include <sstream>
 
-#define TIMING_FILES
+//#define TIMING_FILES
 
 #ifdef TIMING_FILES
 #define	CTIC(timer,timing) (timer.cuda_gpu_tic(timing))

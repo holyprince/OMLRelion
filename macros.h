@@ -65,6 +65,8 @@
 #ifndef MAXFLOAT
 #define MAXFLOAT  1e30
 #endif
+#define RELION_SINGLE_PRECISION
+
 #ifdef RELION_SINGLE_PRECISION
 #define RFLOAT float
 #define LARGE_NUMBER 99e36
