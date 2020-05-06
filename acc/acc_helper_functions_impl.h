@@ -481,7 +481,6 @@ void runBackProjectKernel(
 		cudaStream_t optStream)
 {
 
-	printf("BP.mdlZ: %d; do_sgd %d, data_is_3D: %d;\n",BP.mdlZ,do_sgd,data_is_3D);
 	if(BP.mdlZ==1)
 	{
 #ifdef CUDA

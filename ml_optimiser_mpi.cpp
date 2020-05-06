@@ -143,10 +143,10 @@ void MlOptimiserMpi::initialise()
 				//else
 				//std::cout << "Rank " << node->rank  << " found a " << deviceProp.name << " GPU with compute-capability " << deviceProp.major << "." << deviceProp.minor << std::endl;
 			}
-			if(compatibleDevices==0)
-				REPORT_ERROR("You have no GPUs compatible with RELION (CUDA-capable and compute-capability >= 3.5");
-			else if(compatibleDevices!=devCount)
-				std::cerr << "WARNING : at least one of your GPUs is not compatible with RELION (CUDA-capable and compute-capability >= 3.5)" << std::endl;
+			//if(compatibleDevices==0)
+			//	REPORT_ERROR("You have no GPUs compatible with RELION (CUDA-capable and compute-capability >= 3.5");
+			//else if(compatibleDevices!=devCount)
+			//	std::cerr << "WARNING : at least one of your GPUs is not compatible with RELION (CUDA-capable and compute-capability >= 3.5)" << std::endl;
 
 
 			node->relion_MPI_Send(&devCount, 1, MPI_INT, 0, MPITAG_INT, MPI_COMM_WORLD);
@@ -3300,9 +3300,9 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct(int iclass, 
 	// And write the resulting model to disc
 	Iunreg.write(fn_root+"_unfil.mrc");
 
-	printf(" %d %d %f %d\n", wsum_model.BPref[iclass].ori_size, wsum_model.BPref[iclass].data_dim,wsum_model.BPref[iclass].padding_factor,wsum_model.BPref[iclass].pad_size);
-	printf("%d \n ",wsum_model.BPref[iclass].r_min_nn);
-	printf("%ld %ld %ld \n",wsum_model.BPref[iclass].weight.xdim,wsum_model.BPref[iclass].weight.ydim,wsum_model.BPref[iclass].weight.zdim);
+//	printf(" %d %d %f %d\n", wsum_model.BPref[iclass].ori_size, wsum_model.BPref[iclass].data_dim,wsum_model.BPref[iclass].padding_factor,wsum_model.BPref[iclass].pad_size);
+//	printf("%d \n ",wsum_model.BPref[iclass].r_min_nn);
+//	printf("%ld %ld %ld \n",wsum_model.BPref[iclass].weight.xdim,wsum_model.BPref[iclass].weight.ydim,wsum_model.BPref[iclass].weight.zdim);
 
 	/*
 	// remove temporary arrays from the disc

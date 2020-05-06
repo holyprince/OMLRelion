@@ -1595,7 +1595,7 @@ void getAllSquaredDifferencesFine(
 				IndexedDataArray thisClassFinePassWeights(FinePassWeights[ipart],FPCMasks[ipart][iclass]);
 
 				CTIC2(accMLO->timer,"Diff2CALL");
-				
+
 				runDiff2KernelFine(
 						projKernel,
 						~corr_img,
@@ -1950,7 +1950,7 @@ void convertAllSquaredDifferencesToWeights(unsigned exp_ipass,
 						ACC_PTR_DEBUG_FATAL("Unsorted array size zero.\n");  // Hopefully Impossible
 #endif
 					size_t filteredSize = AccUtilities::filterGreaterZeroOnDevice<XFLOAT>(unsorted_ipart, filtered);
-					
+
 					if (filteredSize == 0)
 					{
 						std::cerr << std::endl;
@@ -2211,6 +2211,8 @@ void storeWeightedSums(OptimisationParamters &op, SamplingParameters &sp,
 	if (op.my_ori_particle == baseMLO->exp_my_first_ori_particle)
 		baseMLO->timer.tic(baseMLO->TIMING_ESP_WSUM);
 #endif
+
+	//printf("%d %d \n",sp.iclass_min,sp.iclass_max);
 	CTIC2(accMLO->timer,"store_init");
 
 	// Re-do below because now also want unmasked images AND if (stricht_highres_exp >0.) then may need to resize
@@ -2861,6 +2863,7 @@ void storeWeightedSums(OptimisationParamters &op, SamplingParameters &sp,
 
 			long unsigned orientation_num(ProjectionData[ipart].orientation_num[iclass]);
 
+
 			AccProjectorKernel projKernel = AccProjectorKernel::makeKernel(
 					accMLO->bundle->projectors[iproj],
 					op.local_Minvsigma2s[0].xdim,
@@ -2903,6 +2906,8 @@ void storeWeightedSums(OptimisationParamters &op, SamplingParameters &sp,
 #endif
 
 			CTIC2(accMLO->timer,"backproject");
+
+
 
 			runBackProjectKernel(
 				accMLO->bundle->backprojectors[iproj],

@@ -31,6 +31,8 @@ public:
 
 	XFLOAT *d_mdlReal, *d_mdlImag, *d_mdlWeight;
 
+
+
 	cudaStream_t stream;
 
 public:

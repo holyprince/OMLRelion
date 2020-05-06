@@ -103,6 +103,7 @@ void MlDeviceBundle::setupFixedSizedObjects()
 	unsigned nr_proj = baseMLO->mymodel.PPref.size();
 	unsigned nr_bproj = baseMLO->wsum_model.BPref.size();
 
+
 	projectors.resize(nr_proj);
 	backprojectors.resize(nr_bproj);
 

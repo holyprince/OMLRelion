@@ -30,13 +30,15 @@
 #include "backproject_impl.h"
 #include "fftw3.h"
 
-#define TIMINGREC
+//#define TIMINGREC
 #ifdef TIMINGREC
 	#define RCTICREC(timer,label) (timer.tic(label))
     #define RCTOCREC(timer,label) (timer.toc(label))
 	#define RCTIC(timer,label)
     #define RCTOC(timer,label)
 #else
+	#define RCTICREC(timer,label)
+	#define RCTOCREC(timer,label)
 	#define RCTIC(timer,label)
     #define RCTOC(timer,label)
 #endif
@@ -973,9 +975,9 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
                                 bool printTimes,
 								bool do_fsc0999)
 {
+	Timer ReconTimer;
 
 #ifdef TIMINGREC
-	Timer ReconTimer;
 	printTimes=1;
 	int ReconS_1 = ReconTimer.setNew(" RcS1_Init ");
 	int ReconS_2 = ReconTimer.setNew(" RcS2_Shape&Noise ");

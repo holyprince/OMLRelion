@@ -119,7 +119,6 @@ void Projector::computeFourierTransformMap(MultidimArray<RFLOAT> &vol_in, Multid
 	// Initialize data array of the oversampled transform
 	ref_dim = vol_in.getDim();
 
-	printf("%d %d \n",ref_dim,padoridim);
 	// Make Mpad
 	switch (ref_dim)
 	{
