@@ -495,12 +495,13 @@ public:
 	void pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces, bool do_clear=true);
 	void packpart1(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces,bool do_clear=true);
 	void packpart2(MultidimArray<int> &packed, int &piece, int &nr_pieces,bool do_clear=true);
-
+	void packcompressdata(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces,bool do_clear=true);
 	// Fill the model again using unpack (this is the inverse operation from pack)
 	void unpack(MultidimArray<RFLOAT> &packed, int piece, bool do_clear=true);
 	void unpackpart1(MultidimArray<RFLOAT> &packed, int piece,bool do_clear=true);
 	void unpackpart2(MultidimArray<int> &packed, int piece,bool do_clear=true);
-
+	void unpackcompressdata(MultidimArray<RFLOAT> &packed, int piece,bool do_clear=true);
+	void uncompressdataandweight();
 };
 
 #endif /* ML_MODEL_H_ */

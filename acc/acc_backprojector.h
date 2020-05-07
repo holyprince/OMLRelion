@@ -89,7 +89,7 @@ public:
 	cudaStream_t getStream() { return stream; }
 
 	void clear();
-
+	void compressclear();
 	~AccBackprojector();
 };
 

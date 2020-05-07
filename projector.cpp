@@ -91,7 +91,8 @@ void Projector::initialiseData(int current_size)
 	for(int cur=1;cur<pad_size*pad_size;cur++)
 		yoffsetdata[cur]=yoffsetdata[cur-1]+ydata[cur-1];
 	sumalldata=yoffsetdata[pad_size*pad_size-1]+ydata[pad_size*pad_size-1];
-
+	compdatareal.resize(sumalldata);
+	compdataimag.resize(sumalldata);
 }
 
 void Projector::initZeros(int current_size)

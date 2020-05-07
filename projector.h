@@ -39,7 +39,8 @@ class Projector
 public:
 	// The Fourier-space image data array
     MultidimArray<Complex > data;
-
+    MultidimArray<RFLOAT > compdatareal;
+    MultidimArray<RFLOAT > compdataimag;
     int *yoffsetdata;
     int *ydata;
     int sumalldata;

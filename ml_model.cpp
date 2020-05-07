@@ -1805,6 +1805,186 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces
     printf("%llu  %llu \n",packed_size,ori_idx);
 
 }
+void MlWsumModel::packcompressdata(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces, bool do_clear)
+{
+
+
+    // Determine size of the packed array
+    int nr_groups = sigma2_noise.size();
+    int nr_classes_bodies = BPref.size();
+    int nr_classes = pdf_class.size();
+    int spectral_size = (ori_size / 2) + 1;
+    unsigned long long packed_size = 0;
+    unsigned long long idx_start, idx_stop;
+
+	// for LL & avePmax & sigma2_offset & avg_norm_correction & sigma2_rot & sigma2_tilt & sigma2_psi
+    packed_size += 7 ;
+    // for all group-related stuff
+    packed_size += nr_groups * spectral_size;
+    packed_size += nr_groups * spectral_size;
+    packed_size += nr_groups * spectral_size;
+    // for sumw_group
+    packed_size += nr_groups;
+    //printf("packed_size3: %d \n",packed_size);
+    // for all class-related stuff
+    // data is complex: multiply by two!
+
+    packed_size += nr_classes_bodies * 2 * BPref[0].sumalldata;
+    packed_size += nr_classes_bodies * BPref[0].sumalldata;
+    //printf("packed_size4: %d \n",packed_size);
+    packed_size += nr_classes_bodies * nr_directions;
+    //printf("packed_size5: %d \n",packed_size);
+    // for pdf_class
+    packed_size += nr_classes;
+    //printf("packed_size6: %d \n",packed_size);
+    // for priors for each class
+    if (ref_dim==2)
+    	packed_size += nr_classes*2;
+
+    if (piece < 0 && nr_pieces < 0)
+    {
+    	// Special case: prevent making multiple pieces if input piece and nr_pieces are both negative
+        idx_start = 0;
+        idx_stop = packed_size;
+    }
+    else if (packed_size > MAX_PACK_SIZE)
+    {
+        idx_start = (unsigned long long)piece * MAX_PACK_SIZE;
+        idx_stop = XMIPP_MIN(idx_start + MAX_PACK_SIZE, packed_size);
+        nr_pieces = CEIL((RFLOAT)packed_size/(RFLOAT)MAX_PACK_SIZE);
+    }
+    else
+    {
+        idx_start = 0;
+        idx_stop = packed_size;
+        nr_pieces = 1;
+    }
+
+    // increment piece so that pack will be called again
+    piece++;
+#ifdef DEBUG_PACK
+    std::cerr << " PACK: idx_start= " << idx_start << " idx_stop= " << idx_stop << " piece= " << piece << " nr_pieces= " << nr_pieces <<" packed_size= "<<packed_size<< std::endl;
+    std::cerr << " nr_classes= " << nr_classes << " nr_groups= " << nr_groups << " packed_size= " << packed_size << std::endl;
+    std::cerr << " MULTIDIM_SIZE(sigma2_noise[0])= " << MULTIDIM_SIZE(sigma2_noise[0]) << " MULTIDIM_SIZE(wsum_signal_product_spectra[0])= " << MULTIDIM_SIZE(wsum_signal_product_spectra[0]) << " MULTIDIM_SIZE(wsum_reference_power_spectra[0])= " << MULTIDIM_SIZE(wsum_reference_power_spectra[0]) << std::endl;
+    std::cerr << " sigma2_noise.size()= " << sigma2_noise.size() << " wsum_signal_product_spectra.size()= " << wsum_signal_product_spectra.size() << " wsum_signal_product_spectra.size()= " << wsum_signal_product_spectra.size() << std::endl;
+    std::cerr << " MULTIDIM_SIZE(pdf_direction[0])= " << MULTIDIM_SIZE(pdf_direction[0]) << " pdf_direction.size()= " << pdf_direction.size()<<std::endl;
+#endif
+
+    // Get memory for the packed array
+    packed.clear();
+    packed.resize(idx_stop - idx_start);
+
+    unsigned long long idx = 0;
+    unsigned long long ori_idx = 0;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = LL;
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = ave_Pmax;
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = sigma2_offset;
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = avg_norm_correction;
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = sigma2_rot;
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = sigma2_tilt;
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = sigma2_psi;
+    ori_idx++;
+    for (int igroup = 0; igroup < nr_groups; igroup++)
+    {
+    	FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(sigma2_noise[igroup])
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) =DIRECT_MULTIDIM_ELEM(sigma2_noise[igroup], n);
+            ori_idx++;
+        }
+    	if (idx == ori_idx && do_clear)
+            sigma2_noise[igroup].clear();
+
+        FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(wsum_signal_product_spectra[igroup])
+        {
+        	if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) =DIRECT_MULTIDIM_ELEM(wsum_signal_product_spectra[igroup], n);
+        	ori_idx++;
+        }
+        if (idx == ori_idx && do_clear)
+            wsum_signal_product_spectra[igroup].clear();
+
+        FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(wsum_reference_power_spectra[igroup])
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) =DIRECT_MULTIDIM_ELEM(wsum_reference_power_spectra[igroup], n);
+            ori_idx++;
+        }
+        if (idx == ori_idx && do_clear)
+            wsum_reference_power_spectra[igroup].clear();
+
+        if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = sumw_group[igroup];
+        ori_idx++;
+
+    }
+    for (int iclass = 0; iclass < nr_classes_bodies; iclass++)
+    {
+    	FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(BPref[iclass].compdatareal)
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = (DIRECT_MULTIDIM_ELEM(BPref[iclass].compdatareal, n));
+            ori_idx++;
+            if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = (DIRECT_MULTIDIM_ELEM(BPref[iclass].compdataimag, n));
+            ori_idx++;
+        }
+        // Only clear after the whole array has been packed... i.e. not when we reached the pack_size halfway through
+        if (idx == ori_idx && do_clear)
+        {
+        	BPref[iclass].compdatareal.clear();
+        	BPref[iclass].compdataimag.clear();
+        	BPref[iclass].data.clear();
+        }
+
+        FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(BPref[iclass].compweight)
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = DIRECT_MULTIDIM_ELEM(BPref[iclass].compweight, n);
+            ori_idx++;
+        }
+        if (idx == ori_idx && do_clear)
+        {
+        	BPref[iclass].compweight.clear();
+        	BPref[iclass].weight.clear();
+        }
+
+        FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(pdf_direction[iclass])
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = DIRECT_MULTIDIM_ELEM(pdf_direction[iclass], n);
+            ori_idx++;
+        }
+        if (idx == ori_idx && do_clear)
+        	pdf_direction[iclass].clear();
+    }
+    for (int iclass = 0; iclass < nr_classes; iclass++)
+    {
+
+        if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = pdf_class[iclass];
+        ori_idx++;
+
+        if (ref_dim==2)
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = XX(prior_offset_class[iclass]);
+            ori_idx++;
+            if (ori_idx >= idx_start && ori_idx < idx_stop) DIRECT_MULTIDIM_ELEM(packed, idx++) = YY(prior_offset_class[iclass]);
+            ori_idx++;
+        }
+    }
+#ifdef DEBUG_PACK
+    std::cerr << " idx= " << idx << " packed_size= " << packed_size << std::endl;
+#endif
+
+    // Just to check whether we went outside our memory...
+    //std::cerr << " PACK piece= " << piece-1 << " nr_pieces= " << nr_pieces << " ori_idx= " << ori_idx<< " packed_size= " << packed_size << std::endl;
+    //std::cerr << " PACK idx= " << idx << " idx_stop-idx_start= " << idx_stop-idx_start << " idx_start= " << idx_start << " idx_stop= " << idx_stop    << std::endl;
+    if (idx != idx_stop-idx_start)
+    {
+       	std::cerr << "idx= " << idx << "ori_idx= " << ori_idx << " idx_start= " << idx_start << " idx_stop= " << idx_stop << " packed_size= " << packed_size << std::endl;
+        REPORT_ERROR("MlWsumModel::pack: idx != idx_stop-idx_start");
+
+    }
+
+}
 
 void MlWsumModel::packpart1(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces, bool do_clear)
 {
@@ -2176,7 +2356,150 @@ void MlWsumModel::unpack(MultidimArray<RFLOAT> &packed, int piece, bool do_clear
     }
 
 }
+void MlWsumModel::unpackcompressdata(MultidimArray<RFLOAT> &packed, int piece, bool do_clear)
+{
 
+
+    int nr_groups = sigma2_noise.size();
+    int nr_classes_bodies = BPref.size();
+    int nr_classes = pdf_class.size();
+    int spectral_size = (ori_size / 2) + 1;
+    unsigned long long idx_start;
+    unsigned long long idx_stop;
+    if (piece < 0)
+    {
+    	// Special case: prevent making multiple pieces if input piece is negative
+        idx_start = 0;
+        idx_stop  = MULTIDIM_SIZE(packed);
+    }
+    else
+    {
+    	idx_start = (unsigned long long)piece * MAX_PACK_SIZE;
+    	idx_stop  = idx_start + (unsigned long long)MULTIDIM_SIZE(packed);
+    }
+    unsigned long long ori_idx = 0;
+    unsigned long long idx = 0;
+#ifdef DEBUG_PACK
+    std::cerr << " UNPACK piece= " << piece << " idx_start= " << idx_start << " idx_stop= " << idx_stop << std::endl;
+#endif
+
+    if (ori_idx >= idx_start && ori_idx < idx_stop) LL = DIRECT_MULTIDIM_ELEM(packed, idx++);
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) ave_Pmax = DIRECT_MULTIDIM_ELEM(packed, idx++);
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) sigma2_offset = DIRECT_MULTIDIM_ELEM(packed, idx++);
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) avg_norm_correction = DIRECT_MULTIDIM_ELEM(packed, idx++);
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) sigma2_rot = DIRECT_MULTIDIM_ELEM(packed, idx++);
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) sigma2_tilt = DIRECT_MULTIDIM_ELEM(packed, idx++);
+    ori_idx++;
+    if (ori_idx >= idx_start && ori_idx < idx_stop) sigma2_psi = DIRECT_MULTIDIM_ELEM(packed, idx++);
+    ori_idx++;
+
+    for (int igroup = 0; igroup < nr_groups; igroup++)
+    {
+
+    	if (idx == ori_idx)
+    		sigma2_noise[igroup].resize(spectral_size);
+        FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(sigma2_noise[igroup])
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop)
+            	DIRECT_MULTIDIM_ELEM(sigma2_noise[igroup], n) = DIRECT_MULTIDIM_ELEM(packed, idx++);
+            ori_idx++;
+        }
+
+        if (idx == ori_idx)
+    		wsum_signal_product_spectra[igroup].resize(spectral_size);
+        FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(wsum_signal_product_spectra[igroup])
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop)
+            	DIRECT_MULTIDIM_ELEM(wsum_signal_product_spectra[igroup], n) = DIRECT_MULTIDIM_ELEM(packed, idx++);
+            ori_idx++;
+        }
+
+        if (idx == ori_idx)
+    		wsum_reference_power_spectra[igroup].resize(spectral_size);
+        FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(wsum_reference_power_spectra[igroup])
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop)
+            	DIRECT_MULTIDIM_ELEM(wsum_reference_power_spectra[igroup], n) = DIRECT_MULTIDIM_ELEM(packed, idx++);
+            ori_idx++;
+        }
+
+        if (ori_idx >= idx_start && ori_idx < idx_stop)
+        	sumw_group[igroup] = DIRECT_MULTIDIM_ELEM(packed, idx++);
+        ori_idx++;
+
+    }
+
+    for (int iclass = 0; iclass < nr_classes_bodies; iclass++)
+    {
+    	if (idx == ori_idx)
+    		BPref[iclass].initialiseDataAndWeight(current_size);
+    	FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(BPref[iclass].compdatareal)
+        {
+        	if (ori_idx >= idx_start && ori_idx < idx_stop)
+				(DIRECT_MULTIDIM_ELEM(BPref[iclass].compdatareal, n)) = DIRECT_MULTIDIM_ELEM(packed, idx++);
+        	ori_idx++;
+
+        	if (ori_idx >= idx_start && ori_idx < idx_stop)
+            	(DIRECT_MULTIDIM_ELEM(BPref[iclass].compdataimag, n)) = DIRECT_MULTIDIM_ELEM(packed, idx++);
+        	ori_idx++;
+            //DIRECT_MULTIDIM_ELEM(BPref[iclass].data, n) = Complex(re, im);
+        }
+
+    	FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(BPref[iclass].compweight)
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop)
+				DIRECT_MULTIDIM_ELEM(BPref[iclass].compweight, n) = DIRECT_MULTIDIM_ELEM(packed, idx++);
+            ori_idx++;
+        }
+
+    	if (idx == ori_idx)
+    		pdf_direction[iclass].resize(nr_directions);
+        FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(pdf_direction[iclass])
+        {
+            if (ori_idx >= idx_start && ori_idx < idx_stop)
+				DIRECT_MULTIDIM_ELEM(pdf_direction[iclass], n) = DIRECT_MULTIDIM_ELEM(packed, idx++);
+            ori_idx++;
+        }
+
+    }
+
+    for (int iclass = 0; iclass < nr_classes; iclass++)
+    {
+        if (ori_idx >= idx_start && ori_idx < idx_stop)
+        	pdf_class[iclass] = DIRECT_MULTIDIM_ELEM(packed, idx++);
+        ori_idx++;
+
+        if (ref_dim == 2)
+        {
+			if (ori_idx >= idx_start && ori_idx < idx_stop)
+				XX(prior_offset_class[iclass]) = DIRECT_MULTIDIM_ELEM(packed, idx++);
+			ori_idx++;
+			if (ori_idx >= idx_start && ori_idx < idx_stop)
+				YY(prior_offset_class[iclass]) = DIRECT_MULTIDIM_ELEM(packed, idx++);
+			ori_idx++;
+        }
+    }
+
+
+    unsigned long long packed_size = MULTIDIM_SIZE(packed);
+    // Free memory
+    if (do_clear)
+        packed.clear();
+
+    // Just to check whether we went outside our memory...
+    //std::cerr << " UNPACK piece= " << piece << " idx= " << idx << " idx_stop-idx_start= " << idx_stop-idx_start << " idx_start= " << idx_start << " idx_stop= " << idx_stop    << std::endl;
+    if (idx != idx_stop-idx_start)
+    {
+       	std::cerr << "idx= " << idx << "ori_idx= " << ori_idx << " idx_start= " << idx_start << " idx_stop= " << idx_stop << " packed_size= " << packed_size << std::endl;
+        REPORT_ERROR("MlWsumModel::unpack: idx != idx_stop-idx_start");
+    }
+
+}
 void MlWsumModel::unpackpart1(MultidimArray<RFLOAT> &packed, int piece, bool do_clear)
 {
 
@@ -2373,6 +2696,38 @@ void MlWsumModel::unpackpart2(MultidimArray<int> &packed, int piece, bool do_cle
         REPORT_ERROR("MlWsumModel::unpack: idx != idx_stop-idx_start");
     }
 
+}
+
+void MlWsumModel::uncompressdataandweight()
+{
+
+	int rawoffset=0;
+	int compressoffset=0;
+	int ydim=BPref[0].data.ydim;
+	int zdim=BPref[0].data.zdim;
+	int xdim=BPref[0].data.xdim;
+
+	BPref[0].weight.initZeros(zdim,ydim,xdim);
+	BPref[0].data.initZeros(zdim,ydim,xdim);
+
+
+	for(int i=0;i<zdim;i++)
+		for(int j=0;j<ydim;j++)
+		{
+			int curiindex=i*ydim+j;
+			if(BPref[0].ydata[curiindex] !=0 )
+			{
+				for(int k=0;k<BPref[0].ydata[curiindex];k++)
+				{
+					BPref[0].data.data[rawoffset+k].real=BPref[0].compdatareal.data[compressoffset+k];
+					BPref[0].data.data[rawoffset+k].imag=BPref[0].compdataimag.data[compressoffset+k];
+					BPref[0].weight.data[rawoffset+k]=BPref[0].compweight.data[compressoffset+k];
+				}
+			}
+
+			compressoffset += BPref[0].ydata[curiindex];
+			rawoffset+=xdim;
+		}
 }
 
 
