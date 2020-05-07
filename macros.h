@@ -65,6 +65,10 @@
 #ifndef MAXFLOAT
 #define MAXFLOAT  1e30
 #endif
+
+
+#define COMGPU
+
 #define RELION_SINGLE_PRECISION
 
 #ifdef RELION_SINGLE_PRECISION

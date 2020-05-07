@@ -1632,6 +1632,33 @@ void MlOptimiserMpi::expectation()
 					MlDeviceBundle* b = ((MlDeviceBundle*)accDataBundles[i]);
 					b->syncAllBackprojects();
 
+#ifdef  COMGPU
+					for (int j = 0; j < b->backprojectors.size(); j++)
+					{
+						unsigned long s = wsum_model.BPref[j].sumalldata;
+
+						XFLOAT *reals = new XFLOAT[s];
+						XFLOAT *imags = new XFLOAT[s];
+						XFLOAT *weights = new XFLOAT[s];
+
+						b->backprojectors[j].getcompressMdlData(reals, imags, weights);
+
+						for (unsigned long n = 0; n < s; n++)
+						{
+							wsum_model.BPref[j].data.data[n].real += (RFLOAT) reals[n];
+							wsum_model.BPref[j].data.data[n].imag += (RFLOAT) imags[n];
+							wsum_model.BPref[j].weight.data[n] += (RFLOAT) weights[n];
+						}
+
+						delete [] reals;
+						delete [] imags;
+						delete [] weights;
+
+						b->projectors[j].clear();
+						b->backprojectors[j].clear();
+					}
+
+#else
 					for (int j = 0; j < b->backprojectors.size(); j++)
 					{
 						unsigned long s = wsum_model.BPref[j].data.nzyxdim;
@@ -1656,7 +1683,7 @@ void MlOptimiserMpi::expectation()
 						b->projectors[j].clear();
 						b->backprojectors[j].clear();
 					}
-
+#endif
 					for (int j = 0; j < b->coarseProjectionPlans.size(); j++)
 						b->coarseProjectionPlans[j].clear();
 #ifdef TIMING

@@ -19,7 +19,7 @@ public:
 	int mdlX, mdlY, mdlZ, 
 	    mdlInitY, mdlInitZ,
 	    maxR, maxR2,
-	    padding_factor;
+	    padding_factor,sumalldata,pad_size;
 		size_t mdlXYZ;
 
 #ifndef CUDA
@@ -30,7 +30,7 @@ public:
 	size_t voxelCount;
 
 	XFLOAT *d_mdlReal, *d_mdlImag, *d_mdlWeight;
-
+	int *d_yoffsetdata;
 
 
 	cudaStream_t stream;
@@ -54,8 +54,12 @@ public:
 			int xdim, int ydim, int zdim,
 			int inity, int initz,
 			int max_r, int paddingFactor);
-
+	size_t setcompressMdlDim(
+			int xdim, int ydim, int zdim,
+			int inity, int initz,
+			int max_r, int paddingFactor,int padsize, int sumdata,int *yoffsetdata);
 	void initMdl();
+    void initcompressMdl();
 
 	void backproject(
 			XFLOAT *d_imgs_nomask_real,
@@ -78,6 +82,7 @@ public:
 			cudaStream_t optStream);
 
 	void getMdlData(XFLOAT *real, XFLOAT *imag, XFLOAT * weights);
+	void getcompressMdlData(XFLOAT *real, XFLOAT *imag, XFLOAT * weights);
 	void getMdlDataPtrs(XFLOAT *& real, XFLOAT *& imag, XFLOAT *& weights);
 
 	void setStream(cudaStream_t s) { stream = s; }

@@ -128,6 +128,22 @@ void MlDeviceBundle::setupFixedSizedObjects()
 
 	for (int imodel = 0; imodel < nr_bproj; imodel++)
 	{
+
+#ifdef COMGPU
+		backprojectors[imodel].setcompressMdlDim(
+				baseMLO->wsum_model.BPref[imodel].data.xdim,
+				baseMLO->wsum_model.BPref[imodel].data.ydim,
+				baseMLO->wsum_model.BPref[imodel].data.zdim,
+				baseMLO->wsum_model.BPref[imodel].data.yinit,
+				baseMLO->wsum_model.BPref[imodel].data.zinit,
+				baseMLO->wsum_model.BPref[imodel].r_max,
+				baseMLO->wsum_model.BPref[imodel].padding_factor,
+				baseMLO->wsum_model.BPref[imodel].pad_size,
+				baseMLO->wsum_model.BPref[imodel].sumalldata,
+				baseMLO->wsum_model.BPref[imodel].yoffsetdata);
+		backprojectors[imodel].initcompressMdl();
+
+#else
 		backprojectors[imodel].setMdlDim(
 				baseMLO->wsum_model.BPref[imodel].data.xdim,
 				baseMLO->wsum_model.BPref[imodel].data.ydim,
@@ -136,8 +152,9 @@ void MlDeviceBundle::setupFixedSizedObjects()
 				baseMLO->wsum_model.BPref[imodel].data.zinit,
 				baseMLO->wsum_model.BPref[imodel].r_max,
 				baseMLO->wsum_model.BPref[imodel].padding_factor);
-
 		backprojectors[imodel].initMdl();
+#endif
+
 	}
 
 	/*======================================================
