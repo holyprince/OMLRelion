@@ -241,13 +241,15 @@ void AccBackprojector::compressclear()
 	maxR2 = 0;
 	padding_factor = 0;
 	allocaton_size = 0;
-
+	sumalldata =0;
+	pad_size = 0;
 	if (d_mdlReal != NULL)
 	{
 #ifdef CUDA
 		DEBUG_HANDLE_ERROR(cudaFree(d_mdlReal));
 		DEBUG_HANDLE_ERROR(cudaFree(d_mdlImag));
 		DEBUG_HANDLE_ERROR(cudaFree(d_mdlWeight));
+		DEBUG_HANDLE_ERROR(cudaFree(d_yoffsetdata));
 #else
 		free(d_mdlReal);
 		free(d_mdlImag);
@@ -256,6 +258,7 @@ void AccBackprojector::compressclear()
 #endif
 
 		d_mdlReal = d_mdlImag = d_mdlWeight = NULL;
+		d_yoffsetdata=NULL;
 	}
 }
 
