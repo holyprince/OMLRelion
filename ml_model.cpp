@@ -2728,6 +2728,11 @@ void MlWsumModel::uncompressdataandweight()
 			compressoffset += BPref[0].ydata[curiindex];
 			rawoffset+=xdim;
 		}
+	BPref[0].compdatareal.clear();
+	BPref[0].compdataimag.clear();
+	BPref[0].compweight.clear();
+	free(BPref[0].ydata);
+	free(BPref[0].yoffsetdata);
 }
 
 
