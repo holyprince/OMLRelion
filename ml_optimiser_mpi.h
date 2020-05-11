@@ -146,6 +146,8 @@ public:
      */
     void processMoviesPerMicrograph(int argc, char **argv);
 
+    void printWeightedSums(int iter);
+
 
 };
 

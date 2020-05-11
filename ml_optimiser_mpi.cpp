@@ -3975,7 +3975,11 @@ void MlOptimiserMpi::iterate()
 	float time_use;
 	gettimeofday (&tv1, &tz);
 #endif
-/*    if((iter==1 || iter==10  || iter==25 ))
+//	if(node->rank != 0)
+//		uncompressdata();
+
+
+	/*    if((iter==1 || iter==10  || iter==25 ))
     {
     	printf("wsum_model size : %d %d %d ",wsum_model.BPref[0].weight.xdim,wsum_model.BPref[0].weight.ydim,wsum_model.BPref[0].weight.zdim);
     	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,0);
@@ -4019,6 +4023,9 @@ void MlOptimiserMpi::iterate()
 	if(node->rank != 0)
 		uncompressdata();
 #endif
+
+
+
 
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
@@ -4446,3 +4453,42 @@ void MlOptimiserMpi::processMoviesPerMicrograph(int argc, char **argv)
 
 
 }
+/*
+void MlOptimiserMpi::printWeightedSums(int iter)
+{
+	FILE *fp;
+	char filename[100];
+	char filenamereal[100];
+	char filenameimag[100];
+	memset(filename,0,100*sizeof(char));
+	memset(filenamereal,0,100*sizeof(char));
+	memset(filenameimag,0,100*sizeof(char));
+	sprintf(filename,"weight%003d.out",iter);
+	sprintf(filenamereal,"realdata%003d.out",iter);
+	sprintf(filenameimag,"imagdata%003d.out",iter);
+	fp= fopen(filename,"w+");
+	int dimx=wsum_model.BPref[0].weight.xdim;
+	for(int i=0;i<wsum_model.BPref[0].weight.nzyxdim;i++)
+	{
+		fprintf(fp,"%f ",wsum_model.BPref[0].weight.data[i]);
+		if((i+1)%dimx==0)
+			fprintf(fp,"\n");
+	}
+	fclose(fp);
+	fp= fopen(filenamereal,"w+");
+	for(int i=0;i<wsum_model.BPref[0].data.nzyxdim;i++)
+	{
+		fprintf(fp,"%f ",wsum_model.BPref[0].data.data[i].real);
+		if((i+1)%dimx==0)
+			fprintf(fp,"\n");
+	}
+	fclose(fp);
+	fp= fopen(filenameimag,"w+");
+	for(int i=0;i<wsum_model.BPref[0].weight.nzyxdim;i++)
+	{
+		fprintf(fp,"%f ",wsum_model.BPref[0].data.data[i].imag);
+		if((i+1)%dimx==0)
+			fprintf(fp,"\n");
+	}
+	fclose(fp);
+}*/

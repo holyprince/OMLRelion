@@ -73,7 +73,7 @@ void Projector::initialiseData(int current_size)
 	data.setXmippOrigin();
 	data.xinit=0;
 
-	int max_r2= ROUND(r_max * padding_factor) * ROUND(r_max * padding_factor);
+	int max_r2= ROUND((r_max+1) * padding_factor) * ROUND((r_max+1) * padding_factor);
 
 	ydata=(int *)malloc(sizeof(int)*pad_size*pad_size);
 	memset(ydata,0,sizeof(int)*pad_size*pad_size);

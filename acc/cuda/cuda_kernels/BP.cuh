@@ -561,9 +561,10 @@ __global__ void cuda_kernel_compressbackproject3D(
 			XFLOAT mfy = (XFLOAT)1.0 - fy;
 			XFLOAT mfz = (XFLOAT)1.0 - fz;
 
+			int datarange= (max_r+1)*(max_r+1)*4;
 			XFLOAT dd000 = mfz * mfy * mfx;
 			int datacur;
-			if(x0 * x0 + (y0+mdl_inity) * (y0+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < max_r2*4 )
+			if(x0 * x0 + (y0+mdl_inity) * (y0+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < datarange )
 			{
 				datacur=g_yoffsetdata[(z0)*pad_size+(y0)]+(x0);
 				cuda_atomic_add(&g_model_real  [datacur], dd000 * real);
@@ -572,7 +573,7 @@ __global__ void cuda_kernel_compressbackproject3D(
 			}
 
 			XFLOAT dd001 = mfz * mfy *  fx;
-			if(x1 * x1 + (y0+mdl_inity) * (y0+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < max_r2*4 )
+			if(x1 * x1 + (y0+mdl_inity) * (y0+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < datarange )
 			{
 				datacur=g_yoffsetdata[(z0)*pad_size+(y0)]+(x1);
 				cuda_atomic_add(&g_model_real  [datacur], dd001 * real);
@@ -580,7 +581,7 @@ __global__ void cuda_kernel_compressbackproject3D(
 				cuda_atomic_add(&g_model_weight[datacur], dd001 * Fweight);
 			}
 			XFLOAT dd010 = mfz *  fy * mfx;
-			if(x0 * x0 + (y1+mdl_inity) * (y1+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < max_r2*4 )
+			if(x0 * x0 + (y1+mdl_inity) * (y1+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < datarange )
 			{
 				datacur=g_yoffsetdata[(z0)*pad_size+(y1)]+(x0);
 				cuda_atomic_add(&g_model_real  [datacur], dd010 * real);
@@ -589,7 +590,7 @@ __global__ void cuda_kernel_compressbackproject3D(
 			}
 
 			XFLOAT dd011 = mfz *  fy *  fx;
-			if(x1 * x1 + (y1+mdl_inity) * (y1+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < max_r2*4 )
+			if(x1 * x1 + (y1+mdl_inity) * (y1+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < datarange )
 			{
 				datacur=g_yoffsetdata[(z0)*pad_size+(y1)]+(x1);
 			cuda_atomic_add(&g_model_real  [datacur], dd011 * real);
@@ -598,7 +599,7 @@ __global__ void cuda_kernel_compressbackproject3D(
 			}
 
 			XFLOAT dd100 =  fz * mfy * mfx;
-			if(x0 * x0 + (y0+mdl_inity) * (y0+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < max_r2*4 )
+			if(x0 * x0 + (y0+mdl_inity) * (y0+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < datarange )
 			{
 				datacur=g_yoffsetdata[(z1)*pad_size+(y0)]+(x0);
 				cuda_atomic_add(&g_model_real  [datacur], dd100 * real);
@@ -607,7 +608,7 @@ __global__ void cuda_kernel_compressbackproject3D(
 
 			}
 			XFLOAT dd101 =  fz * mfy *  fx;
-			if(x1 * x1 + (y0+mdl_inity) * (y0+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < max_r2*4 )
+			if(x1 * x1 + (y0+mdl_inity) * (y0+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < datarange )
 			{
 				datacur=g_yoffsetdata[(z1)*pad_size+(y0)]+(x1);
 				cuda_atomic_add(&g_model_real  [datacur], dd101 * real);
@@ -617,7 +618,7 @@ __global__ void cuda_kernel_compressbackproject3D(
 
 
 			XFLOAT dd110 =  fz *  fy * mfx;
-			if(x0 * x0 + (y1+mdl_inity) * (y1+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < max_r2*4 )
+			if(x0 * x0 + (y1+mdl_inity) * (y1+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < datarange )
 			{
 				datacur=g_yoffsetdata[(z1)*pad_size+(y1)]+(x0);
 				cuda_atomic_add(&g_model_real  [datacur], dd110 * real);
@@ -627,7 +628,7 @@ __global__ void cuda_kernel_compressbackproject3D(
 
 
 			XFLOAT dd111 =  fz *  fy *  fx;
-			if(x1 * x1 + (y1+mdl_inity) * (y1+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < max_r2*4 )
+			if(x1 * x1 + (y1+mdl_inity) * (y1+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < datarange )
 			{
 				datacur=g_yoffsetdata[(z1)*pad_size+(y1)]+(x1);
 				cuda_atomic_add(&g_model_real  [datacur], dd111 * real);
