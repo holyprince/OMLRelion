@@ -3922,8 +3922,8 @@ void MlOptimiserMpi::iterate()
 
 	// Initialize the current resolution
 	updateCurrentResolution();
-
-	for (iter = iter + 1; iter <= nr_iter; iter++)
+	//nr_iter
+	for (iter = iter + 1; iter <= 3; iter++)
     {
 #ifdef TIMING
 		timer.tic(TIMING_EXP);
@@ -4023,7 +4023,6 @@ void MlOptimiserMpi::iterate()
 	if(node->rank != 0)
 		uncompressdata();
 #endif
-
 
 
 
@@ -4453,7 +4452,7 @@ void MlOptimiserMpi::processMoviesPerMicrograph(int argc, char **argv)
 
 
 }
-/*
+
 void MlOptimiserMpi::printWeightedSums(int iter)
 {
 	FILE *fp;
@@ -4463,9 +4462,9 @@ void MlOptimiserMpi::printWeightedSums(int iter)
 	memset(filename,0,100*sizeof(char));
 	memset(filenamereal,0,100*sizeof(char));
 	memset(filenameimag,0,100*sizeof(char));
-	sprintf(filename,"weight%003d.out",iter);
-	sprintf(filenamereal,"realdata%003d.out",iter);
-	sprintf(filenameimag,"imagdata%003d.out",iter);
+	sprintf(filename,"cgweight%003d.out",iter);
+	sprintf(filenamereal,"cgrealdata%003d.out",iter);
+	sprintf(filenameimag,"cgimagdata%003d.out",iter);
 	fp= fopen(filename,"w+");
 	int dimx=wsum_model.BPref[0].weight.xdim;
 	for(int i=0;i<wsum_model.BPref[0].weight.nzyxdim;i++)
@@ -4491,4 +4490,4 @@ void MlOptimiserMpi::printWeightedSums(int iter)
 			fprintf(fp,"\n");
 	}
 	fclose(fp);
-}*/
+}

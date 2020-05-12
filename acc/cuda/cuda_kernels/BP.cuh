@@ -561,7 +561,7 @@ __global__ void cuda_kernel_compressbackproject3D(
 			XFLOAT mfy = (XFLOAT)1.0 - fy;
 			XFLOAT mfz = (XFLOAT)1.0 - fz;
 
-			int datarange= (max_r+1)*(max_r+1)*4;
+			int datarange= (max_r+2)*(max_r+2)*4;
 			XFLOAT dd000 = mfz * mfy * mfx;
 			int datacur;
 			if(x0 * x0 + (y0+mdl_inity) * (y0+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < datarange )
