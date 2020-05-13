@@ -2472,8 +2472,8 @@ void MlOptimiserMpi::combineAllWeightedSumsallreducewithcompress()
 					Msum.initZeros(Mpack);
 			}
 			//printf("pack finished %d \n",node->rank);
-			node->relion_MPI_Allreduce(MULTIDIM_ARRAY(Mpack),MULTIDIM_ARRAY(Msum),MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, MPI_SUM, node->group_comm);
-/*
+//			node->relion_MPI_Allreduce(MULTIDIM_ARRAY(Mpack),MULTIDIM_ARRAY(Msum),MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, MPI_SUM, node->group_comm);
+
 			// Loop through all slaves: each slave sends its Msum to the next slave for its subset.
 			// Each next slave sums its own Mpack to the received Msum and sends it on to the next slave
 			for (int this_slave = 1; this_slave < node->size; this_slave++ )
@@ -2558,7 +2558,7 @@ void MlOptimiserMpi::combineAllWeightedSumsallreducewithcompress()
 					}
 				}
 			} // end for this_slave
-*/
+
 
 			// Finally all slaves unpack Msum into their wsum_model
 			if (!node->isMaster())
@@ -3923,7 +3923,7 @@ void MlOptimiserMpi::iterate()
 	// Initialize the current resolution
 	updateCurrentResolution();
 	//nr_iter
-	for (iter = iter + 1; iter <= 3; iter++)
+	for (iter = iter + 1; iter <= nr_iter; iter++)
     {
 #ifdef TIMING
 		timer.tic(TIMING_EXP);

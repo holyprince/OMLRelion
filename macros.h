@@ -66,7 +66,7 @@
 #define MAXFLOAT  1e30
 #endif
 
-
+//#define TIMING
 #define COMGPU
 
 #define RELION_SINGLE_PRECISION
