@@ -71,8 +71,9 @@ class MpiNode
 
 public:
     int rank, size;
-
+    int color;
     MPI_Group worldG, slaveG; // groups of ranks (in practice only used to create communicators)
+    MPI_Comm group_comm;
 	MPI_Comm worldC, slaveC;  // communicators
 	int slaveRank;			  // index of slave within the slave-group (and communicator)
 
@@ -100,6 +101,7 @@ public:
 
     int relion_MPI_Bcast(void *buffer, long int count, MPI_Datatype datatype, int root, MPI_Comm comm);
 
+    int relion_MPI_Allreduce(void* send_data,void* recv_data,std::ptrdiff_t count,MPI_Datatype datatype,MPI_Op op,MPI_Comm communicator);
     /* Better error handling of MPI error messages */
     void report_MPI_ERROR(int error_code);
 

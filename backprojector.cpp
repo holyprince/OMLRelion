@@ -88,12 +88,27 @@ void BackProjector::initialiseDataAndWeight(int current_size)
 
 	initialiseData(current_size);
 	weight.resize(data);
+	compweight.resize(compdatareal);
 
 }
+
+void BackProjector::rawinitialiseDataAndWeight(int current_size)
+{
+
+	rawinitialiseData(current_size);
+	weight.resize(data);
+
+}
+
 void BackProjector::initialiseOnlyData(int current_size)
 {
 
 	initialiseData(current_size);
+	data.initZeros();
+	weight.initZeros();
+	compweight.initZeros();
+	compdatareal.initZeros();
+	compdataimag.initZeros();
 }
 
 

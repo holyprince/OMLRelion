@@ -581,6 +581,20 @@ void runBackProjectKernel(
 #endif
 			else
 #ifdef CUDA
+			{
+
+#ifdef COMGPU
+
+				cuda_kernel_compressbackproject3D<false><<<imageCount,BP_REF3D_BLOCK_SIZE,0,optStream>>>(
+					d_img_real, d_img_imag,
+					trans_x, trans_y, trans_z,
+					d_weights, d_Minvsigma2s, d_ctfs,
+					translation_num, significant_weight, weight_norm, d_eulers,
+					BP.d_mdlReal, BP.d_mdlImag, BP.d_mdlWeight,
+					BP.maxR, BP.maxR2, BP.padding_factor, BP.pad_size, BP.d_yoffsetdata,
+					imgX, imgY, imgZ, imgX*imgY*imgZ,
+					BP.mdlX, BP.mdlY, BP.mdlInitY, 	BP.mdlInitZ);
+#else
 				cuda_kernel_backproject3D<false><<<imageCount,BP_REF3D_BLOCK_SIZE,0,optStream>>>(
 					d_img_real, d_img_imag,
 					trans_x, trans_y, trans_z,
@@ -590,6 +604,8 @@ void runBackProjectKernel(
 					BP.maxR, BP.maxR2, BP.padding_factor,
 					imgX, imgY, imgZ, imgX*imgY*imgZ,
 					BP.mdlX, BP.mdlY, BP.mdlInitY, 	BP.mdlInitZ);
+#endif
+			}
 #else
 #if 1 //TODO Clean this up
 				CpuKernels::backprojectRef3D(imageCount,

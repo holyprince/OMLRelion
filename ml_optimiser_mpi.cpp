@@ -1632,6 +1632,33 @@ void MlOptimiserMpi::expectation()
 					MlDeviceBundle* b = ((MlDeviceBundle*)accDataBundles[i]);
 					b->syncAllBackprojects();
 
+#ifdef  COMGPU
+					for (int j = 0; j < b->backprojectors.size(); j++)
+					{
+						unsigned long s = wsum_model.BPref[j].sumalldata;
+
+						XFLOAT *reals = new XFLOAT[s];
+						XFLOAT *imags = new XFLOAT[s];
+						XFLOAT *weights = new XFLOAT[s];
+
+						b->backprojectors[j].getcompressMdlData(reals, imags, weights);
+
+						for (unsigned long n = 0; n < s; n++)
+						{
+							wsum_model.BPref[j].compdatareal.data[n] += (RFLOAT) reals[n];
+							wsum_model.BPref[j].compdataimag.data[n] += (RFLOAT) imags[n];
+							wsum_model.BPref[j].compweight.data[n] += (RFLOAT) weights[n];
+						}
+
+						delete [] reals;
+						delete [] imags;
+						delete [] weights;
+
+						b->projectors[j].clear();
+						b->backprojectors[j].compressclear();
+					}
+
+#else
 					for (int j = 0; j < b->backprojectors.size(); j++)
 					{
 						unsigned long s = wsum_model.BPref[j].data.nzyxdim;
@@ -1656,7 +1683,7 @@ void MlOptimiserMpi::expectation()
 						b->projectors[j].clear();
 						b->backprojectors[j].clear();
 					}
-
+#endif
 					for (int j = 0; j < b->coarseProjectionPlans.size(); j++)
 						b->coarseProjectionPlans[j].clear();
 #ifdef TIMING
@@ -2243,7 +2270,481 @@ void MlOptimiserMpi::combineAllWeightedSums()
 #endif
 
 }
+void MlOptimiserMpi::combineAllWeightedSumsallreduce()
+{
 
+#ifdef TIMING
+    timer.tic(TIMING_MPICOMBINENETW);
+#endif
+
+    // Pack all weighted sums in Mpack
+	MultidimArray<RFLOAT> Mpack, Msum;
+	MPI_Status status;
+	int nr_halfsets = (do_split_random_halves) ? 2 : 1;
+
+	// First slave manually sums over all other slaves of it's subset
+	// And then sends results back to all those slaves
+	// When splitting the data into two random halves, perform two passes: one for each subset
+
+
+#ifdef DEBUG
+	std::cerr << " starting combineAllWeightedSums..." << std::endl;
+#endif
+	// Only combine weighted sums if there are more than one slaves per subset!
+	if ((node->size - 1)/nr_halfsets > 1)
+	{
+		// Loop over possibly multiple instances of Mpack of maximum size
+		int piece = 0;
+		int nr_pieces = 1;
+		long int pack_size;
+
+
+		while (piece < nr_pieces)
+		{
+			// All nodes except those who will reset nr_pieces piece will pass while loop in next pass
+			nr_pieces = 0;
+
+			// First all slaves pack up their wsum_model
+			if (!node->isMaster())
+			{
+				wsum_model.pack(Mpack, piece, nr_pieces);
+				//printf("Mpack.nzyxdim,piece,nr_pieces : %ld %d %d ",Mpack.nzyxdim,piece,nr_pieces);
+
+				// The first slave(s) set Msum equal to Mpack, the others initialise to zero
+				if (node->rank <= nr_halfsets)
+					Msum = Mpack;
+				else
+					Msum.initZeros(Mpack);
+			}
+			printf("pack finished %d \n",node->rank);
+			node->relion_MPI_Allreduce(MULTIDIM_ARRAY(Mpack),MULTIDIM_ARRAY(Msum),MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, MPI_SUM, node->group_comm);
+			//MPI_Allreduce(MULTIDIM_ARRAY(Mpack), MULTIDIM_ARRAY(Msum),MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, MPI_SUM, node->group_comm);
+/*
+			// Loop through all slaves: each slave sends its Msum to the next slave for its subset.
+			// Each next slave sums its own Mpack to the received Msum and sends it on to the next slave
+			for (int this_slave = 1; this_slave < node->size; this_slave++ )
+			{
+				// Find out who is the first slave in this subset
+				int first_slave;
+				if (!do_split_random_halves)
+					first_slave = 1;
+				else
+					first_slave = (this_slave % 2 == 1) ? 1 : 2;
+
+				// Find out who is the next slave in this subset
+				int other_slave = this_slave + nr_halfsets;
+
+				if (other_slave < node->size)
+				{
+					if (node->rank == this_slave)
+					{
+#ifdef DEBUG
+						std::cerr << " AA SEND node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+						node->relion_MPI_Send(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, other_slave, MPITAG_PACK, MPI_COMM_WORLD);
+					}
+					else if (node->rank == other_slave)
+					{
+						node->relion_MPI_Recv(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, this_slave, MPITAG_PACK, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+						std::cerr << " AA RECV node->rank= " << node->rank  << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+						// Add my own Mpack to send onwards in the next step
+						Msum += Mpack;
+					}
+				}
+				else
+				{
+					// Now this_slave has reached the last slave, which passes the final Msum to the first one (i.e. first_slave)
+					if (node->rank == this_slave)
+					{
+#ifdef DEBUG
+						std::cerr << " BB SEND node->rank= " << node->rank  << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " first_slave= "<<first_slave << std::endl;
+#endif
+						node->relion_MPI_Send(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, first_slave, MPITAG_PACK, MPI_COMM_WORLD);
+					}
+					else if (node->rank == first_slave)
+					{
+						node->relion_MPI_Recv(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, this_slave, MPITAG_PACK, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+						std::cerr << " BB RECV node->rank= " << node->rank  << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " first_slave= "<<first_slave << std::endl;
+#endif
+					}
+				}
+			} // end for this_slave
+
+			// Now loop through all slaves again to pass around the Msum
+			for (int this_slave = 1; this_slave < node->size; this_slave++ )
+			{
+				// Find out who is the next slave in this subset
+				int other_slave = this_slave + nr_halfsets;
+
+				// Do not send to the last slave, because it already had its Msum from the cycle above, therefore subtract nr_halfsets from node->size
+				if (other_slave < node->size - nr_halfsets)
+				{
+					if (node->rank == this_slave)
+					{
+#ifdef DEBUG
+						std::cerr << " CC SEND node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+						node->relion_MPI_Send(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, other_slave, MPITAG_PACK, MPI_COMM_WORLD);
+					}
+					else if (node->rank == other_slave)
+					{
+						node->relion_MPI_Recv(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, this_slave, MPITAG_PACK, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+						std::cerr << " CC RECV node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+					}
+				}
+			} // end for this_slave
+*/
+
+			// Finally all slaves unpack Msum into their wsum_model
+			if (!node->isMaster())
+			{
+				// Subtract 1 from piece because it was incremented already...
+				wsum_model.unpack(Msum, piece - 1);
+			}
+
+
+		} // end for piece
+
+		MPI_Barrier(MPI_COMM_WORLD);
+	}
+
+
+#ifdef TIMING
+    timer.toc(TIMING_MPICOMBINENETW);
+#endif
+
+}
+void MlOptimiserMpi::combineAllWeightedSumsallreducewithcompress()
+{
+
+#ifdef TIMING
+    timer.tic(TIMING_MPICOMBINENETW);
+#endif
+
+    // Pack all weighted sums in Mpack
+	MultidimArray<RFLOAT> Mpack, Msum;
+	MPI_Status status;
+	int nr_halfsets = (do_split_random_halves) ? 2 : 1;
+
+	// First slave manually sums over all other slaves of it's subset
+	// And then sends results back to all those slaves
+	// When splitting the data into two random halves, perform two passes: one for each subset
+
+
+#ifdef DEBUG
+	std::cerr << " starting combineAllWeightedSums..." << std::endl;
+#endif
+	// Only combine weighted sums if there are more than one slaves per subset!
+	if ((node->size - 1)/nr_halfsets > 1)
+	{
+		// Loop over possibly multiple instances of Mpack of maximum size
+		int piece = 0;
+		int nr_pieces = 1;
+		long int pack_size;
+
+
+		while (piece < nr_pieces)
+		{
+			// All nodes except those who will reset nr_pieces piece will pass while loop in next pass
+			nr_pieces = 0;
+
+			// First all slaves pack up their wsum_model
+			if (!node->isMaster())
+			{
+				wsum_model.packcompressdata(Mpack, piece, nr_pieces);
+				//printf("Mpack.nzyxdim,piece,nr_pieces : %ld %d %d ",Mpack.nzyxdim,piece,nr_pieces);
+
+				// The first slave(s) set Msum equal to Mpack, the others initialise to zero
+				if (node->rank <= nr_halfsets)
+					Msum = Mpack;
+				else
+					Msum.initZeros(Mpack);
+			}
+			//printf("pack finished %d \n",node->rank);
+//			node->relion_MPI_Allreduce(MULTIDIM_ARRAY(Mpack),MULTIDIM_ARRAY(Msum),MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, MPI_SUM, node->group_comm);
+
+			// Loop through all slaves: each slave sends its Msum to the next slave for its subset.
+			// Each next slave sums its own Mpack to the received Msum and sends it on to the next slave
+			for (int this_slave = 1; this_slave < node->size; this_slave++ )
+			{
+				// Find out who is the first slave in this subset
+				int first_slave;
+				if (!do_split_random_halves)
+					first_slave = 1;
+				else
+					first_slave = (this_slave % 2 == 1) ? 1 : 2;
+
+				// Find out who is the next slave in this subset
+				int other_slave = this_slave + nr_halfsets;
+
+				if (other_slave < node->size)
+				{
+					if (node->rank == this_slave)
+					{
+#ifdef DEBUG
+						std::cerr << " AA SEND node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+						node->relion_MPI_Send(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, other_slave, MPITAG_PACK, MPI_COMM_WORLD);
+					}
+					else if (node->rank == other_slave)
+					{
+						node->relion_MPI_Recv(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, this_slave, MPITAG_PACK, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+						std::cerr << " AA RECV node->rank= " << node->rank  << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+						// Add my own Mpack to send onwards in the next step
+						Msum += Mpack;
+					}
+				}
+				else
+				{
+					// Now this_slave has reached the last slave, which passes the final Msum to the first one (i.e. first_slave)
+					if (node->rank == this_slave)
+					{
+#ifdef DEBUG
+						std::cerr << " BB SEND node->rank= " << node->rank  << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " first_slave= "<<first_slave << std::endl;
+#endif
+						node->relion_MPI_Send(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, first_slave, MPITAG_PACK, MPI_COMM_WORLD);
+					}
+					else if (node->rank == first_slave)
+					{
+						node->relion_MPI_Recv(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, this_slave, MPITAG_PACK, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+						std::cerr << " BB RECV node->rank= " << node->rank  << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " first_slave= "<<first_slave << std::endl;
+#endif
+					}
+				}
+			} // end for this_slave
+
+			// Now loop through all slaves again to pass around the Msum
+			for (int this_slave = 1; this_slave < node->size; this_slave++ )
+			{
+				// Find out who is the next slave in this subset
+				int other_slave = this_slave + nr_halfsets;
+
+				// Do not send to the last slave, because it already had its Msum from the cycle above, therefore subtract nr_halfsets from node->size
+				if (other_slave < node->size - nr_halfsets)
+				{
+					if (node->rank == this_slave)
+					{
+#ifdef DEBUG
+						std::cerr << " CC SEND node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+						node->relion_MPI_Send(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, other_slave, MPITAG_PACK, MPI_COMM_WORLD);
+					}
+					else if (node->rank == other_slave)
+					{
+						node->relion_MPI_Recv(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, this_slave, MPITAG_PACK, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+						std::cerr << " CC RECV node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+					}
+				}
+			} // end for this_slave
+
+
+			// Finally all slaves unpack Msum into their wsum_model
+			if (!node->isMaster())
+			{
+				// Subtract 1 from piece because it was incremented already...
+				wsum_model.unpackcompressdata(Msum, piece - 1);
+			}
+
+
+		} // end for piece
+
+		MPI_Barrier(MPI_COMM_WORLD);
+	}
+
+
+#ifdef TIMING
+    timer.toc(TIMING_MPICOMBINENETW);
+#endif
+
+}
+void MlOptimiserMpi::combineAllWeightedSumscompressdata()
+{
+
+#ifdef TIMING
+    timer.tic(TIMING_MPICOMBINENETW);
+#endif
+
+    // Pack all weighted sums in Mpack
+	MultidimArray<RFLOAT> Mpack, Msum;
+	MPI_Status status;
+
+	// First slave manually sums over all other slaves of it's subset
+	// And then sends results back to all those slaves
+	// When splitting the data into two random halves, perform two passes: one for each subset
+	int nr_halfsets = (do_split_random_halves) ? 2 : 1;
+
+#ifdef DEBUG
+	std::cerr << " starting combineAllWeightedSums..." << std::endl;
+#endif
+	// Only combine weighted sums if there are more than one slaves per subset!
+	if ((node->size - 1)/nr_halfsets > 1)
+	{
+
+		// Loop over possibly multiple instances of Mpack of maximum size
+		int piece = 0;
+		int piecedata =0;
+		int nr_pieces = 1;
+		int nr_piecesdata = 1;
+		long int pack_size;
+		long int pack_size_data;
+
+		while (piece < nr_pieces)
+		{
+			// All nodes except those who will reset nr_pieces piece will pass while loop in next pass
+			nr_pieces = 0;
+
+			// First all slaves pack up their wsum_model
+			if (!node->isMaster())
+			{
+
+				wsum_model.packcompressdata(Mpack, piece, nr_pieces);
+
+				//printf("Mpack.nzyxdim,piece,nr_pieces : %ld %d %d ",Mpack.nzyxdim,piece,nr_pieces);
+
+				// The first slave(s) set Msum equal to Mpack, the others initialise to zero
+				if (node->rank <= nr_halfsets)
+				{
+					Msum = Mpack;
+				}
+				else
+				{
+					Msum.initZeros(Mpack);
+				}
+
+			}
+
+
+			// Loop through all slaves: each slave sends its Msum to the next slave for its subset.
+			// Each next slave sums its own Mpack to the received Msum and sends it on to the next slave
+			for (int this_slave = 1; this_slave < node->size; this_slave++ )
+			{
+				// Find out who is the first slave in this subset
+				int first_slave;
+				if (!do_split_random_halves)
+					first_slave = 1;
+				else
+					first_slave = (this_slave % 2 == 1) ? 1 : 2;
+
+				// Find out who is the next slave in this subset
+				int other_slave = this_slave + nr_halfsets;
+
+				if (other_slave < node->size)
+				{
+					if (node->rank == this_slave)
+					{
+						if(this_slave ==1)
+							printf("Start send and focus on next info\n");
+#ifdef DEBUG
+						std::cerr << " AA SEND node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+						node->relion_MPI_Send(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, other_slave, MPITAG_PACK, MPI_COMM_WORLD);
+					}
+					else if (node->rank == other_slave)
+					{
+						node->relion_MPI_Recv(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, this_slave, MPITAG_PACK, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+						std::cerr << " AA RECV node->rank= " << node->rank  << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+						// Add my own Mpack to send onwards in the next step
+						Msum += Mpack;
+					}
+				}
+				else
+				{
+					// Now this_slave has reached the last slave, which passes the final Msum to the first one (i.e. first_slave)
+					if (node->rank == this_slave)
+					{
+#ifdef DEBUG
+						std::cerr << " BB SEND node->rank= " << node->rank  << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " first_slave= "<<first_slave << std::endl;
+#endif
+						node->relion_MPI_Send(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, first_slave, MPITAG_PACK, MPI_COMM_WORLD);
+					}
+					else if (node->rank == first_slave)
+					{
+						node->relion_MPI_Recv(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, this_slave, MPITAG_PACK, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+						std::cerr << " BB RECV node->rank= " << node->rank  << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " first_slave= "<<first_slave << std::endl;
+#endif
+					}
+				}
+			} // end for this_slave
+
+			// Now loop through all slaves again to pass around the Msum
+			for (int this_slave = 1; this_slave < node->size; this_slave++ )
+			{
+				// Find out who is the next slave in this subset
+				int other_slave = this_slave + nr_halfsets;
+
+				// Do not send to the last slave, because it already had its Msum from the cycle above, therefore subtract nr_halfsets from node->size
+				if (other_slave < node->size - nr_halfsets)
+				{
+					if (node->rank == this_slave)
+					{
+#ifdef DEBUG
+						std::cerr << " CC SEND node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+						node->relion_MPI_Send(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, other_slave, MPITAG_PACK, MPI_COMM_WORLD);
+					}
+					else if (node->rank == other_slave)
+					{
+						node->relion_MPI_Recv(MULTIDIM_ARRAY(Msum), MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, this_slave, MPITAG_PACK, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+						std::cerr << " CC RECV node->rank= " << node->rank << " MULTIDIM_SIZE(Msum)= "<< MULTIDIM_SIZE(Msum)
+								<< " this_slave= " << this_slave << " other_slave= "<<other_slave << std::endl;
+#endif
+					}
+				}
+			} // end for this_slave
+
+			// Finally all slaves unpack Msum into their wsum_model
+			if (!node->isMaster())
+			{
+				// Subtract 1 from piece because it was incremented already...
+				wsum_model.unpackcompressdata(Msum, piece - 1);
+			}
+
+		} // end for piece
+
+		MPI_Barrier(MPI_COMM_WORLD);
+	}
+
+
+#ifdef TIMING
+    timer.toc(TIMING_MPICOMBINENETW);
+#endif
+
+}
+void MlOptimiserMpi::uncompressdata()
+{
+	wsum_model.uncompressdataandweight();
+}
 void MlOptimiserMpi::combineWeightedSumsTwoRandomHalvesViaFile()
 {
 	// Just sum the weighted halves from slave 1 and slave 2 and Bcast to everyone else
@@ -2825,7 +3326,20 @@ void MlOptimiserMpi::maximization()
 		gettimeofday (&tv1, &tz);
 #endif
 		RCTIC(timer,RCT_3);
+    	if (node->rank ==1)
+    	{
+    		printf("before maximizationOtherParameters\n");
+		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
+			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
+    	}
 		maximizationOtherParameters();
+
+    	if (node->rank ==1)
+    	{
+    		printf("after maximizationOtherParameters\n");
+		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
+			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
+    	}
 		RCTOC(timer,RCT_3);
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
@@ -3420,7 +3934,7 @@ void MlOptimiserMpi::iterate()
 
 	// Initialize the current resolution
 	updateCurrentResolution();
-
+	//nr_iter
 	for (iter = iter + 1; iter <= nr_iter; iter++)
     {
 #ifdef TIMING
@@ -3473,7 +3987,11 @@ void MlOptimiserMpi::iterate()
 	float time_use;
 	gettimeofday (&tv1, &tz);
 #endif
-/*    if((iter==1 || iter==10  || iter==25 ))
+//	if(node->rank != 0)
+//		uncompressdata();
+
+
+	/*    if((iter==1 || iter==10  || iter==25 ))
     {
     	printf("wsum_model size : %d %d %d ",wsum_model.BPref[0].weight.xdim,wsum_model.BPref[0].weight.ydim,wsum_model.BPref[0].weight.zdim);
     	printdatatofile(wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim,wsum_model.BPref[0].weight.xdim,node->rank,iter,0);
@@ -3486,7 +4004,13 @@ void MlOptimiserMpi::iterate()
 		if (combine_weights_thru_disc)
 			combineAllWeightedSumsViaFile();
 		else
+		{
+#ifdef COMGPU
+			combineAllWeightedSumsallreducewithcompress();
+#else
 			combineAllWeightedSums();
+#endif
+		}
 
 //		gettimeofday (&tv2, &tz);
 //		time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
@@ -3504,7 +4028,18 @@ void MlOptimiserMpi::iterate()
 		std::cerr << " after combineAllWeightedSums..." << std::endl;
 #endif
 
+
 		MPI_Barrier(MPI_COMM_WORLD);
+#ifdef COMGPU
+		//after combine uncopressdata
+	if(node->rank != 0)
+		uncompressdata();
+#endif
+
+//	if(node->rank ==1 || node->rank ==2)
+//		printWeightedSums(iter,node->rank);
+
+
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
@@ -3758,6 +4293,12 @@ void MlOptimiserMpi::iterate()
 #endif
         // Re-calculate the current resolution, do this before writing to get the correct values in the output files
         updateCurrentResolution();
+    	if (verb > 0)
+    	{
+		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
+			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
+    	}
+
 #ifdef TIMING
         timer.toc(TIMING_UPDATERES);
         timer.tic(TIMING_ITER_WRITE);
@@ -3930,4 +4471,43 @@ void MlOptimiserMpi::processMoviesPerMicrograph(int argc, char **argv)
 
 
 
+}
+
+void MlOptimiserMpi::printWeightedSums(int iter,int noderank)
+{
+	FILE *fp;
+	char filename[100];
+	char filenamereal[100];
+	char filenameimag[100];
+	memset(filename,0,100*sizeof(char));
+	memset(filenamereal,0,100*sizeof(char));
+	memset(filenameimag,0,100*sizeof(char));
+	sprintf(filename,"rweight%003d%003d.out",noderank,iter);
+	//sprintf(filenamereal,"cgrealdata%003d.out",noderank,iter);
+	//sprintf(filenameimag,"cgimagdata%003d.out",noderank,iter);
+	fp= fopen(filename,"w+");
+	int dimx=wsum_model.BPref[0].weight.xdim;
+	for(int i=0;i<wsum_model.BPref[0].weight.nzyxdim;i++)
+	{
+		fprintf(fp,"%f ",wsum_model.BPref[0].weight.data[i]);
+		if((i+1)%dimx==0)
+			fprintf(fp,"\n");
+	}
+	fclose(fp);
+/*	fp= fopen(filenamereal,"w+");
+	for(int i=0;i<wsum_model.BPref[0].data.nzyxdim;i++)
+	{
+		fprintf(fp,"%f ",wsum_model.BPref[0].data.data[i].real);
+		if((i+1)%dimx==0)
+			fprintf(fp,"\n");
+	}
+	fclose(fp);
+	fp= fopen(filenameimag,"w+");
+	for(int i=0;i<wsum_model.BPref[0].weight.nzyxdim;i++)
+	{
+		fprintf(fp,"%f ",wsum_model.BPref[0].data.data[i].imag);
+		if((i+1)%dimx==0)
+			fprintf(fp,"\n");
+	}
+	fclose(fp);*/
 }

@@ -88,13 +88,16 @@ public:
     /** Join the sums from two random halves
      *  Use read/write to temporary files instead of MPI
      */
+    void uncompressdata();
     void combineWeightedSumsTwoRandomHalvesViaFile();
 
     /** After expectation combine all weighted sum arrays across all nodes
      */
     void combineAllWeightedSums();
     void combineAllWeightedSumslowpresion();
-
+    void combineAllWeightedSumsallreducewithcompress();
+    void combineAllWeightedSumsallreduce();
+    void combineAllWeightedSumscompressdata();
     /** Join the sums from two random halves
      */
     void combineWeightedSumsTwoRandomHalves();
@@ -142,6 +145,8 @@ public:
      * It does affect the parallelisatione efficiency though, especially when there are few particles per micrograph
      */
     void processMoviesPerMicrograph(int argc, char **argv);
+
+    void printWeightedSums(int iter,int noderank);
 
 
 };

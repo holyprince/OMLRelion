@@ -388,6 +388,259 @@ __global__ void cuda_kernel_backproject3D(
 
 
 template < bool DATA3D >
+__global__ void cuda_kernel_compressbackproject3D(
+		XFLOAT *g_img_real,
+		XFLOAT *g_img_imag,
+		XFLOAT *g_trans_x,
+		XFLOAT *g_trans_y,
+		XFLOAT *g_trans_z,
+		XFLOAT* g_weights,
+		XFLOAT* g_Minvsigma2s,
+		XFLOAT* g_ctfs,
+		unsigned long translation_num,
+		XFLOAT significant_weight,
+		XFLOAT weight_norm,
+		XFLOAT *g_eulers,
+		XFLOAT *g_model_real,
+		XFLOAT *g_model_imag,
+		XFLOAT *g_model_weight,
+		int max_r,
+		int max_r2,
+		XFLOAT padding_factor,
+		int pad_size,
+		int *g_yoffsetdata,
+		unsigned img_x,
+		unsigned img_y,
+		unsigned img_z,
+		unsigned img_xyz,
+		unsigned mdl_x,
+		unsigned mdl_y,
+		int mdl_inity,
+		int mdl_initz)
+{
+	unsigned tid = threadIdx.x;
+	unsigned img = blockIdx.x;
+
+	__shared__ XFLOAT s_eulers[9];
+	XFLOAT minvsigma2, ctf, img_real, img_imag, Fweight, real, imag, weight;
+
+	if (tid < 9)
+		s_eulers[tid] = g_eulers[img*9+tid];
+
+	__syncthreads();
+
+	int pixel_pass_num(0);
+	if(DATA3D)
+		pixel_pass_num = (ceilf((float)img_xyz/(float)BP_DATA3D_BLOCK_SIZE));
+	else
+		pixel_pass_num = (ceilf((float)img_xyz/(float)BP_REF3D_BLOCK_SIZE));
+
+	for (unsigned pass = 0; pass < pixel_pass_num; pass++)
+    {
+		unsigned pixel(0);
+		if(DATA3D)
+			pixel = (pass * BP_DATA3D_BLOCK_SIZE) + tid;
+		else
+			pixel = (pass * BP_REF3D_BLOCK_SIZE) + tid;
+
+		if (pixel >= img_xyz)
+			continue;
+
+		int x,y,z,xy;
+
+		if(DATA3D)
+		{
+			z =  floorfracf(pixel, img_x*img_y);
+			xy = pixel % (img_x*img_y);
+			x =             xy  % img_x;
+			y = floorfracf( xy,   img_x);
+			if (z > max_r)
+			{
+				if (z >= img_z - max_r)
+					z = z - img_z;
+				else
+					continue;
+
+				if(x==0)
+					continue;
+			}
+		}
+		else
+		{
+			x =             pixel % img_x;
+			y = floorfracf( pixel , img_x);
+		}
+		if (y > max_r)
+		{
+			if (y >= img_y - max_r)
+				y = y - img_y;
+			else
+				continue;
+		}
+
+		if(DATA3D)
+			if ( ( x * x + y * y  + z * z ) > max_r2)
+				continue;
+		else
+			if ( ( x * x + y * y ) > max_r2)
+				continue;
+
+		//WAVG
+		minvsigma2 = ldg(&g_Minvsigma2s[pixel]);
+		ctf = ldg(&g_ctfs[pixel]);
+		img_real = ldg(&g_img_real[pixel]);
+		img_imag = ldg(&g_img_imag[pixel]);
+		Fweight = (XFLOAT) 0.0;
+		real = (XFLOAT) 0.0;
+		imag = (XFLOAT) 0.0;
+
+		XFLOAT temp_real, temp_imag;
+
+		for (unsigned long itrans = 0; itrans < translation_num; itrans++)
+		{
+			weight = g_weights[img * translation_num + itrans];
+
+			if (weight >= significant_weight)
+			{
+				weight = (weight / weight_norm) * ctf * minvsigma2;
+				Fweight += weight * ctf;
+
+				if(DATA3D)
+					translatePixel(x, y, z, g_trans_x[itrans], g_trans_y[itrans], g_trans_z[itrans], img_real, img_imag, temp_real, temp_imag);
+				else
+					translatePixel(x, y,    g_trans_x[itrans], g_trans_y[itrans],                    img_real, img_imag, temp_real, temp_imag);
+
+				real += temp_real * weight;
+				imag += temp_imag * weight;
+			}
+		}
+
+		//BP
+		if (Fweight > (XFLOAT) 0.0)
+		{
+			// Get logical coordinates in the 3D map
+
+			XFLOAT xp,yp,zp;
+			if(DATA3D)
+			{
+				xp = (s_eulers[0] * x + s_eulers[1] * y + s_eulers[2] * z) * padding_factor;
+				yp = (s_eulers[3] * x + s_eulers[4] * y + s_eulers[5] * z) * padding_factor;
+				zp = (s_eulers[6] * x + s_eulers[7] * y + s_eulers[8] * z) * padding_factor;
+			}
+			else
+			{
+				xp = (s_eulers[0] * x + s_eulers[1] * y ) * padding_factor;
+				yp = (s_eulers[3] * x + s_eulers[4] * y ) * padding_factor;
+				zp = (s_eulers[6] * x + s_eulers[7] * y ) * padding_factor;
+			}
+			// Only asymmetric half is stored
+			if (xp < (XFLOAT) 0.0)
+			{
+				// Get complex conjugated hermitian symmetry pair
+				xp = -xp;
+				yp = -yp;
+				zp = -zp;
+				imag = -imag;
+			}
+
+			int x0 = floorf(xp);
+			XFLOAT fx = xp - x0;
+			int x1 = x0 + 1;
+
+			int y0 = floorf(yp);
+			XFLOAT fy = yp - y0;
+			y0 -= mdl_inity;
+			int y1 = y0 + 1;
+
+			int z0 = floorf(zp);
+			XFLOAT fz = zp - z0;
+			z0 -= mdl_initz;
+			int z1 = z0 + 1;
+
+			XFLOAT mfx = (XFLOAT)1.0 - fx;
+			XFLOAT mfy = (XFLOAT)1.0 - fy;
+			XFLOAT mfz = (XFLOAT)1.0 - fz;
+
+			int datarange= (max_r+2)*(max_r+2)*4;
+			XFLOAT dd000 = mfz * mfy * mfx;
+			int datacur;
+			if(x0 * x0 + (y0+mdl_inity) * (y0+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < datarange )
+			{
+				datacur=g_yoffsetdata[(z0)*pad_size+(y0)]+(x0);
+				cuda_atomic_add(&g_model_real  [datacur], dd000 * real);
+				cuda_atomic_add(&g_model_imag  [datacur], dd000 * imag);
+				cuda_atomic_add(&g_model_weight[datacur], dd000 * Fweight);
+			}
+
+			XFLOAT dd001 = mfz * mfy *  fx;
+			if(x1 * x1 + (y0+mdl_inity) * (y0+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < datarange )
+			{
+				datacur=g_yoffsetdata[(z0)*pad_size+(y0)]+(x1);
+				cuda_atomic_add(&g_model_real  [datacur], dd001 * real);
+				cuda_atomic_add(&g_model_imag  [datacur], dd001 * imag);
+				cuda_atomic_add(&g_model_weight[datacur], dd001 * Fweight);
+			}
+			XFLOAT dd010 = mfz *  fy * mfx;
+			if(x0 * x0 + (y1+mdl_inity) * (y1+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < datarange )
+			{
+				datacur=g_yoffsetdata[(z0)*pad_size+(y1)]+(x0);
+				cuda_atomic_add(&g_model_real  [datacur], dd010 * real);
+				cuda_atomic_add(&g_model_imag  [datacur], dd010 * imag);
+				cuda_atomic_add(&g_model_weight[datacur], dd010 * Fweight);
+			}
+
+			XFLOAT dd011 = mfz *  fy *  fx;
+			if(x1 * x1 + (y1+mdl_inity) * (y1+mdl_inity) + (z0+mdl_initz) * (z0+mdl_initz) < datarange )
+			{
+				datacur=g_yoffsetdata[(z0)*pad_size+(y1)]+(x1);
+			cuda_atomic_add(&g_model_real  [datacur], dd011 * real);
+			cuda_atomic_add(&g_model_imag  [datacur], dd011 * imag);
+			cuda_atomic_add(&g_model_weight[datacur], dd011 * Fweight);
+			}
+
+			XFLOAT dd100 =  fz * mfy * mfx;
+			if(x0 * x0 + (y0+mdl_inity) * (y0+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < datarange )
+			{
+				datacur=g_yoffsetdata[(z1)*pad_size+(y0)]+(x0);
+				cuda_atomic_add(&g_model_real  [datacur], dd100 * real);
+				cuda_atomic_add(&g_model_imag  [datacur], dd100 * imag);
+				cuda_atomic_add(&g_model_weight[datacur], dd100 * Fweight);
+
+			}
+			XFLOAT dd101 =  fz * mfy *  fx;
+			if(x1 * x1 + (y0+mdl_inity) * (y0+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < datarange )
+			{
+				datacur=g_yoffsetdata[(z1)*pad_size+(y0)]+(x1);
+				cuda_atomic_add(&g_model_real  [datacur], dd101 * real);
+				cuda_atomic_add(&g_model_imag  [datacur], dd101 * imag);
+				cuda_atomic_add(&g_model_weight[datacur], dd101 * Fweight);
+			}
+
+
+			XFLOAT dd110 =  fz *  fy * mfx;
+			if(x0 * x0 + (y1+mdl_inity) * (y1+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < datarange )
+			{
+				datacur=g_yoffsetdata[(z1)*pad_size+(y1)]+(x0);
+				cuda_atomic_add(&g_model_real  [datacur], dd110 * real);
+				cuda_atomic_add(&g_model_imag  [datacur], dd110 * imag);
+				cuda_atomic_add(&g_model_weight[datacur], dd110 * Fweight);
+			}
+
+
+			XFLOAT dd111 =  fz *  fy *  fx;
+			if(x1 * x1 + (y1+mdl_inity) * (y1+mdl_inity) + (z1+mdl_initz) * (z1+mdl_initz) < datarange )
+			{
+				datacur=g_yoffsetdata[(z1)*pad_size+(y1)]+(x1);
+				cuda_atomic_add(&g_model_real  [datacur], dd111 * real);
+				cuda_atomic_add(&g_model_imag  [datacur], dd111 * imag);
+				cuda_atomic_add(&g_model_weight[datacur], dd111 * Fweight);
+			}
+
+		}
+	}
+}
+
+template < bool DATA3D >
 __global__ void cuda_kernel_backprojectSGD(
 		AccProjectorKernel projector,
 		XFLOAT *g_img_real,

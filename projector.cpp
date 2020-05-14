@@ -73,6 +73,58 @@ void Projector::initialiseData(int current_size)
 	data.setXmippOrigin();
 	data.xinit=0;
 
+	int max_r2= ROUND((r_max+2) * padding_factor) * ROUND((r_max+2) * padding_factor);
+
+	ydata=(int *)malloc(sizeof(int)*pad_size*pad_size);
+	memset(ydata,0,sizeof(int)*pad_size*pad_size);
+	for(int iz=0;iz<pad_size;iz++)
+		for(int jy=0;jy<pad_size;jy++)
+		{
+			int xtemp=max_r2 - (iz+ data.zinit)*(iz+ data.zinit) - (jy+data.yinit)*(jy+data.yinit);
+			if(xtemp<=0)
+				ydata[iz*pad_size+jy]= 0;
+			else
+				ydata[iz*pad_size+jy]= (int) sqrt(xtemp-0.01)+1;
+		}
+	yoffsetdata=(int *)malloc(sizeof(int)*pad_size*pad_size);
+	yoffsetdata[0]=0;
+	for(int cur=1;cur<pad_size*pad_size;cur++)
+		yoffsetdata[cur]=yoffsetdata[cur-1]+ydata[cur-1];
+	sumalldata=yoffsetdata[pad_size*pad_size-1]+ydata[pad_size*pad_size-1];
+	compdatareal.resize(sumalldata);
+	compdataimag.resize(sumalldata);
+}
+
+void Projector::rawinitialiseData(int current_size)
+{
+	// By default r_max is half ori_size
+	if (current_size < 0)
+		r_max = ori_size / 2;
+	else
+		r_max = current_size / 2;
+
+	// Never allow r_max beyond Nyquist...
+	r_max = XMIPP_MIN(r_max, ori_size / 2);
+
+	// Set pad_size
+	pad_size = 2 * (ROUND(padding_factor * r_max) + 1) + 1;
+
+	// Short side of data array
+	switch (ref_dim)
+	{
+	case 2:
+	   data.resize(pad_size, pad_size / 2 + 1);
+	   break;
+	case 3:
+	   data.resize(pad_size, pad_size, pad_size / 2 + 1);
+	   break;
+	default:
+	   REPORT_ERROR("Projector::resizeData%%ERROR: Dimension of the data array should be 2 or 3");
+	}
+
+	// Set origin in the y.z-center, but on the left side for x.
+	data.setXmippOrigin();
+	data.xinit=0;
 }
 
 void Projector::initZeros(int current_size)
