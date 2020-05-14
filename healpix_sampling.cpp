@@ -892,8 +892,6 @@ void HealpixSampling::selectOrientationsWithNonZeroPriorProbability(
 	}
 
 
-       	printf("samplingconpsi and %d  \n", psi_angles.size());
-
 	// Psi-angles
 	pointer_psi_nonzeroprior.clear();
 	psi_prior.clear();

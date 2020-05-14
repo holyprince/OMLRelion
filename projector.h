@@ -175,7 +175,7 @@ public:
      * Resize data array to the given size
      */
     void initialiseData(int current_size = -1);
-
+    void rawinitialiseData(int current_size = -1 );
     /*
      * Initialise data array to all zeros
      */

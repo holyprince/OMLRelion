@@ -1469,7 +1469,7 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed)
     // for priors for each class
     if (ref_dim==2)
     	packed_size += nr_classes*2;
-   printf("packinfo 2  packed_size : llu% \n ",packed_size);
+
     // Get memory for the packed array
     packed.clear();
     packed.resize(packed_size);
@@ -2293,7 +2293,7 @@ void MlWsumModel::unpack(MultidimArray<RFLOAT> &packed, int piece, bool do_clear
     for (int iclass = 0; iclass < nr_classes_bodies; iclass++)
     {
     	if (idx == ori_idx)
-    		BPref[iclass].initialiseDataAndWeight(current_size);
+    		BPref[iclass].rawinitialiseDataAndWeight(current_size);
     	FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(BPref[iclass].data)
         {
         	if (ori_idx >= idx_start && ori_idx < idx_stop)
@@ -2709,6 +2709,8 @@ void MlWsumModel::uncompressdataandweight()
 
 	BPref[0].weight.initZeros(zdim,ydim,xdim);
 	BPref[0].data.initZeros(zdim,ydim,xdim);
+
+	printf("test weight : %d %d \n",BPref[0].weight.yinit,BPref[0].weight.zinit);
 
 
 	for(int i=0;i<zdim;i++)

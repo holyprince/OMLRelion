@@ -4039,6 +4039,8 @@ void MlOptimiser::maximizationOtherParameters()
 	for (int iclass = 0; iclass < mymodel.nr_classes; iclass++)
 		sum_weight += wsum_model.pdf_class[iclass];
 
+	printf("maximazation : sum_weight: %f \n",sum_weight);
+
 	// For multi-body refinement: it is possible we haven't done any bodies anymore, so sum_weight is zero
 	// in that case we need to leave all parameters as they were
 	if (sum_weight < XMIPP_EQUAL_ACCURACY)
@@ -4282,6 +4284,8 @@ void MlOptimiser::maximizationOtherParameters()
 #ifdef DEBUG
 	std::cerr << "Leaving maximizationOtherParameters" << std::endl;
 #endif
+
+
 }
 
 
@@ -4418,6 +4422,9 @@ void MlOptimiser::updateCurrentResolution()
 
 		RFLOAT best_current_resolution = 0.;
 		int nr_iter_wo_resol_gain_sum_bodies = 0;
+
+
+
 		for (int ibody = 0; ibody < mymodel.nr_bodies; ibody++)
 		{
 

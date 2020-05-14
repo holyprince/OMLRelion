@@ -2610,7 +2610,6 @@ void MlOptimiserMpi::combineAllWeightedSumscompressdata()
 		long int pack_size;
 		long int pack_size_data;
 
-		printf("node rank number: %d \n",node->rank);
 		while (piece < nr_pieces)
 		{
 			// All nodes except those who will reset nr_pieces piece will pass while loop in next pass
@@ -3327,7 +3326,20 @@ void MlOptimiserMpi::maximization()
 		gettimeofday (&tv1, &tz);
 #endif
 		RCTIC(timer,RCT_3);
+    	if (node->rank ==1)
+    	{
+    		printf("before maximizationOtherParameters\n");
+		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
+			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
+    	}
 		maximizationOtherParameters();
+
+    	if (node->rank ==1)
+    	{
+    		printf("after maximizationOtherParameters\n");
+		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
+			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
+    	}
 		RCTOC(timer,RCT_3);
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
@@ -4024,6 +4036,8 @@ void MlOptimiserMpi::iterate()
 		uncompressdata();
 #endif
 
+//	if(node->rank ==1 || node->rank ==2)
+//		printWeightedSums(iter,node->rank);
 
 
 #ifdef TIMEICT
@@ -4279,6 +4293,12 @@ void MlOptimiserMpi::iterate()
 #endif
         // Re-calculate the current resolution, do this before writing to get the correct values in the output files
         updateCurrentResolution();
+    	if (verb > 0)
+    	{
+		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
+			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
+    	}
+
 #ifdef TIMING
         timer.toc(TIMING_UPDATERES);
         timer.tic(TIMING_ITER_WRITE);
@@ -4453,7 +4473,7 @@ void MlOptimiserMpi::processMoviesPerMicrograph(int argc, char **argv)
 
 }
 
-void MlOptimiserMpi::printWeightedSums(int iter)
+void MlOptimiserMpi::printWeightedSums(int iter,int noderank)
 {
 	FILE *fp;
 	char filename[100];
@@ -4462,9 +4482,9 @@ void MlOptimiserMpi::printWeightedSums(int iter)
 	memset(filename,0,100*sizeof(char));
 	memset(filenamereal,0,100*sizeof(char));
 	memset(filenameimag,0,100*sizeof(char));
-	sprintf(filename,"cgweight%003d.out",iter);
-	sprintf(filenamereal,"cgrealdata%003d.out",iter);
-	sprintf(filenameimag,"cgimagdata%003d.out",iter);
+	sprintf(filename,"rweight%003d%003d.out",noderank,iter);
+	//sprintf(filenamereal,"cgrealdata%003d.out",noderank,iter);
+	//sprintf(filenameimag,"cgimagdata%003d.out",noderank,iter);
 	fp= fopen(filename,"w+");
 	int dimx=wsum_model.BPref[0].weight.xdim;
 	for(int i=0;i<wsum_model.BPref[0].weight.nzyxdim;i++)
@@ -4474,7 +4494,7 @@ void MlOptimiserMpi::printWeightedSums(int iter)
 			fprintf(fp,"\n");
 	}
 	fclose(fp);
-	fp= fopen(filenamereal,"w+");
+/*	fp= fopen(filenamereal,"w+");
 	for(int i=0;i<wsum_model.BPref[0].data.nzyxdim;i++)
 	{
 		fprintf(fp,"%f ",wsum_model.BPref[0].data.data[i].real);
@@ -4489,5 +4509,5 @@ void MlOptimiserMpi::printWeightedSums(int iter)
 		if((i+1)%dimx==0)
 			fprintf(fp,"\n");
 	}
-	fclose(fp);
+	fclose(fp);*/
 }

@@ -95,6 +95,38 @@ void Projector::initialiseData(int current_size)
 	compdataimag.resize(sumalldata);
 }
 
+void Projector::rawinitialiseData(int current_size)
+{
+	// By default r_max is half ori_size
+	if (current_size < 0)
+		r_max = ori_size / 2;
+	else
+		r_max = current_size / 2;
+
+	// Never allow r_max beyond Nyquist...
+	r_max = XMIPP_MIN(r_max, ori_size / 2);
+
+	// Set pad_size
+	pad_size = 2 * (ROUND(padding_factor * r_max) + 1) + 1;
+
+	// Short side of data array
+	switch (ref_dim)
+	{
+	case 2:
+	   data.resize(pad_size, pad_size / 2 + 1);
+	   break;
+	case 3:
+	   data.resize(pad_size, pad_size, pad_size / 2 + 1);
+	   break;
+	default:
+	   REPORT_ERROR("Projector::resizeData%%ERROR: Dimension of the data array should be 2 or 3");
+	}
+
+	// Set origin in the y.z-center, but on the left side for x.
+	data.setXmippOrigin();
+	data.xinit=0;
+}
+
 void Projector::initZeros(int current_size)
 {
 	initialiseData(current_size);
