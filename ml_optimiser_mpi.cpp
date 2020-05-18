@@ -2891,6 +2891,16 @@ void MlOptimiserMpi::maximization()
 	gettimeofday (&tv1, &tz);
 #endif
 
+
+	if (node->rank ==1)
+	{
+		printf("before maximizationOtherParameters\n");
+	for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
+		printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
+		printf("\n");
+	}
+
+
 	// For multi-body refinement: check if all bodies are fixed. If so, just return
 	if (mymodel.nr_bodies > 1)
 	{
@@ -2959,6 +2969,14 @@ void MlOptimiserMpi::maximization()
 								mymodel.fsc_halves_class[ibody], wsum_model.pdf_class[iclass],
 								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999);
 #endif
+
+						if (node->rank ==1)
+						{
+							printf("before maximizationOtherParameters 2 \n");
+						for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
+							printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
+							printf("\n");
+						}
 						if(do_sgd)
 						{
 							// Now update formula: dV_kl^(n) = (mu) * dV_kl^(n-1) + (1-mu)*step_size*G_kl^(n)
@@ -3326,20 +3344,9 @@ void MlOptimiserMpi::maximization()
 		gettimeofday (&tv1, &tz);
 #endif
 		RCTIC(timer,RCT_3);
-    	if (node->rank ==1)
-    	{
-    		printf("before maximizationOtherParameters\n");
-		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
-			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
-    	}
+
 		maximizationOtherParameters();
 
-    	if (node->rank ==1)
-    	{
-    		printf("after maximizationOtherParameters\n");
-		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
-			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
-    	}
 		RCTOC(timer,RCT_3);
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
@@ -4001,9 +4008,10 @@ void MlOptimiserMpi::iterate()
 //	struct timezone tz;
 //	float time_use;
 //		gettimeofday (&tv1, &tz);
-		if (combine_weights_thru_disc)
-			combineAllWeightedSumsViaFile();
-		else
+//	printf("combine_weights_thru_disc: %d \n",combine_weights_thru_disc);
+//		if (combine_weights_thru_disc)
+//			combineAllWeightedSumsViaFile();
+//		else
 		{
 #ifdef COMGPU
 			combineAllWeightedSumsallreducewithcompress();
