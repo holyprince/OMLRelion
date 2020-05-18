@@ -1088,6 +1088,9 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 		}
     }
 
+	printf("sigma2\n");
+	for(int i=0;i<20;i++)
+		printf("%f ",sigma2.data[i]);
 	// Average (inverse of) sigma2 in reconstruction
 	FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY1D(sigma2)
 	{
@@ -1101,7 +1104,9 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			REPORT_ERROR("BackProjector::reconstruct: ERROR: unexpectedly small, yet non-zero sigma2 value, this should not happen...a");
         }
     }
-
+	printf("fsc\n");
+	for(int i=0;i<20;i++)
+		printf("%f ",fsc.data[i]);
 	if (update_tau2_with_fsc)
     {
         tau2.reshape(ori_size/2 + 1);
@@ -1133,6 +1138,8 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			// data_vs_prior is merely for reporting: it is not used for anything in the reconstruction
 			DIRECT_A1D_ELEM(data_vs_prior, i) = myssnr;
 		}
+		//13
+
 	}
     RCTOCREC(ReconTimer,ReconS_2);
     RCTICREC(ReconTimer,ReconS_2_5);
@@ -1144,7 +1151,10 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
     	// Then, add the inverse of tau2-spectrum values to the weight
 		// and also calculate spherical average of data_vs_prior ratios
 		if (!update_tau2_with_fsc)
+		{
 			data_vs_prior.initZeros(ori_size/2 + 1);
+			printf("appear1\n");
+		}
 		fourier_coverage.initZeros(ori_size/2 + 1);
 		counter.initZeros(ori_size/2 + 1);
 		FOR_ALL_ELEMENTS_IN_FFTW_TRANSFORM(Fconv)
@@ -1176,7 +1186,10 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 
 				// Keep track of spectral evidence-to-prior ratio and remaining noise in the reconstruction
 				if (!update_tau2_with_fsc)
+				{
 					DIRECT_A1D_ELEM(data_vs_prior, ires) += invw / invtau2;
+					printf("appear2\n");
+				}
 
 				// Keep track of the coverage in Fourier space
 				if (invw / invtau2 >= 1.)
@@ -1207,6 +1220,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 				else
 					DIRECT_A1D_ELEM(data_vs_prior, i) /= DIRECT_A1D_ELEM(counter, i);
 			}
+			printf("appear3\n");
 		}
 
 		// Calculate Fourier coverage in each shell
