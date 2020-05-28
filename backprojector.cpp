@@ -1411,8 +1411,18 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 	#endif
 		}
 
-		for(int i=Fnewweight.nzyxdim/2;i<Fnewweight.nzyxdim/2+10;i++)
-			printf("Fnewweight: %f ",Fnewweight.data[i]);
+		int index=0;
+		for(int i=0;i<Fnewweight.nzyxdim;i++)
+			if(Fnewweight.data[i]!=0)
+			{
+				index=i;
+				printf("non zero data is %d \n",index);
+				break;
+			}
+
+		for(int i=index;i<index+10;i++)
+			printf("%f ",Fnewweight.data[i]);
+		printf("\n");
 
 		RCTICREC(ReconTimer,ReconS_7);
 	#ifdef DEBUG_RECONSTRUCT
@@ -2121,8 +2131,18 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
 
-		for(int i=Fnewweight.nzyxdim/2;i<Fnewweight.nzyxdim/2+10;i++)
-			printf("Fnewweight: %f ",Fnewweight.data[i]);
+		int index=0;
+		for(int i=0;i<Fnewweight.nzyxdim;i++)
+			if(Fnewweight.data[i]!=0)
+			{
+				index=i;
+				printf("non zero data is %d \n",index);
+				break;
+			}
+
+		for(int i=index;i<index+10;i++)
+			printf("%f ",Fnewweight.data[i]);
+		printf("\n");
 
 		for (int i = 0; i < GPU_N; i++) {
 			cudaSetDevice(dataplan[i].devicenum);

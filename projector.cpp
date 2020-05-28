@@ -85,6 +85,7 @@ void Projector::initialiseData(int current_size)
 				ydata[iz*pad_size+jy]= 0;
 			else
 			{
+				int ydatatemp=(int) sqrt(xtemp-0.01)+1;
 				if(ydatatemp>data.xdim)
 					ydata[iz*pad_size+jy]= data.xdim;
 				else
