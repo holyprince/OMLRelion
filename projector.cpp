@@ -84,7 +84,13 @@ void Projector::initialiseData(int current_size)
 			if(xtemp<=0)
 				ydata[iz*pad_size+jy]= 0;
 			else
-				ydata[iz*pad_size+jy]= (int) sqrt(xtemp-0.01)+1;
+			{
+				if(ydatatemp>data.xdim)
+					ydata[iz*pad_size+jy]= data.xdim;
+				else
+					ydata[iz*pad_size+jy]=ydatatemp;
+			}
+
 		}
 	yoffsetdata=(int *)malloc(sizeof(int)*pad_size*pad_size);
 	yoffsetdata[0]=0;
