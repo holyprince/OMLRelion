@@ -72,7 +72,7 @@ void Projector::initialiseData(int current_size)
 	// Set origin in the y.z-center, but on the left side for x.
 	data.setXmippOrigin();
 	data.xinit=0;
-
+#ifdef COMGPU
 	int max_r2= ROUND((r_max+2) * padding_factor) * ROUND((r_max+2) * padding_factor);
 
 	ydata=(int *)malloc(sizeof(int)*pad_size*pad_size);
@@ -93,6 +93,7 @@ void Projector::initialiseData(int current_size)
 	sumalldata=yoffsetdata[pad_size*pad_size-1]+ydata[pad_size*pad_size-1];
 	compdatareal.resize(sumalldata);
 	compdataimag.resize(sumalldata);
+#endif
 }
 
 void Projector::rawinitialiseData(int current_size)

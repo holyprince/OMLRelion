@@ -1805,6 +1805,7 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces
     printf("%llu  %llu \n",packed_size,ori_idx);
 
 }
+#ifdef COMGPU
 void MlWsumModel::packcompressdata(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces, bool do_clear)
 {
 
@@ -1985,7 +1986,7 @@ void MlWsumModel::packcompressdata(MultidimArray<RFLOAT> &packed, int &piece, in
     }
 
 }
-
+#endif
 void MlWsumModel::packpart1(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces, bool do_clear)
 {
 
@@ -2356,6 +2357,7 @@ void MlWsumModel::unpack(MultidimArray<RFLOAT> &packed, int piece, bool do_clear
     }
 
 }
+#ifdef COMGPU
 void MlWsumModel::unpackcompressdata(MultidimArray<RFLOAT> &packed, int piece, bool do_clear)
 {
 
@@ -2500,6 +2502,7 @@ void MlWsumModel::unpackcompressdata(MultidimArray<RFLOAT> &packed, int piece, b
     }
 
 }
+#endif
 void MlWsumModel::unpackpart1(MultidimArray<RFLOAT> &packed, int piece, bool do_clear)
 {
 
@@ -2700,7 +2703,7 @@ void MlWsumModel::unpackpart2(MultidimArray<int> &packed, int piece, bool do_cle
 
 void MlWsumModel::uncompressdataandweight()
 {
-
+#ifdef COMGPU
 	int rawoffset=0;
 	int compressoffset=0;
 	int ydim=BPref[0].data.ydim;
@@ -2735,6 +2738,7 @@ void MlWsumModel::uncompressdataandweight()
 	BPref[0].compweight.clear();
 	free(BPref[0].ydata);
 	free(BPref[0].yoffsetdata);
+#endif
 }
 
 

@@ -88,7 +88,9 @@ void BackProjector::initialiseDataAndWeight(int current_size)
 
 	initialiseData(current_size);
 	weight.resize(data);
+#ifdef COMGPU
 	compweight.resize(compdatareal);
+#endif
 
 }
 
@@ -106,9 +108,11 @@ void BackProjector::initialiseOnlyData(int current_size)
 	initialiseData(current_size);
 	data.initZeros();
 	weight.initZeros();
+#ifdef COMGPU
 	compweight.initZeros();
 	compdatareal.initZeros();
 	compdataimag.initZeros();
+#endif
 }
 
 
@@ -1088,9 +1092,6 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 		}
     }
 
-	printf("sigma2\n");
-	for(int i=0;i<20;i++)
-		printf("%f ",sigma2.data[i]);
 	// Average (inverse of) sigma2 in reconstruction
 	FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY1D(sigma2)
 	{
@@ -1104,9 +1105,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			REPORT_ERROR("BackProjector::reconstruct: ERROR: unexpectedly small, yet non-zero sigma2 value, this should not happen...a");
         }
     }
-	printf("fsc\n");
-	for(int i=0;i<20;i++)
-		printf("%f ",fsc.data[i]);
+
 	if (update_tau2_with_fsc)
     {
         tau2.reshape(ori_size/2 + 1);
@@ -1153,7 +1152,6 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 		if (!update_tau2_with_fsc)
 		{
 			data_vs_prior.initZeros(ori_size/2 + 1);
-			printf("appear1\n");
 		}
 		fourier_coverage.initZeros(ori_size/2 + 1);
 		counter.initZeros(ori_size/2 + 1);
@@ -1188,7 +1186,6 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 				if (!update_tau2_with_fsc)
 				{
 					DIRECT_A1D_ELEM(data_vs_prior, ires) += invw / invtau2;
-					printf("appear2\n");
 				}
 
 				// Keep track of the coverage in Fourier space
@@ -1220,7 +1217,6 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 				else
 					DIRECT_A1D_ELEM(data_vs_prior, i) /= DIRECT_A1D_ELEM(counter, i);
 			}
-			printf("appear3\n");
 		}
 
 		// Calculate Fourier coverage in each shell
@@ -1414,6 +1410,9 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			std::cerr << " corr_max= " << corr_max << std::endl;
 	#endif
 		}
+
+		for(int i=Fnewweight.nzyxdim/2;i<Fnewweight.nzyxdim/2+10;i++)
+			printf("Fnewweight: %f ",Fnewweight.data[i]);
 
 		RCTICREC(ReconTimer,ReconS_7);
 	#ifdef DEBUG_RECONSTRUCT
@@ -2122,6 +2121,9 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
 
+		for(int i=Fnewweight.nzyxdim/2;i<Fnewweight.nzyxdim/2+10;i++)
+			printf("Fnewweight: %f ",Fnewweight.data[i]);
+
 		for (int i = 0; i < GPU_N; i++) {
 			cudaSetDevice(dataplan[i].devicenum);
 			cufftDestroy(xyplan[i]);
@@ -2345,8 +2347,6 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 		size_t freedata1,total1;
 		cudaMemGetInfo( &freedata1, &total1 );
 		printf("After alloccation  : %ld   %ld and gpu num %d \n",freedata1,total1,i);
-		float * testmem;
-		cudaMalloc((void **)&testmem,sizeof(float)*100000);
 	}
 
 

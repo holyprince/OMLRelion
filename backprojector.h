@@ -38,8 +38,9 @@ class BackProjector: public Projector
 public:
 	// For backward projection: sum of weights
 	MultidimArray<RFLOAT> weight;
-
+#ifdef COMGPU
 	MultidimArray<RFLOAT> compweight;
+#endif
 	// Tabulated blob values
 	TabFtBlob tab_ftblob;
 

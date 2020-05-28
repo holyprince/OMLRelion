@@ -413,6 +413,104 @@ int MpiNode::relion_MPI_Allreduce(void* send_data,void* recv_data,std::ptrdiff_t
 
 }
 
+int MpiNode::relion_MPI_Allreduce_float(RFLOAT* send_data,RFLOAT* recv_data,std::ptrdiff_t count,MPI_Datatype datatype,MPI_Op op,MPI_Comm communicator)
+{
+
+    int result(0);
+    RFLOAT start_time = MPI_Wtime();
+
+//#define ONLY_NORMAL_SEND
+//#ifdef ONLY_NORMAL_SEND
+    int unitsize(0);
+    MPI_Type_size(datatype, &unitsize);
+    const std::ptrdiff_t blocksize(512*1024*1024);
+    const std::ptrdiff_t totalsize(count*unitsize);
+    if (totalsize <= blocksize ) {
+        result = MPI_Allreduce(send_data,recv_data,count,datatype,op,communicator);
+        if (result != MPI_SUCCESS) {
+            report_MPI_ERROR(result);
+        }
+    } else {
+
+
+    	const std::ptrdiff_t ntimes(totalsize/blocksize);
+    	int offset=blocksize/unitsize; //offset = blocknum;
+    	const std::ptrdiff_t nremain(totalsize%blocksize);
+    	int remainnum=nremain/unitsize;
+    	printf("ALL reduce offset :%d remainnum :%d ntimes :%d\n",offset,remainnum,ntimes);
+        std::ptrdiff_t i(0);
+        for(; i<ntimes; ++i) {
+            result = MPI_Allreduce(send_data+i*offset,recv_data+i*offset,offset,datatype,op,communicator);
+            if (result != MPI_SUCCESS) {
+                report_MPI_ERROR(result);
+            }
+        }
+        if(remainnum>0) {
+            result = MPI_Allreduce(send_data+i*offset,recv_data+i*offset,remainnum,datatype,op,communicator);
+            if (result != MPI_SUCCESS) {
+                report_MPI_ERROR(result);
+            }
+        }
+
+/*        char * const buffer(reinterpret_cast<char*>(buf));
+        const std::ptrdiff_t nremain(totalsize%blocksize);
+        std::ptrdiff_t i(0);
+        for(; i<ntimes; ++i) {
+            result = MPI_Allreduce(send_data+i*blocksize,recv_data+i*blocksize,blocksize,MPI_CHAR,op,communicator);
+            		MPI_Send(buffer+i*blocksize, blocksize, MPI_CHAR, dest, tag, comm);
+            if (result != MPI_SUCCESS) {
+                report_MPI_ERROR(result);
+            }
+        }
+        if(nremain>0) {
+            result = MPI_Send(buffer+i*blocksize, nremain, MPI_CHAR, dest, tag, comm);
+            if (result != MPI_SUCCESS) {
+                report_MPI_ERROR(result);
+            }
+        }*/
+    }
+/*
+#else
+        // Only use Bsend for larger messages, otherwise use normal send
+        if (count > 100) {
+                int size;
+                MPI_Pack_size( count, datatype, comm, &size );
+                char *membuff;
+                // Allocate memory for the package to be sent
+                int attach_result = MPI_Buffer_attach( malloc(size + MPI_BSEND_OVERHEAD ), size + MPI_BSEND_OVERHEAD );
+                if (attach_result != MPI_SUCCESS)
+                {
+                        report_MPI_ERROR(result);
+                }
+                // Actually start sending the message
+                result = MPI_Bsend(buf, count, datatype, dest, tag, comm);
+                if (result != MPI_SUCCESS)
+                {
+                        report_MPI_ERROR(result);
+                }
+                // The following will only complete once the message has been successfully sent (i.e. also received on the other side)
+                int deattach_result = MPI_Buffer_detach( &membuff, &size);
+                if (deattach_result != MPI_SUCCESS)
+                {
+                        report_MPI_ERROR(result);
+                }
+        } else {
+                result = MPI_Send(buf, count, datatype, dest, tag, comm);
+                if (result != MPI_SUCCESS)
+                {
+                        report_MPI_ERROR(result);
+                }
+        }
+#endif
+*/
+
+#ifdef VERBOSE_MPISENDRECV
+        if (count > 100)
+                std::cerr <<" relion_MPI_Send: message to " << dest << " of size "<< count << " arrived in " << MPI_Wtime() - start_time << " seconds" << std::endl;
+#endif
+        return result;
+
+}
 
 
 

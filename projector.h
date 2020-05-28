@@ -39,12 +39,13 @@ class Projector
 public:
 	// The Fourier-space image data array
     MultidimArray<Complex > data;
+#ifdef COMGPU
     MultidimArray<RFLOAT > compdatareal;
     MultidimArray<RFLOAT > compdataimag;
     int *yoffsetdata;
     int *ydata;
     int sumalldata;
-
+#endif
     // Only points within this many pixels from the origin (in the original size) will be interpolated
     int r_max;
 
