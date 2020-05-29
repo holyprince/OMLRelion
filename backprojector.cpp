@@ -1338,6 +1338,12 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			{
 				DIRECT_MULTIDIM_ELEM(Fconv, n) = DIRECT_MULTIDIM_ELEM(Fnewweight, n) * DIRECT_MULTIDIM_ELEM(Fweight, n);
 			}
+
+			printf("CPU step1: \n");
+			for(int i=0;i<0+10;i++)
+				printf("%f %f \n",Fconv.data[i].real,Fconv.data[i].imag);
+			printf("\n");
+
 /*			size_t fullsize= pad_size*pad_size*pad_size;
 			cufftComplex *c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 			layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
@@ -2050,6 +2056,10 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 			vector_Multi(d_Fnewweight,d_Fweight,dataplan[0].d_Data,Fconvnum);
 			cudaMemcpy(c_Fconv,dataplan[0].d_Data,Fconvnum*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+			printf("step1: \n");
+			for(int i=0;i<0+10;i++)
+				printf("%f %f \n",c_Fconv[i].x,c_Fconv[i].y);
+			printf("\n");
 			layoutchange(c_Fconv,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
 
 			multi_memcpy_data(dataplan,c_Fconv2,GPU_N,Ndim[0],Ndim[1]);
@@ -2077,6 +2087,13 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			mulit_alltoall_all1to0(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
 
 			cudaDeviceSynchronize();
+
+			cudaMemcpy(c_Fconv,dataplan[0].d_Data,100*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+			printf("step2 from gpu : \n");
+			for(int i=0;i<0+10;i++)
+				printf("%f %f \n",c_Fconv[i].x,c_Fconv[i].y);
+			printf("\n");
+
 			RFLOAT normftblob = tab_ftblob(0.);
 			float *d_tab_ftblob;
 			int tabxdim=tab_ftblob.tabulatedValues.xdim;
@@ -2140,6 +2157,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 				break;
 			}
 
+		printf("line ");
 		for(int i=index;i<index+10;i++)
 			printf("%f ",Fnewweight.data[i]);
 		printf("\n");
@@ -2885,6 +2903,13 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 	transformer.setReal(Mconv);
 
 	transformer.inverseFourierTransform();
+
+
+
+	printf("step2 from cpu : \n");
+	for(int i=0;i<0+10;i++)
+		printf("%f  \n",Mconv.data[i]);
+	printf("\n");
 
 /*	maxdatareal=1; mindatareal=1000000;
 
