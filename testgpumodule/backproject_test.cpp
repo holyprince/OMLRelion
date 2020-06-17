@@ -9,11 +9,11 @@
 int main(int argc, char *argv[])
 {
 
-    int ori_size=360;
-	FileName fn_root = "run_ct5kdata_half1";
+    int ori_size=100;
+	FileName fn_root = "gpu3_half1";
 	int ref_dim=3;
 	int pad_size= 2* ori_size + 3;
-	BackProjector backprojector(ori_size,ref_dim,"C1");
+	BackProjector backprojector(ori_size,ref_dim,"D2");
 
 //set back project para :
 	backprojector.pad_size= pad_size;
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 	int gridding_nr_iter=1;
 	bool do_fsc0999 = false;
 //	backprojector.reconstruct(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
-	backprojector.reconstruct_gpu(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
+	backprojector.reconstruct_gputest(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
 
 	// Update header information
 	Iunreg.setStatisticsInHeader();

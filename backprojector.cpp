@@ -2056,10 +2056,9 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 			vector_Multi(d_Fnewweight,d_Fweight,dataplan[0].d_Data,Fconvnum);
 			cudaMemcpy(c_Fconv,dataplan[0].d_Data,Fconvnum*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
-			printf("step1: \n");
-			for(int i=0;i<0+10;i++)
-				printf("%f %f \n",c_Fconv[i].x,c_Fconv[i].y);
-			printf("\n");
+
+			cudaFree(d_Fnewweight);
+			cudaFree(d_Fweight);
 			layoutchange(c_Fconv,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
 
 			multi_memcpy_data(dataplan,c_Fconv2,GPU_N,Ndim[0],Ndim[1]);
@@ -2081,8 +2080,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			cudaSetDevice(0);
 			cufftExecC2C(zplan[0], dataplan[0].d_Data + fftoffset[0],dataplan[0].d_Data + fftoffset[0], CUFFT_INVERSE);
 			cudaSetDevice(1);
-			cufftExecC2C(zplan[1], dataplan[1].d_Data + fftoffset[1],
-					dataplan[1].d_Data + fftoffset[1], CUFFT_INVERSE);
+			cufftExecC2C(zplan[1], dataplan[1].d_Data + fftoffset[1],dataplan[1].d_Data + fftoffset[1], CUFFT_INVERSE);
 			multi_sync(dataplan,GPU_N);
 			mulit_alltoall_all1to0(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
 
@@ -2516,6 +2514,889 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
     fourier_coverage_out = fourier_coverage;
 }
 
+void BackProjector::reconstruct_gputest(MultidimArray<RFLOAT> &vol_out,
+                                int max_iter_preweight,
+                                bool do_map,
+                                RFLOAT tau2_fudge,
+                                MultidimArray<RFLOAT> &tau2_io, // can be input/output
+                                MultidimArray<RFLOAT> &sigma2_out,
+                                MultidimArray<RFLOAT> &data_vs_prior_out,
+                                MultidimArray<RFLOAT> &fourier_coverage_out,
+                                const MultidimArray<RFLOAT> &fsc, // only input
+                                RFLOAT normalise,
+                                bool update_tau2_with_fsc,
+                                bool is_whole_instead_of_half,
+                                int nr_threads,
+                                int minres_map,
+                                bool printTimes,
+								bool do_fsc0999)
+{
+
+#ifdef TIMINGREC
+	Timer ReconTimer;
+	printTimes=1;
+	int ReconS_1 = ReconTimer.setNew(" RcS1_Init ");
+	int ReconS_2 = ReconTimer.setNew(" RcS2_Shape&Noise ");
+	int ReconS_2_5 = ReconTimer.setNew(" RcS2.5_Regularize ");
+	int ReconS_3 = ReconTimer.setNew(" RcS3_skipGridding ");
+	int ReconS_4 = ReconTimer.setNew(" RcS4_doGridding_norm ");
+	int ReconS_5 = ReconTimer.setNew(" RcS5_doGridding_init ");
+	int ReconS_6 = ReconTimer.setNew(" RcS6_doGridding_iter ");
+	int ReconS_7 = ReconTimer.setNew(" RcS7_doGridding_apply ");
+	int ReconS_8 = ReconTimer.setNew(" RcS8_blobConvolute ");
+	int ReconS_9 = ReconTimer.setNew(" RcS9_blobResize ");
+	int ReconS_10 = ReconTimer.setNew(" RcS10_blobSetReal ");
+	int ReconS_11 = ReconTimer.setNew(" RcS11_blobSetTemp ");
+	int ReconS_12 = ReconTimer.setNew(" RcS12_blobTransform ");
+	int ReconS_13 = ReconTimer.setNew(" RcS13_blobCenterFFT ");
+	int ReconS_14 = ReconTimer.setNew(" RcS14_blobNorm1 ");
+	int ReconS_15 = ReconTimer.setNew(" RcS15_blobSoftMask ");
+	int ReconS_16 = ReconTimer.setNew(" RcS16_blobNorm2 ");
+	int ReconS_17 = ReconTimer.setNew(" RcS17_WindowReal ");
+	int ReconS_18 = ReconTimer.setNew(" RcS18_GriddingCorrect ");
+	int ReconS_19 = ReconTimer.setNew(" RcS19_tauInit ");
+	int ReconS_20 = ReconTimer.setNew(" RcS20_tausetReal ");
+	int ReconS_21 = ReconTimer.setNew(" RcS21_tauTransform ");
+	int ReconS_22 = ReconTimer.setNew(" RcS22_tautauRest ");
+	int ReconS_23 = ReconTimer.setNew(" RcS23_tauShrinkToFit ");
+	int ReconS_24 = ReconTimer.setNew(" RcS24_extra ");
+#endif
+
+    // never rely on references (handed to you from the outside) for computation:
+    // they could be the same (i.e. reconstruct(..., dummy, dummy, dummy, dummy, ...); )
+    MultidimArray<RFLOAT> sigma2, data_vs_prior, fourier_coverage;
+	MultidimArray<RFLOAT> tau2 = tau2_io;
+
+
+    RCTICREC(ReconTimer,ReconS_1);
+    FourierTransformer transformer;
+	MultidimArray<RFLOAT> Fweight;
+	// Fnewweight can become too large for a float: always keep this one in double-precision
+	MultidimArray<double> Fnewweight;
+	MultidimArray<Complex>& Fconv = transformer.getFourierReference();
+	int max_r2 = ROUND(r_max * padding_factor) * ROUND(r_max * padding_factor);
+
+//#define DEBUG_RECONSTRUCT
+#ifdef DEBUG_RECONSTRUCT
+	Image<RFLOAT> ttt;
+	FileName fnttt;
+	ttt()=weight;
+	ttt.write("reconstruct_initial_weight.spi");
+	std::cerr << " pad_size= " << pad_size << " padding_factor= " << padding_factor << " max_r2= " << max_r2 << std::endl;
+#endif
+
+    // Set Fweight, Fnewweight and Fconv to the right size
+    if (ref_dim == 2)
+        vol_out.setDimensions(pad_size, pad_size, 1, 1);
+    else
+        // Too costly to actually allocate the space
+        // Trick transformer with the right dimensions
+        vol_out.setDimensions(pad_size, pad_size, pad_size, 1);
+
+    transformer.setReal(vol_out); // Fake set real. 1. Allocate space for Fconv 2. calculate plans.
+    vol_out.clear(); // Reset dimensions to 0
+
+    RCTOCREC(ReconTimer,ReconS_1);
+    RCTICREC(ReconTimer,ReconS_2);
+
+    Fweight.reshape(Fconv);
+    if (!skip_gridding)
+    	Fnewweight.reshape(Fconv);
+
+	// Go from projector-centered to FFTW-uncentered
+	decenter(weight, Fweight, max_r2);
+
+	// Take oversampling into account
+	RFLOAT oversampling_correction = (ref_dim == 3) ? (padding_factor * padding_factor * padding_factor) : (padding_factor * padding_factor);
+	MultidimArray<RFLOAT> counter;
+
+	// First calculate the radial average of the (inverse of the) power of the noise in the reconstruction
+	// This is the left-hand side term in the nominator of the Wiener-filter-like update formula
+	// and it is stored inside the weight vector
+	// Then, if (do_map) add the inverse of tau2-spectrum values to the weight
+	sigma2.initZeros(ori_size/2 + 1);
+	counter.initZeros(ori_size/2 + 1);
+	FOR_ALL_ELEMENTS_IN_FFTW_TRANSFORM(Fconv)
+	{
+		int r2 = kp * kp + ip * ip + jp * jp;
+		if (r2 < max_r2)
+		{
+			int ires = ROUND( sqrt((RFLOAT)r2) / padding_factor );
+			RFLOAT invw = oversampling_correction * DIRECT_A3D_ELEM(Fweight, k, i, j);
+			DIRECT_A1D_ELEM(sigma2, ires) += invw;
+			DIRECT_A1D_ELEM(counter, ires) += 1.;
+		}
+    }
+
+	// Average (inverse of) sigma2 in reconstruction
+	FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY1D(sigma2)
+	{
+        if (DIRECT_A1D_ELEM(sigma2, i) > 1e-10)
+            DIRECT_A1D_ELEM(sigma2, i) = DIRECT_A1D_ELEM(counter, i) / DIRECT_A1D_ELEM(sigma2, i);
+        else if (DIRECT_A1D_ELEM(sigma2, i) == 0)
+            DIRECT_A1D_ELEM(sigma2, i) = 0.;
+		else
+		{
+			std::cerr << " DIRECT_A1D_ELEM(sigma2, i)= " << DIRECT_A1D_ELEM(sigma2, i) << std::endl;
+			REPORT_ERROR("BackProjector::reconstruct: ERROR: unexpectedly small, yet non-zero sigma2 value, this should not happen...a");
+        }
+    }
+
+	if (update_tau2_with_fsc)
+    {
+        tau2.reshape(ori_size/2 + 1);
+        data_vs_prior.initZeros(ori_size/2 + 1);
+		// Then calculate new tau2 values, based on the FSC
+		if (!fsc.sameShape(sigma2) || !fsc.sameShape(tau2))
+		{
+			fsc.printShape(std::cerr);
+			tau2.printShape(std::cerr);
+			sigma2.printShape(std::cerr);
+			REPORT_ERROR("ERROR BackProjector::reconstruct: sigma2, tau2 and fsc have different sizes");
+		}
+		FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY1D(sigma2)
+        {
+			// FSC cannot be negative or zero for conversion into tau2
+			RFLOAT myfsc = XMIPP_MAX(0.001, DIRECT_A1D_ELEM(fsc, i));
+			if (is_whole_instead_of_half)
+			{
+				// Factor two because of twice as many particles
+				// Sqrt-term to get 60-degree phase errors....
+				myfsc = sqrt(2. * myfsc / (myfsc + 1.));
+			}
+			myfsc = XMIPP_MIN(0.999, myfsc);
+			RFLOAT myssnr = myfsc / (1. - myfsc);
+			// Sjors 29nov2017 try tau2_fudge for pulling harder on Refine3D runs...
+            myssnr *= tau2_fudge;
+			RFLOAT fsc_based_tau = myssnr * DIRECT_A1D_ELEM(sigma2, i);
+			DIRECT_A1D_ELEM(tau2, i) = fsc_based_tau;
+			// data_vs_prior is merely for reporting: it is not used for anything in the reconstruction
+			DIRECT_A1D_ELEM(data_vs_prior, i) = myssnr;
+		}
+	}
+    RCTOCREC(ReconTimer,ReconS_2);
+    RCTICREC(ReconTimer,ReconS_2_5);
+	// Apply MAP-additional term to the Fnewweight array
+	// This will regularise the actual reconstruction
+    if (do_map)
+	{
+
+    	// Then, add the inverse of tau2-spectrum values to the weight
+		// and also calculate spherical average of data_vs_prior ratios
+		if (!update_tau2_with_fsc)
+			data_vs_prior.initZeros(ori_size/2 + 1);
+		fourier_coverage.initZeros(ori_size/2 + 1);
+		counter.initZeros(ori_size/2 + 1);
+		FOR_ALL_ELEMENTS_IN_FFTW_TRANSFORM(Fconv)
+ 		{
+			int r2 = kp * kp + ip * ip + jp * jp;
+			if (r2 < max_r2)
+			{
+				int ires = ROUND( sqrt((RFLOAT)r2) / padding_factor );
+				RFLOAT invw = DIRECT_A3D_ELEM(Fweight, k, i, j);
+
+				RFLOAT invtau2;
+				if (DIRECT_A1D_ELEM(tau2, ires) > 0.)
+				{
+					// Calculate inverse of tau2
+					invtau2 = 1. / (oversampling_correction * tau2_fudge * DIRECT_A1D_ELEM(tau2, ires));
+				}
+				else if (DIRECT_A1D_ELEM(tau2, ires) == 0.)
+				{
+					// If tau2 is zero, use small value instead
+					invtau2 = 1./ ( 0.001 * invw);
+				}
+				else
+				{
+					std::cerr << " sigma2= " << sigma2 << std::endl;
+					std::cerr << " fsc= " << fsc << std::endl;
+					std::cerr << " tau2= " << tau2 << std::endl;
+					REPORT_ERROR("ERROR BackProjector::reconstruct: Negative or zero values encountered for tau2 spectrum!");
+				}
+
+				// Keep track of spectral evidence-to-prior ratio and remaining noise in the reconstruction
+				if (!update_tau2_with_fsc)
+					DIRECT_A1D_ELEM(data_vs_prior, ires) += invw / invtau2;
+
+				// Keep track of the coverage in Fourier space
+				if (invw / invtau2 >= 1.)
+					DIRECT_A1D_ELEM(fourier_coverage, ires) += 1.;
+
+				DIRECT_A1D_ELEM(counter, ires) += 1.;
+
+				// Only for (ires >= minres_map) add Wiener-filter like term
+				if (ires >= minres_map)
+				{
+					// Now add the inverse-of-tau2_class term
+					invw += invtau2;
+					// Store the new weight again in Fweight
+					DIRECT_A3D_ELEM(Fweight, k, i, j) = invw;
+				}
+			}
+		}
+
+		// Average data_vs_prior
+		if (!update_tau2_with_fsc)
+		{
+			FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY1D(data_vs_prior)
+			{
+				if (i > r_max)
+					DIRECT_A1D_ELEM(data_vs_prior, i) = 0.;
+				else if (DIRECT_A1D_ELEM(counter, i) < 0.001)
+					DIRECT_A1D_ELEM(data_vs_prior, i) = 999.;
+				else
+					DIRECT_A1D_ELEM(data_vs_prior, i) /= DIRECT_A1D_ELEM(counter, i);
+			}
+		}
+
+		// Calculate Fourier coverage in each shell
+		FOR_ALL_DIRECT_ELEMENTS_IN_ARRAY1D(fourier_coverage)
+		{
+			if (DIRECT_A1D_ELEM(counter, i) > 0.)
+				DIRECT_A1D_ELEM(fourier_coverage, i) /= DIRECT_A1D_ELEM(counter, i);
+		}
+
+	} //end if do_map
+    else if (do_fsc0999)
+    {
+
+     	// Sjors 9may2018: avoid numerical instabilities with unregularised reconstructions....
+        FOR_ALL_ELEMENTS_IN_FFTW_TRANSFORM(Fconv)
+        {
+            int r2 = kp * kp + ip * ip + jp * jp;
+            if (r2 < max_r2)
+            {
+                int ires = ROUND( sqrt((RFLOAT)r2) / padding_factor );
+                if (ires >= minres_map)
+                {
+                    // add 1/1000th of the radially averaged sigma2 to the Fweight, to avoid having zeros there...
+                	DIRECT_A3D_ELEM(Fweight, k, i, j) += 1./(999. * DIRECT_A1D_ELEM(sigma2, ires));
+                }
+            }
+        }
+
+    }
+//==============================================================================add GPU version
+
+	int Ndim[3];
+	int GPU_N=2;
+	Ndim[0]=pad_size;
+	Ndim[1]=pad_size;
+	Ndim[2]=pad_size;
+	size_t fullsize= pad_size*pad_size*pad_size;
+    initgpu();
+	RFLOAT *d_Fweight;
+	double *d_Fnewweight;
+	int offset;
+
+	MultiGPUplan *dataplan;
+	dataplan = (MultiGPUplan *)malloc(sizeof(MultiGPUplan)*2);
+	multi_plan_init(dataplan,GPU_N,fullsize,Ndim[0],Ndim[1],Ndim[2]);
+	cufftComplex *c_Fconv,*c_Fconv2;
+
+	for (int i = 0; i < GPU_N; ++i) {
+		cudaSetDevice(dataplan[i].devicenum);
+		cudaMalloc((void**) &(dataplan[i].d_Data),sizeof(cufftComplex) * dataplan[i].datasize);
+	}
+
+	//=================================
+	int xyN[2];
+	xyN[0] = Ndim[0];
+	xyN[1] = Ndim[1];
+	cufftHandle xyplan[2];
+	cufftHandle xyextra;
+	cufftHandle zplan[2];
+	cufftHandle zplanextra;
+	int fftoffset[2];
+	fftoffset[0] = 0;
+	fftoffset[1] = Ndim[0] * (Ndim[1] / 2);
+	//===================================
+
+
+    RCTOCREC(ReconTimer,ReconS_2_5);
+	if (skip_gridding)
+	{
+	    RCTICREC(ReconTimer,ReconS_3);
+		std::cerr << "Skipping gridding!" << std::endl;
+		Fconv.initZeros(); // to remove any stuff from the input volume
+		decenter(data, Fconv, max_r2);
+
+		FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
+		{
+			if (DIRECT_MULTIDIM_ELEM(Fweight, n) > 0.)
+				DIRECT_MULTIDIM_ELEM(Fconv, n) /= DIRECT_MULTIDIM_ELEM(Fweight, n);
+		}
+		RCTOCREC(ReconTimer,ReconS_3);
+#ifdef DEBUG_RECONSTRUCT
+		FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
+		{
+			DIRECT_MULTIDIM_ELEM(ttt(), n) = DIRECT_MULTIDIM_ELEM(Fweight, n);
+		}
+		ttt.write("reconstruct_skipgridding_correction_term.spi");
+		FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
+		{
+			if (DIRECT_MULTIDIM_ELEM(Fweight, n) > 0.)
+				DIRECT_MULTIDIM_ELEM(ttt(), n) = 1./DIRECT_MULTIDIM_ELEM(Fweight, n);
+		}
+		ttt.write("reconstruct_skipgridding_correction_term_inverse.spi");
+#endif
+	}
+	else
+	{
+		RCTICREC(ReconTimer,ReconS_4);
+		// Divide both data and Fweight by normalisation factor to prevent FFT's with very large values....
+	#ifdef DEBUG_RECONSTRUCT
+		std::cerr << " normalise= " << normalise << std::endl;
+	#endif
+		FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fweight)
+		{
+			DIRECT_MULTIDIM_ELEM(Fweight, n) /= normalise;
+		}
+		FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(data)
+		{
+			DIRECT_MULTIDIM_ELEM(data, n) /= normalise;
+		}
+		RCTOCREC(ReconTimer,ReconS_4);
+		RCTICREC(ReconTimer,ReconS_5);
+        // Initialise Fnewweight with 1's and 0's. (also see comments below)
+		FOR_ALL_ELEMENTS_IN_ARRAY3D(weight)
+		{
+			if (k * k + i * i + j * j < max_r2)
+				A3D_ELEM(weight, k, i, j) = 1.;
+			else
+				A3D_ELEM(weight, k, i, j) = 0.;
+		}
+
+
+
+		decenter(weight, Fnewweight, max_r2);
+		RCTOCREC(ReconTimer,ReconS_5);
+		// Iterative algorithm as in  Eq. [14] in Pipe & Menon (1999)
+		// or Eq. (4) in Matej (2001)
+
+
+
+		long int Fconvnum=Fconv.nzyxdim;
+
+
+		long int normsize= Ndim[0]*Ndim[1]*Ndim[2];
+		int halfxdim=Fconv.xdim;
+
+		printf("%ld %ld %ld \n",Fconv.xdim,Fconv.ydim,Fconv.zdim);
+		printf("Fnewweight: %ld %ld %ld \n",Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
+
+		int NZ= Ndim[2];
+//======for whole divide num along Z ============================================
+		int offsetZ[4];
+		int dividnum=2;
+		int i;
+		for (i = 0; i < dividnum; i++)
+			offsetZ[i] = NZ / dividnum;
+		offsetZ[i - 1] = NZ - (NZ / dividnum) * (dividnum-1);
+		int extraz = offsetZ[i-1] - offsetZ[i-2];
+		printf("offset :%d %d extraz: %d \n", offsetZ[0], offsetZ[1], extraz);
+//=============================
+		dataplan[0].selfZ = offsetZ[0]; //+ offsetZ[1];
+		dataplan[1].selfZ = offsetZ[1]; //+ offsetZ[3];
+
+
+
+		multi_enable_access(dataplan,GPU_N);
+
+		c_Fconv = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
+		//c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
+		cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
+
+		d_Fweight = gpusetdata_float(d_Fweight,Fweight.nzyxdim,Fweight.data);
+		d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
+
+
+         //==================2d fft plan
+
+		for (int i = 0; i < GPU_N; i++) {
+		    cudaSetDevice(dataplan[i].devicenum);
+			cufftPlanMany(&xyplan[i], 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, NZ / 2);
+			if (i == 1)
+				cufftPlanMany(&xyextra, 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, extraz);
+		}
+	    //==================1d fft plan
+		int Ncol[1];
+		Ncol[0] = Ndim[1];
+		int inembed[3], extraembed[3];
+		inembed[0] = Ndim[0];inembed[1] = offsetZ[0];inembed[2] = Ndim[2];
+		extraembed[0] = Ndim[0];extraembed[1] = offsetZ[1];extraembed[2] = Ndim[2];
+		cudaSetDevice(0);
+		cufftPlanMany(&zplan[0], 1, Ncol, inembed, Ndim[0] * Ndim[1], 1,inembed, Ndim[0] * Ndim[1], 1, CUFFT_C2C, Ndim[0] * (offsetZ[0]));
+		cudaSetDevice(1);
+		cufftPlanMany(&zplan[1], 1, Ncol, extraembed, Ndim[0] * Ndim[1], 1, extraembed, Ndim[0] * Ndim[1], 1, CUFFT_C2C, Ndim[0] * (offsetZ[1]));
+
+
+
+		for (int iter = 0; iter < max_iter_preweight; iter++)
+		{
+
+            //std::cout << "    iteration " << (iter+1) << "/" << max_iter_preweight << "\n";
+			RCTICREC(ReconTimer,ReconS_6);
+
+			vector_Multi(d_Fnewweight,d_Fweight,dataplan[0].d_Data,Fconvnum);
+			cudaMemcpy(c_Fconv,dataplan[0].d_Data,Fconvnum*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+
+			layoutchange(c_Fconv,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
+
+			multi_memcpy_data(dataplan,c_Fconv2,GPU_N,Ndim[0],Ndim[1]);
+			offset = 0;
+			for (int i = 0; i < GPU_N; i++) {
+				cudaSetDevice(dataplan[i].devicenum);
+				cufftExecC2C(xyplan[i], dataplan[i].d_Data + offset,dataplan[i].d_Data + offset, CUFFT_INVERSE);
+				offset += Ndim[0] * Ndim[1] * (Ndim[2] / 2);
+			}
+			//extra FFT
+			cufftExecC2C(xyextra, dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1],
+					dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1], CUFFT_INVERSE);
+
+			multi_sync(dataplan,GPU_N);
+			mulit_alltoall_one(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
+			multi_sync(dataplan,GPU_N);
+
+
+			cudaSetDevice(0);
+			cufftExecC2C(zplan[0], dataplan[0].d_Data + fftoffset[0],dataplan[0].d_Data + fftoffset[0], CUFFT_INVERSE);
+			cudaSetDevice(1);
+			cufftExecC2C(zplan[1], dataplan[1].d_Data + fftoffset[1],dataplan[1].d_Data + fftoffset[1], CUFFT_INVERSE);
+			multi_sync(dataplan,GPU_N);
+			mulit_alltoall_all1to0(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
+
+			cudaDeviceSynchronize();
+
+			cudaMemcpy(c_Fconv,dataplan[0].d_Data,100*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+			printf("step2 from gpu : \n");
+			for(int i=0;i<0+10;i++)
+				printf("%f %f \n",c_Fconv[i].x,c_Fconv[i].y);
+			printf("\n");
+
+			RFLOAT normftblob = tab_ftblob(0.);
+			float *d_tab_ftblob;
+			int tabxdim=tab_ftblob.tabulatedValues.xdim;
+			d_tab_ftblob=gpusetdata_float(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);
+			//gpu_kernel2
+			volume_Multi_float(dataplan[0].d_Data,d_tab_ftblob, Ndim[0]*Ndim[1]*Ndim[2], tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob);
+			cudaDeviceSynchronize();
+
+			mulit_datacopy_0to1(dataplan, Ndim[0],Ndim[1],offsetZ);
+//=========================EXE CUFFT_FORWARD
+			offset =0;
+			for (int i = 0; i < GPU_N; i++) {
+				cudaSetDevice(dataplan[i].devicenum);
+				cufftExecC2C(xyplan[i], dataplan[i].d_Data + offset,dataplan[i].d_Data + offset, CUFFT_FORWARD);
+				offset += Ndim[0] * Ndim[1] * (Ndim[2] / 2);
+
+			}
+			//extra FFT
+			cufftExecC2C(xyextra, dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1],
+					dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1], CUFFT_FORWARD);
+			multi_sync(dataplan,GPU_N);
+
+			mulit_alltoall_one(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
+			multi_sync(dataplan,GPU_N);
+			cudaSetDevice(0);
+			cufftExecC2C(zplan[0], dataplan[0].d_Data + fftoffset[0],dataplan[0].d_Data + fftoffset[0], CUFFT_FORWARD);
+			cudaSetDevice(1);
+			cufftExecC2C(zplan[1], dataplan[1].d_Data + fftoffset[1],
+					dataplan[1].d_Data + fftoffset[1], CUFFT_FORWARD);
+			multi_sync(dataplan,GPU_N);
+			mulit_alltoall_all1to0(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
+			multi_sync(dataplan,GPU_N);
+
+			vector_Normlize(dataplan[0].d_Data, normsize ,Ndim[0]*Ndim[1]*Ndim[2]);
+
+			//gpu_kernel3
+
+			fft_Divide(dataplan[0].d_Data,d_Fnewweight,fullsize,pad_size*pad_size,pad_size,pad_size,pad_size,halfxdim,max_r2);
+
+			RCTOCREC(ReconTimer,ReconS_6);
+
+	#ifdef DEBUG_RECONSTRUCT
+			std::cerr << " PREWEIGHTING ITERATION: "<< iter + 1 << " OF " << max_iter_preweight << std::endl;
+			// report of maximum and minimum values of current conv_weight
+			std::cerr << " corr_avg= " << corr_avg / corr_nn << std::endl;
+			std::cerr << " corr_min= " << corr_min << std::endl;
+			std::cerr << " corr_max= " << corr_max << std::endl;
+	#endif
+
+		}
+
+
+		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
+
+		int index=0;
+		for(int i=0;i<Fnewweight.nzyxdim;i++)
+			if(Fnewweight.data[i]!=0)
+			{
+				index=i;
+				printf("non zero data is %d \n",index);
+				break;
+			}
+
+		printf("line ");
+		for(int i=index;i<index+10;i++)
+			printf("%f ",Fnewweight.data[i]);
+		printf("\n");
+
+		for (int i = 0; i < GPU_N; i++) {
+			cudaSetDevice(dataplan[i].devicenum);
+			cufftDestroy(xyplan[i]);
+			cufftDestroy(zplan[i]);
+			if (i == 1)
+				cufftDestroy(xyextra);
+		}
+		cudaFree(d_Fnewweight);
+		cudaFree(d_Fweight);
+
+		RCTICREC(ReconTimer,ReconS_7);
+
+	#ifdef DEBUG_RECONSTRUCT
+		Image<double> tttt;
+		tttt()=Fnewweight;
+		tttt.write("reconstruct_gridding_weight.spi");
+		FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
+		{
+			DIRECT_MULTIDIM_ELEM(ttt(), n) = abs(DIRECT_MULTIDIM_ELEM(Fconv, n));
+		}
+		ttt.write("reconstruct_gridding_correction_term.spi");
+	#endif
+
+
+		// Clear memory
+		Fweight.clear();
+
+		// Note that Fnewweight now holds the approximation of the inverse of the weights on a regular grid
+
+		// Now do the actual reconstruction with the data array
+		// Apply the iteratively determined weight
+		Fconv.initZeros(); // to remove any stuff from the input volume
+		decenter(data, Fconv, max_r2);
+		FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
+		{
+#ifdef  RELION_SINGLE_PRECISION
+			// Prevent numerical instabilities in single-precision reconstruction with very unevenly sampled orientations
+			if (DIRECT_MULTIDIM_ELEM(Fnewweight, n) > 1e20)
+				DIRECT_MULTIDIM_ELEM(Fnewweight, n) = 1e20;
+#endif
+			DIRECT_MULTIDIM_ELEM(Fconv, n) *= DIRECT_MULTIDIM_ELEM(Fnewweight, n);
+		}
+
+		// Clear memory
+		Fnewweight.clear();
+		RCTOCREC(ReconTimer,ReconS_7);
+	} // end if skip_gridding
+
+// Gridding theory says one now has to interpolate the fine grid onto the coarse one using a blob kernel
+// and then do the inverse transform and divide by the FT of the blob (i.e. do the gridding correction)
+// In practice, this gives all types of artefacts (perhaps I never found the right implementation?!)
+// Therefore, window the Fourier transform and then do the inverse transform
+//#define RECONSTRUCT_CONVOLUTE_BLOB
+#ifdef RECONSTRUCT_CONVOLUTE_BLOB
+
+	// Apply the same blob-convolution as above to the data array
+	// Mask real-space map beyond its original size to prevent aliasing in the downsampling step below
+	RCTICREC(ReconTimer,ReconS_8);
+	convoluteBlobRealSpace(transformer, true);
+	RCTOCREC(ReconTimer,ReconS_8);
+	RCTICREC(ReconTimer,ReconS_9);
+	// Now just pick every 3rd pixel in Fourier-space (i.e. down-sample)
+	// and do a final inverse FT
+	if (ref_dim == 2)
+		vol_out.resize(ori_size, ori_size);
+	else
+		vol_out.resize(ori_size, ori_size, ori_size);
+	RCTOCREC(ReconTimer,ReconS_9);
+	RCTICREC(ReconTimer,ReconS_10);
+	FourierTransformer transformer2;
+	MultidimArray<Complex > Ftmp;
+	transformer2.setReal(vol_out); // cannot use the first transformer because Fconv is inside there!!
+	transformer2.getFourierAlias(Ftmp);
+	RCTOCREC(ReconTimer,ReconS_10);
+	RCTICREC(ReconTimer,ReconS_11);
+	FOR_ALL_ELEMENTS_IN_FFTW_TRANSFORM(Ftmp)
+	{
+		if (kp * kp + ip * ip + jp * jp < r_max * r_max)
+		{
+			DIRECT_A3D_ELEM(Ftmp, k, i, j) = FFTW_ELEM(Fconv, kp * padding_factor, ip * padding_factor, jp * padding_factor);
+		}
+		else
+		{
+			DIRECT_A3D_ELEM(Ftmp, k, i, j) = 0.;
+		}
+	}
+	RCTOCREC(ReconTimer,ReconS_11);
+	RCTICREC(ReconTimer,ReconS_12);
+	// inverse FFT leaves result in vol_out
+	transformer2.inverseFourierTransform();
+	RCTOCREC(ReconTimer,ReconS_12);
+	RCTICREC(ReconTimer,ReconS_13);
+	// Shift the map back to its origin
+	CenterFFT(vol_out, false);
+	RCTOCREC(ReconTimer,ReconS_13);
+	RCTICREC(ReconTimer,ReconS_14);
+	// Un-normalize FFTW (because original FFTs were done with the size of 2D FFTs)
+	if (ref_dim==3)
+		vol_out /= ori_size;
+	RCTOCREC(ReconTimer,ReconS_14);
+	RCTICREC(ReconTimer,ReconS_15);
+	// Mask out corners to prevent aliasing artefacts
+	softMaskOutsideMap(vol_out);
+	RCTOCREC(ReconTimer,ReconS_15);
+	RCTICREC(ReconTimer,ReconS_16);
+	// Gridding correction for the blob
+	RFLOAT normftblob = tab_ftblob(0.);
+	FOR_ALL_ELEMENTS_IN_ARRAY3D(vol_out)
+	{
+
+		RFLOAT r = sqrt((RFLOAT)(k*k+i*i+j*j));
+		RFLOAT rval = r / (ori_size * padding_factor);
+		A3D_ELEM(vol_out, k, i, j) /= tab_ftblob(rval) / normftblob;
+		//if (k==0 && i==0)
+		//	std::cerr << " j= " << j << " rval= " << rval << " tab_ftblob(rval) / normftblob= " << tab_ftblob(rval) / normftblob << std::endl;
+	}
+	RCTOCREC(ReconTimer,ReconS_16);
+
+#else
+
+	// rather than doing the blob-convolution to downsample the data array, do a windowing operation:
+	// This is the same as convolution with a SINC. It seems to give better maps.
+	// Then just make the blob look as much as a SINC as possible....
+	// The "standard" r1.9, m2 and a15 blob looks quite like a sinc until the first zero (perhaps that's why it is standard?)
+	//for (RFLOAT r = 0.1; r < 10.; r+=0.01)
+	//{
+	//	RFLOAT sinc = sin(PI * r / padding_factor ) / ( PI * r / padding_factor);
+	//	std::cout << " r= " << r << " sinc= " << sinc << " blob= " << blob_val(r, blob) << std::endl;
+	//}
+
+	// Now do inverse FFT and window to original size in real-space
+	// Pass the transformer to prevent making and clearing a new one before clearing the one declared above....
+	// The latter may give memory problems as detected by electric fence....
+	RCTICREC(ReconTimer,ReconS_17);
+
+	// Size of padded real-space volume
+	int padoridim = ROUND(padding_factor * ori_size);
+	// make sure padoridim is even
+	padoridim += padoridim%2;
+    vol_out.reshape(padoridim, padoridim, padoridim);
+    vol_out.setXmippOrigin();
+	fullsize = padoridim *padoridim*padoridim;
+	multi_plan_init(dataplan,GPU_N,fullsize,padoridim,padoridim,padoridim);
+	if(padoridim > pad_size)
+	{
+		for (int i = 0; i < GPU_N; ++i) {
+			cudaSetDevice(dataplan[i].devicenum);
+			cudaFree((dataplan[i].d_Data));
+			cudaMalloc((void**) &(dataplan[i].d_Data),sizeof(cufftComplex) * dataplan[i].datasize);
+		}
+	    cudaFreeHost(c_Fconv2);
+	    cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
+
+	}
+
+	windowFourierTransform(Fconv, padoridim);
+
+//	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
+	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv2);
+//	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
+//init plan and for even data
+
+
+
+	dataplan[0].selfZ=padoridim/2;
+	dataplan[1].selfZ=padoridim/2;
+	int offsetz[2];
+	offsetz[0]= dataplan[0].selfZ;
+	offsetz[1]= dataplan[1].selfZ;
+	fftoffset[0] = 0;
+	fftoffset[1] = padoridim * (padoridim / 2);
+	xyN[0] = padoridim;
+	xyN[1] = padoridim;
+    //==================2d fft plan
+
+	for (int i = 0; i < GPU_N; i++) {
+	    cudaSetDevice(dataplan[i].devicenum);
+		cufftPlanMany(&xyplan[i], 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, padoridim / 2);
+	}
+   //==================1d fft plan
+	int Ncol[1];
+	Ncol[0] = padoridim;
+	int inembed[3];
+	inembed[0] = padoridim;inembed[1] = dataplan[0].selfZ;inembed[2] = padoridim;
+	for (int i = 0; i < GPU_N; i++) {
+	    cudaSetDevice(dataplan[i].devicenum);
+	    cufftPlanMany(&zplan[i], 1, Ncol, inembed, padoridim * padoridim, 1,inembed, padoridim * padoridim, 1, CUFFT_C2C, padoridim * (dataplan[i].selfZ));
+	}
+
+	multi_memcpy_data(dataplan,c_Fconv2,GPU_N,padoridim,padoridim);
+	offset = 0;
+	for (int i = 0; i < GPU_N; i++) {
+		cudaSetDevice(dataplan[i].devicenum);
+		cufftExecC2C(xyplan[i], dataplan[i].d_Data + offset,dataplan[i].d_Data + offset, CUFFT_INVERSE);
+		offset += padoridim * padoridim * (padoridim / 2);
+	}
+	multi_sync(dataplan,GPU_N);
+
+	mulit_alltoall_one(dataplan,padoridim,padoridim,padoridim,0,offsetz);
+	multi_sync(dataplan,GPU_N);
+	for (int i = 0; i < GPU_N; i++) {
+		cudaSetDevice(dataplan[i].devicenum);
+		cufftExecC2C(zplan[i], dataplan[i].d_Data + fftoffset[i],dataplan[i].d_Data + fftoffset[i], CUFFT_INVERSE);
+	}
+	multi_sync(dataplan,GPU_N);
+	mulit_alltoall_two(dataplan,padoridim,padoridim,padoridim,0,offsetz);
+	multi_memcpy_databack(dataplan,c_Fconv2,GPU_N,padoridim,padoridim);
+
+
+
+
+	for (int i = 0; i < GPU_N; i++) {
+		cudaSetDevice(dataplan[i].devicenum);
+		cufftDestroy(zplan[i]);
+		cufftDestroy(xyplan[i]);
+		cudaFree(dataplan[i].d_Data);
+		cudaDeviceSynchronize();
+	}
+	for (int i = 0; i < GPU_N; i++) {
+		cudaSetDevice(dataplan[i].devicenum);
+		size_t freedata1,total1;
+		cudaMemGetInfo( &freedata1, &total1 );
+		printf("After alloccation  : %ld   %ld and gpu num %d \n",freedata1,total1,i);
+	}
+
+
+
+//	cudaMemcpy(dataplan[0].d_Data,c_Fconv,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
+//	cufftPlan3d( &cuffthandle2, padoridim, padoridim, padoridim , CUFFT_C2C);
+//	cufftExecC2C(cuffthandle2, dataplan[0].d_Data, dataplan[0].d_Data, CUFFT_INVERSE);
+	//cudaMemcpy(c_Fconv,dataplan[0].d_Data,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+    for(int i=0;i<padoridim *padoridim*padoridim;i++)
+    	vol_out.data[i]=c_Fconv2[i].x;
+
+    printf("step final:");
+    for(int i=0;i<10;i++)
+    	printf("%f ",vol_out.data[i]);
+
+    free(c_Fconv);
+    cudaFreeHost(c_Fconv2);
+/*
+ *  method 1
+	cufftReal *d_Freal;
+	cudaMalloc((void**) &d_Freal, sizeof(cufftReal)*padoridim*padoridim*padoridim);
+	printf("Before %d \n",Fconv.nzyxdim);
+	windowFourierTransform(Fconv, padoridim);
+	printf("After %d \n",Fconv.nzyxdim);
+	cudaMemcpy(d_Fconv,Fconv.data,Fconv.nzyxdim *sizeof(cufftComplex),cudaMemcpyHostToDevice);
+	cufftPlan3d( &cufftHandle2, padoridim, padoridim, padoridim , CUFFT_C2R);
+	cufftExecC2R(cufftHandle2, d_Fconv, d_Freal);
+	vol_out.reshape(padoridim, padoridim, padoridim);
+	vol_out.setXmippOrigin();
+	cudaMemcpy(vol_out.data,d_Freal,vol_out.nzyxdim *sizeof(cufftReal),cudaMemcpyDeviceToHost);
+	*/
+
+
+    CenterFFT(vol_out,true);
+
+	// Window in real-space
+	if (ref_dim==2)
+	{
+		vol_out.window(FIRST_XMIPP_INDEX(ori_size), FIRST_XMIPP_INDEX(ori_size),
+				       LAST_XMIPP_INDEX(ori_size), LAST_XMIPP_INDEX(ori_size));
+	}
+	else
+	{
+		vol_out.window(FIRST_XMIPP_INDEX(ori_size), FIRST_XMIPP_INDEX(ori_size), FIRST_XMIPP_INDEX(ori_size),
+				       LAST_XMIPP_INDEX(ori_size), LAST_XMIPP_INDEX(ori_size), LAST_XMIPP_INDEX(ori_size));
+	}
+	vol_out.setXmippOrigin();
+
+	// Normalisation factor of FFTW
+	// The Fourier Transforms are all "normalised" for 2D transforms of size = ori_size x ori_size
+	float normfft = (RFLOAT)(padding_factor * padding_factor * padding_factor * ori_size);
+	vol_out /= normfft;
+	// Mask out corners to prevent aliasing artefacts
+	softMaskOutsideMap(vol_out);
+	//windowToOridimRealSpace(transformer, vol_out, nr_threads, printTimes);
+	RCTOCREC(ReconTimer,ReconS_17);
+
+
+#endif
+
+#ifdef DEBUG_RECONSTRUCT
+	ttt()=vol_out;
+	ttt.write("reconstruct_before_gridding_correction.spi");
+#endif
+
+	// Correct for the linear/nearest-neighbour interpolation that led to the data array
+	RCTICREC(ReconTimer,ReconS_18);
+	griddingCorrect(vol_out);
+	RCTOCREC(ReconTimer,ReconS_18);
+	// If the tau-values were calculated based on the FSC, then now re-calculate the power spectrum of the actual reconstruction
+	if (update_tau2_with_fsc)
+	{
+
+		// New tau2 will be the power spectrum of the new map
+		MultidimArray<RFLOAT> spectrum, count;
+
+		// Calculate this map's power spectrum
+		// Don't call getSpectrum() because we want to use the same transformer object to prevent memory trouble....
+		RCTICREC(ReconTimer,ReconS_19);
+		spectrum.initZeros(XSIZE(vol_out));
+	    count.initZeros(XSIZE(vol_out));
+		RCTOCREC(ReconTimer,ReconS_19);
+		RCTICREC(ReconTimer,ReconS_20);
+	    // recycle the same transformer for all images
+        transformer.setReal(vol_out);
+		RCTOCREC(ReconTimer,ReconS_20);
+		RCTICREC(ReconTimer,ReconS_21);
+        transformer.FourierTransform();
+		RCTOCREC(ReconTimer,ReconS_21);
+		RCTICREC(ReconTimer,ReconS_22);
+	    FOR_ALL_ELEMENTS_IN_FFTW_TRANSFORM(Fconv)
+	    {
+	    	long int idx = ROUND(sqrt(kp*kp + ip*ip + jp*jp));
+	    	spectrum(idx) += norm(dAkij(Fconv, k, i, j));
+	        count(idx) += 1.;
+	    }
+	    spectrum /= count;
+
+		// Factor two because of two-dimensionality of the complex plane
+		// (just like sigma2_noise estimates, the power spectra should be divided by 2)
+		RFLOAT normfft = (ref_dim == 3 && data_dim == 2) ? (RFLOAT)(ori_size * ori_size) : 1.;
+		spectrum *= normfft / 2.;
+
+		// New SNR^MAP will be power spectrum divided by the noise in the reconstruction (i.e. sigma2)
+		FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(data_vs_prior)
+		{
+			DIRECT_MULTIDIM_ELEM(tau2, n) =  tau2_fudge * DIRECT_MULTIDIM_ELEM(spectrum, n);
+		}
+		RCTOCREC(ReconTimer,ReconS_22);
+	}
+	RCTICREC(ReconTimer,ReconS_23);
+	// Completely empty the transformer object
+	transformer.cleanup();
+    // Now can use extra mem to move data into smaller array space
+    vol_out.shrinkToFit();
+
+	RCTOCREC(ReconTimer,ReconS_23);
+#ifdef TIMINGREC
+    if(printTimes)
+    	ReconTimer.printTimes(true);
+#endif
+
+
+#ifdef DEBUG_RECONSTRUCT
+    std::cerr<<"done with reconstruct"<<std::endl;
+#endif
+
+	tau2_io = tau2;
+    sigma2_out = sigma2;
+    data_vs_prior_out = data_vs_prior;
+    fourier_coverage_out = fourier_coverage;
+}
 
 void BackProjector::symmetrise(int nr_helical_asu, RFLOAT helical_twist, RFLOAT helical_rise)
 {
