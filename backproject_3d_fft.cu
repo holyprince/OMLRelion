@@ -73,6 +73,26 @@ void multi_memcpy_data(MultiGPUplan *plan, cufftComplex *f,int GPU_N,int dimx,in
 		cudaDeviceSynchronize();
 	}
 }
+
+void multi_memcpy_data_gpu(MultiGPUplan *plan,int GPU_N,int dimx,int dimy )
+{
+	int offset=0;
+	// expect 0 GPU because it hold data self
+	for (int i = 0; i < GPU_N; ++i) {
+		cudaSetDevice(plan[i].devicenum);
+		if(i!=0)
+		{
+			cudaMemcpyAsync(plan[i].d_Data + plan[i].selfoffset,	plan[0].d_Data + offset,
+					(plan[i].selfZ * dimx * dimy) * sizeof(cufftComplex),cudaMemcpyDeviceToDevice);
+		}
+		offset += plan[i].selfZ  *dimx * dimy ;
+	}
+	for (int i = 0; i < GPU_N; i++) {
+		cudaSetDevice(plan[i].devicenum);
+		cudaDeviceSynchronize();
+	}
+}
+
 void multi_memcpy_databack(MultiGPUplan *plan, cufftComplex *out,int GPU_N,int dimx,int dimy)
 {
 	int offset = 0;

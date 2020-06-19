@@ -2054,14 +2054,11 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
             //std::cout << "    iteration " << (iter+1) << "/" << max_iter_preweight << "\n";
 			RCTICREC(ReconTimer,ReconS_6);
 
-			vector_Multi(d_Fnewweight,d_Fweight,dataplan[0].d_Data,Fconvnum);
-			cudaMemcpy(c_Fconv,dataplan[0].d_Data,Fconvnum*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+			vector_Multi_layout(d_Fnewweight,d_Fweight,dataplan[0].d_Data,fullsize,Fconv.xdim,pad_size);
 
-			cudaFree(d_Fnewweight);
-			cudaFree(d_Fweight);
-			layoutchange(c_Fconv,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
+			//layoutchange(c_Fconv,Fconv.xdim,Fconv.ydim,Fconv.zdim,pad_size,c_Fconv2);
 
-			multi_memcpy_data(dataplan,c_Fconv2,GPU_N,Ndim[0],Ndim[1]);
+			multi_memcpy_data_gpu(dataplan,GPU_N,Ndim[0],Ndim[1]);
 			offset = 0;
 			for (int i = 0; i < GPU_N; i++) {
 				cudaSetDevice(dataplan[i].devicenum);
@@ -2932,12 +2929,15 @@ void BackProjector::reconstruct_gputest(MultidimArray<RFLOAT> &vol_out,
 
 
 
+		//first memcpy
+
 		for (int iter = 0; iter < max_iter_preweight; iter++)
 		{
 
             //std::cout << "    iteration " << (iter+1) << "/" << max_iter_preweight << "\n";
 			RCTICREC(ReconTimer,ReconS_6);
-
+			// dataplan[0].d_Data stay N*N*N size ;
+			//d_Fweight stay const ;  d_Fnewweight calc res is
 			vector_Multi(d_Fnewweight,d_Fweight,dataplan[0].d_Data,Fconvnum);
 			cudaMemcpy(c_Fconv,dataplan[0].d_Data,Fconvnum*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
 

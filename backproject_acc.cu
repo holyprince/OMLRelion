@@ -30,6 +30,45 @@ __global__ void vectorMulti(double *A, float *B, cufftComplex *C, int numElement
     }
 }
 
+__global__ void vectorMulti_layout(double *A, float *B, cufftComplex *C, int numElements,int dimx,int paddim)
+{
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < numElements)
+    {
+    	int zsclie= paddim*paddim;
+    	//coordinate change
+		int zindex = i / zsclie ;
+		int xyslice = i % (zsclie);
+		int yindex = xyslice / paddim;
+		int xindex = xyslice % paddim;
+		int dimy = paddim;
+		int dimz = paddim;
+
+		if(xindex < dimx)
+		{
+			int inputindex = zindex * dimy * dimx + yindex * dimx + xindex;
+			C[i].x = A[inputindex] * B[inputindex];
+			C[i].y = 0;
+		}
+		else{
+			int desy, desz, desx;
+			desx = paddim - xindex;
+			if (yindex == 0)
+				desy = 0;
+			else
+				desy = dimy - yindex;
+			if (zindex == 0)
+				desz = 0;
+			else
+				desz = dimz - zindex;
+			int inputindex = desz * dimy * dimx + desy * dimx + desx;
+			C[i].x = A[inputindex] * B[inputindex];
+			C[i].y = 0;
+		}
+
+    }
+}
+
 __global__ void volumeMulti(float *Mconv, double *tabdata, int numElements, int xdim, double sampling , int padhdim, int pad_size, int ori_size, double padding_factor, float normftblob, int zslice)
 {
 
@@ -161,6 +200,14 @@ void vector_Multi(double *data1, float *data2, cufftComplex *res, int numElement
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
 	vectorMulti<<<blocksPerGrid, threadsPerBlock>>>(data1, data2, res, numElements);
 }
+
+void vector_Multi_layout(double *data1, float *data2, cufftComplex *res, int numElements,int dimx,int paddim)
+{
+    int threadsPerBlock = 512;
+    int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
+    vectorMulti_layout<<<blocksPerGrid, threadsPerBlock>>>(data1, data2, res, numElements,dimx,paddim);
+}
+
 
 void cpugetdata(tComplex<float> *c_outData, cufftComplex *d_outData,int N)
 {
