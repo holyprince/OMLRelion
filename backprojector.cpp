@@ -30,7 +30,7 @@
 #include "backproject_impl.h"
 #include "fftw3.h"
 
-//#define TIMINGREC
+#define TIMINGREC
 #ifdef TIMINGREC
 	#define RCTICREC(timer,label) (timer.tic(label))
     #define RCTOCREC(timer,label) (timer.toc(label))
@@ -1630,6 +1630,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
     data_vs_prior_out = data_vs_prior;
     fourier_coverage_out = fourier_coverage;
 }
+
 void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
                                 int max_iter_preweight,
                                 bool do_map,
@@ -1680,6 +1681,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
     // never rely on references (handed to you from the outside) for computation:
     // they could be the same (i.e. reconstruct(..., dummy, dummy, dummy, dummy, ...); )
+
     MultidimArray<RFLOAT> sigma2, data_vs_prior, fourier_coverage;
 	MultidimArray<RFLOAT> tau2 = tau2_io;
 
@@ -1892,7 +1894,8 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
         }
 
     }
-//==============================================================================add GPU version
+
+//==============================================================================add  GPU version
 
 	int Ndim[3];
 	int GPU_N=2;
@@ -2056,6 +2059,11 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 			vector_Multi_layout(d_Fnewweight,d_Fweight,dataplan[0].d_Data,fullsize,Fconv.xdim,pad_size);
 
+			cudaFree(d_Fweight);
+			cudaFree(d_Fnewweight);
+
+			cudaMemcpy(c_Fconv,dataplan[0].d_Data,fullsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+
 			multi_memcpy_data_gpu(dataplan,GPU_N,Ndim[0],Ndim[1]);
 
 			offset = 0;
@@ -2067,6 +2075,13 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			//extra FFT
 			cufftExecC2C(xyextra, dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1],
 					dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1], CUFFT_INVERSE);
+/*			for (int i = 0; i < GPU_N; i++) {
+				cudaSetDevice(dataplan[i].devicenum);
+				memset(c_Fconv,0,fullsize*sizeof(cufftComplex));
+				cudaMemcpy(c_Fconv,dataplan[i].d_Data,fullsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+
+			}*/
+
 
 			multi_sync(dataplan,GPU_N);
 			mulit_alltoall_one(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
@@ -2082,11 +2097,15 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 			cudaDeviceSynchronize();
 
-			cudaMemcpy(c_Fconv,dataplan[0].d_Data,100*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+/*			cudaMemcpy(c_Fconv,dataplan[0].d_Data,fullsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
 			printf("step2 from gpu : \n");
 			for(int i=0;i<0+10;i++)
 				printf("%f %f \n",c_Fconv[i].x,c_Fconv[i].y);
 			printf("\n");
+			int sliceoffset = pad_size * 101;
+			for (int i = sliceoffset; i < sliceoffset + 10; i++)
+				printf("%f ", c_Fconv[i].x);
+			printf("\n");*/
 
 			RFLOAT normftblob = tab_ftblob(0.);
 			float *d_tab_ftblob;
@@ -2125,9 +2144,13 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 			//gpu_kernel3
 
+
+
 			fft_Divide(dataplan[0].d_Data,d_Fnewweight,fullsize,pad_size*pad_size,pad_size,pad_size,pad_size,halfxdim,max_r2);
 
 			RCTOCREC(ReconTimer,ReconS_6);
+			//cudaMemcpy(c_Fconv,dataplan[0].d_Data,100*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+			//printf("step iter end  from gpu : \n");
 
 	#ifdef DEBUG_RECONSTRUCT
 			std::cerr << " PREWEIGHTING ITERATION: "<< iter + 1 << " OF " << max_iter_preweight << std::endl;
@@ -2142,19 +2165,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
 
-		int index=0;
-		for(int i=0;i<Fnewweight.nzyxdim;i++)
-			if(Fnewweight.data[i]!=0)
-			{
-				index=i;
-				printf("non zero data is %d \n",index);
-				break;
-			}
-
-		printf("line ");
-		for(int i=index;i<index+10;i++)
-			printf("%f ",Fnewweight.data[i]);
-		printf("\n");
+		printwhole(Fnewweight.data, Fnewweight.nzyxdim,0);
 
 		for (int i = 0; i < GPU_N; i++) {
 			cudaSetDevice(dataplan[i].devicenum);
@@ -2315,6 +2326,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 //	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
 	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv2);
+	printwhole(c_Fconv2, padoridim*padoridim*padoridim,0);
 //	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
 //init plan and for even data
 
@@ -2354,6 +2366,33 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 	}
 	multi_sync(dataplan,GPU_N);
 
+	for (int ig = 0; ig < GPU_N; ig++) {
+
+		cudaSetDevice(dataplan[ig].devicenum);
+		cudaMemcpy(c_Fconv2,dataplan[ig].d_Data,padoridim*padoridim*padoridim*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+		int starindex=(0);
+		int endindex=(fullsize/2);
+		int nonzeronum=0;
+		for(int i=starindex;i<endindex;i++)
+		{
+			if(c_Fconv2[i].x !=0)
+				nonzeronum++;
+			if(i<10)
+			printf("%f ",c_Fconv2[i].x);
+		}
+		printf("nonzeronum block1  : %d from rank %d\n",nonzeronum,ig);
+
+		nonzeronum=0;
+		starindex=(fullsize/2);
+		endindex = fullsize;
+		for(int i=starindex;i<endindex;i++)
+		{
+			if(c_Fconv2[i].x !=0)
+				nonzeronum++;
+		}
+		printf("nonzeronum block2 : %d from rank %d\n",nonzeronum,ig);
+	}
+
 	mulit_alltoall_one(dataplan,padoridim,padoridim,padoridim,0,offsetz);
 	multi_sync(dataplan,GPU_N);
 	for (int i = 0; i < GPU_N; i++) {
@@ -2390,6 +2429,9 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
     for(int i=0;i<padoridim *padoridim*padoridim;i++)
     	vol_out.data[i]=c_Fconv2[i].x;
 
+    printf("FINAL:");
+    for(int i=0;i<10;i++)
+    	printf("%f ",vol_out.data[i]);
 
 
     free(c_Fconv);
@@ -3045,7 +3087,10 @@ void BackProjector::windowToOridimRealSpace(FourierTransformer &transformer, Mul
     transformer.fReal = NULL; // Make sure to re-calculate fftw plan
 	Mout.setXmippOrigin();
 
-
+	printf("\nFInal \n");
+	for(int i=0;i<10;i++)
+		printf("%f ",Mout.data[i]);
+	printf("\n");
 
 	// Shift the map back to its origin
 

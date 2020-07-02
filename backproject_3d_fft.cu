@@ -26,9 +26,9 @@ void printwholeres(cufftComplex *out, int dimx,int dimy,int dimz) {
 
 }
 
-void datainit(cufftComplex *data,int NXYZ)
+void datainit(cufftComplex *data,int dimxYZ)
 {
-        for (int i = 0; i < NXYZ; i++) {
+        for (int i = 0; i < dimxYZ; i++) {
                 data[i].x = i % 5000 ;
                 data[i].y= 0;
         }
@@ -45,6 +45,8 @@ void multi_plan_init(MultiGPUplan *plan, int GPU_N, size_t fullsize, int dimx,in
 	plan[0].selfoffset = 0;
 	plan[1].selfoffset = dimx * dimy * (dimz / 2);
 }
+
+
 void multi_enable_access(MultiGPUplan *plan,int GPU_N)
 {
 	int can_access_peer = -100;
@@ -107,16 +109,18 @@ void multi_memcpy_databack(MultiGPUplan *plan, cufftComplex *out,int GPU_N,int d
 	}
 }
 
+
+
 void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ)
 {
 	cudaSetDevice(0);
-	int nxy = dimx * dimy;
+	int dimxy = dimx * dimy;
 	int halfslice1 = (offsetZ[0]) * dimx; //Z reperesent Y
 	int halfslice2 = (offsetZ[0]) * dimx * dimy;
 	int sliceoffset021;
 	int sliceoffset120;
 
-	int deltanxy = 0;
+	int deltadimxy = 0;
 	int cpysize01 = (offsetZ[1]) * dimx * sizeof(cufftComplex);
 	int cpysize10 = (offsetZ[0]) * dimx * sizeof(cufftComplex);
 	cudaStream_t stream1, stream2;
@@ -124,21 +128,21 @@ void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extr
 	cudaStreamCreate(&stream2);
 
 	for (int j = 0; j < offsetZ[0]; j++) {
-		sliceoffset021 = halfslice1 + deltanxy;
-		sliceoffset120 = halfslice2 + deltanxy;
+		sliceoffset021 = halfslice1 + deltadimxy;
+		sliceoffset120 = halfslice2 + deltadimxy;
 
 		cudaMemcpyAsync(plan[1].d_Data + sliceoffset021, plan[0].d_Data + sliceoffset021, cpysize01,cudaMemcpyDeviceToDevice, stream1);
 		cudaMemcpyAsync(plan[0].d_Data + sliceoffset120, plan[1].d_Data + sliceoffset120, cpysize10,cudaMemcpyDeviceToDevice, stream2);
 
-		deltanxy += nxy;
+		deltadimxy += dimxy;
 	}
 	//extra for 1 z
-	deltanxy = 0;
+	deltadimxy = 0;
 
 	for (int j = (dimz - extraz); j < dimz; j++) {
-		cudaMemcpyAsync(plan[0].d_Data + (dimz - extraz) * dimx * dimy + deltanxy,
-				plan[1].d_Data + (dimz - extraz) * dimx * dimy + deltanxy,cpysize10, cudaMemcpyDeviceToDevice, stream1);
-		deltanxy += nxy;
+		cudaMemcpyAsync(plan[0].d_Data + (dimz - extraz) * dimx * dimy + deltadimxy,
+				plan[1].d_Data + (dimz - extraz) * dimx * dimy + deltadimxy,cpysize10, cudaMemcpyDeviceToDevice, stream1);
+		deltadimxy += dimxy;
 	}
 	cudaStreamDestroy(stream1);
 	cudaStreamDestroy(stream2);
@@ -147,20 +151,20 @@ void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extr
 }
 void mulit_alltoall_two(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ)
 {
-	int nxy = dimx * dimy;
+	int dimxy = dimx * dimy;
 	int halfslice1 = (offsetZ[0]) * dimx; //Z reperesent Y
 	int halfslice2 = (offsetZ[0]) * dimx * dimy;
 	int cpysize01 = (offsetZ[1]) * dimx * sizeof(cufftComplex);
 	int cpysize10 = (offsetZ[0]) * dimx * sizeof(cufftComplex);
-	int deltanxy = 0;
+	int deltadimxy = 0;
 	int sliceoffset021,sliceoffset120;
 	cudaStream_t stream1, stream2;
 	cudaStreamCreate(&stream1);
 	cudaStreamCreate(&stream2);
 
 	for (int j = 0; j < offsetZ[0]; j++) {
-		sliceoffset021 = halfslice1 + deltanxy;
-		sliceoffset120 = halfslice2 + deltanxy;
+		sliceoffset021 = halfslice1 + deltadimxy;
+		sliceoffset120 = halfslice2 + deltadimxy;
 
 		cudaMemcpyAsync(plan[0].d_Data + sliceoffset021,
 				plan[1].d_Data + sliceoffset021, cpysize01,
@@ -168,14 +172,14 @@ void mulit_alltoall_two(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extr
 		cudaMemcpyAsync(plan[1].d_Data + sliceoffset120,
 				plan[0].d_Data + sliceoffset120, cpysize10,
 				cudaMemcpyDeviceToDevice, stream2);
-		deltanxy += nxy;
+		deltadimxy += dimxy;
 	}
-	deltanxy = 0;
+	deltadimxy = 0;
 	for (int j = (dimz - extraz); j < dimz; j++) {
-		cudaMemcpyAsync(plan[1].d_Data + (dimz - extraz) * dimx * dimy + deltanxy,
-				plan[0].d_Data + (dimz - extraz) * dimx * dimy + deltanxy,
+		cudaMemcpyAsync(plan[1].d_Data + (dimz - extraz) * dimx * dimy + deltadimxy,
+				plan[0].d_Data + (dimz - extraz) * dimx * dimy + deltadimxy,
 				cpysize10, cudaMemcpyDeviceToDevice, stream1);
-		deltanxy += nxy;
+		deltadimxy += dimxy;
 	}
 	cudaStreamDestroy(stream1);
 	cudaStreamDestroy(stream2);
@@ -184,17 +188,17 @@ void mulit_alltoall_two(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extr
 
 void mulit_alltoall_all1to0(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ)
 {
-	int nxy = dimx * dimy;
+	int dimxy = dimx * dimy;
 	int halfslice1 = (offsetZ[0]) * dimx; //Z reperesent Y
 	int cpysize01 = (offsetZ[1]) * dimx * sizeof(cufftComplex);
-	int deltanxy = 0;
+	int deltadimxy = 0;
 	int sliceoffset021;
 
 	for (int j = 0; j < dimz; j++) {
-		sliceoffset021 = halfslice1 + deltanxy;
+		sliceoffset021 = halfslice1 + deltadimxy;
 		cudaMemcpyAsync(plan[0].d_Data + sliceoffset021, plan[1].d_Data + sliceoffset021, cpysize01,cudaMemcpyDeviceToDevice);
 
-		deltanxy += nxy;
+		deltadimxy += dimxy;
 	}
 
 }
@@ -213,5 +217,283 @@ void multi_sync(MultiGPUplan *plan,int GPU_N)
 		cudaSetDevice(plan[i].devicenum);
 		cudaDeviceSynchronize();
 	}
+}
+
+void multi_plan_init_mpi(MultiGPUplan *plan, size_t fullsize,size_t realznum,size_t offsetz,int cardnum,int dimx,int dimy)
+{
+
+	plan[0].devicenum = cardnum;
+	plan[0].datasize = fullsize;
+	plan[0].realsize = dimx* dimy * realznum;
+	plan[0].selfZ = realznum;  //self num
+	plan[0].selfoffset =dimx* dimy* offsetz;
+
+}
+void gpu_to_cpu(MultiGPUplan *plan,cufftComplex *cpu_data)
+{
+	cudaMemcpy(cpu_data + plan[0].selfoffset,plan[0].d_Data + plan[0].selfoffset,plan[0].realsize * sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();
+}
+void gpu_to_cpu_inverse(MultiGPUplan *plan,cufftComplex *cpu_data)
+{
+	/*
+	if(ranknum==0)
+	int recvsliceoffset=padsize*padsize*numberZ[0];
+	int recvslicesize=padsize*numberZ[0];
+	for(int i=0;i<numberZ[1];i++)
+	{
+		MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, desranknum, 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		cudaMemcpy(plan[0].d_Data + recvsliceoffset,cpu_data+recvsliceoffset,recvslicesize*sizeof(cufftComplex),cudaMemcpyHostToDevice);
+		recvsliceoffset += padsize*padsize;
+	}
+	cudaDeviceSynchronize();*/
+}
+
+
+void cpu_alltoall(MultiGPUplan *plan,cufftComplex *cpu_data,int *numberZ,int ranknum,int padsize)
+{
+// 4.2 : cpu all to all
+	//send numberZ[0] to 1
+	//recv numberZ[1] from 1
+	int rawranknum,desranknum;
+	if(ranknum == 0)
+		rawranknum =1;
+	if(ranknum == 1)
+		rawranknum =3;
+
+	if(rawranknum ==1)
+		desranknum=3;
+	if(rawranknum ==3)
+		desranknum=1;
+	if(ranknum==0)
+	{
+		int sendsliceoffset=padsize*numberZ[0];
+		int sendslicesize=padsize*numberZ[1];
+		for(int i=0;i<numberZ[0];i++)
+		{
+			MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,desranknum,0,MPI_COMM_WORLD);
+			sendsliceoffset+=padsize*padsize;
+		}
+		int recvsliceoffset=padsize*padsize*numberZ[0];
+		int recvslicesize=padsize*numberZ[0];
+		for(int i=0;i<numberZ[1];i++)
+		{
+			MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, desranknum, 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			cudaMemcpy(plan[0].d_Data + recvsliceoffset,cpu_data+recvsliceoffset,recvslicesize*sizeof(cufftComplex),cudaMemcpyHostToDevice);
+			recvsliceoffset += padsize*padsize;
+		}
+	}
+	if(ranknum==1)
+	{
+
+		int recvsliceoffset=padsize*numberZ[0];
+		int recvslicesize=padsize*numberZ[1];
+		for(int i=0;i<numberZ[0];i++)
+		{
+			MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, desranknum, 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE );
+			cudaMemcpy(plan[0].d_Data + recvsliceoffset,cpu_data+recvsliceoffset,recvslicesize*sizeof(cufftComplex),cudaMemcpyHostToDevice);
+			recvsliceoffset += padsize*padsize;
+		}
+		int sendsliceoffset = padsize *padsize*numberZ[0];
+		int sendslicesize =padsize*numberZ[0];
+		for(int i=0;i<numberZ[1];i++)
+		{
+			MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,desranknum,0,MPI_COMM_WORLD);
+			sendsliceoffset+=padsize*padsize;
+		}
+	}
+}
+
+void cpu_alltoall_inverse(MultiGPUplan *plan,cufftComplex *cpu_data,int *numberZ,int ranknum,int padsize)
+{
+// 4.2 : cpu all to all
+	//send numberZ[0] to 1
+	//recv numberZ[1] from 1
+	int rawranknum,desranknum;
+	if(ranknum == 0)
+		rawranknum =1;
+	if(ranknum == 1)
+		rawranknum =3;
+
+	if(rawranknum ==1)
+		desranknum=3;
+	if(rawranknum ==3)
+		desranknum=1;
+	if(ranknum==1)
+	{
+		int sendsliceoffset=padsize*numberZ[0];
+		int sendslicesize=padsize*numberZ[1];
+		for(int i=0;i<numberZ[0];i++)
+		{
+			cudaMemcpy(cpu_data+sendsliceoffset,plan[0].d_Data + sendsliceoffset,sendslicesize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+			MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,desranknum,0,MPI_COMM_WORLD);
+			sendsliceoffset+=padsize*padsize;
+		}
+		int recvsliceoffset=padsize*padsize*numberZ[0];
+		int recvslicesize=padsize*numberZ[0];
+		for(int i=0;i<numberZ[1];i++)
+		{
+			MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, desranknum, 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			cudaMemcpy(plan[0].d_Data + recvsliceoffset,cpu_data+recvsliceoffset,recvslicesize*sizeof(cufftComplex),cudaMemcpyHostToDevice);
+			recvsliceoffset += padsize*padsize;
+		}
+	}
+	if(ranknum==0)
+	{
+
+		int recvsliceoffset=padsize*numberZ[0];
+		int recvslicesize=padsize*numberZ[1];
+		for(int i=0;i<numberZ[0];i++)
+		{
+			MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, desranknum, 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE );
+			cudaMemcpy(plan[0].d_Data + recvsliceoffset,cpu_data+recvsliceoffset,recvslicesize*sizeof(cufftComplex),cudaMemcpyHostToDevice);
+			recvsliceoffset += padsize*padsize;
+		}
+		int sendsliceoffset = padsize *padsize*numberZ[0];
+		int sendslicesize =padsize*numberZ[0];
+		for(int i=0;i<numberZ[1];i++)
+		{
+			cudaMemcpy(cpu_data+sendsliceoffset,plan[0].d_Data + sendsliceoffset,sendslicesize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+			MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,desranknum,0,MPI_COMM_WORLD);
+			sendsliceoffset+=padsize*padsize;
+		}
+	}
+}
+
+
+
+void cpu_alltoalltozero(cufftComplex *cpu_data,int *numberZ,int ranknum,int padsize)
+{
+	if(ranknum==0)
+	{
+		int recvsliceoffset = padsize*numberZ[0];
+		int recvslicesize =padsize*numberZ[1];
+		for(int i=0;i<padsize;i++)
+		{
+			MPI_Recv(cpu_data+recvsliceoffset,recvslicesize*2,MPI_FLOAT,3,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			recvsliceoffset+=padsize*padsize;
+		}
+	}
+	if(ranknum==1)
+	{
+		int sendsliceoffset = padsize*numberZ[0];
+		int sendslicesize =padsize*numberZ[1];
+		for(int i=0;i<padsize;i++)
+		{
+			MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,1,0,MPI_COMM_WORLD);
+			sendsliceoffset+=padsize*padsize;
+		}
+	}
+}
+void cpu_allcombine(cufftComplex *cpu_data,int ranknum, int *numberZ, int *offsetZ,int padsize)
+{
+	if(ranknum==0)
+	{
+		int recvsliceoffset = numberZ[0]*padsize*padsize;
+		int recvslicesize = numberZ[1]*padsize*padsize;
+
+		MPI_Recv(cpu_data+recvsliceoffset,recvslicesize*2,MPI_FLOAT,3,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+
+	}
+	if(ranknum==1)
+	{
+		int sendsliceoffset = numberZ[0]*padsize*padsize;
+		int sendslicesize= numberZ[1]*padsize*padsize;
+
+		MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,1,0,MPI_COMM_WORLD);
+
+	}
+}
+/*
+void multi_plan_init_mpi(MultiGPUplan *plan, int GPU_N, size_t fullsize, int dimx,int dimy,int dimz,int ranknum)
+{
+
+	plan[0].devicenum = ranknum;
+	plan[0].datasize = fullsize;
+	if(ranknum==0)
+		plan[0].selfoffset = 0;
+	if(ranknum==1)
+		plan[0].selfoffset = dimx * dimy * (dimz / 2);
+}*/
+void printres(cufftComplex *cpu_data,  int *numberZ ,int *offsetZ,int pad_size,int ranknum)
+{
+	int starindex=(0);
+	int endindex=numberZ[ranknum]*pad_size*pad_size;
+	int nonzeronum=0;
+	float sumnum=0;
+	for(int i=starindex;i<endindex;i++)
+	{
+		if(cpu_data[i].x !=0)
+			nonzeronum++;
+		if(i<10)
+		printf("%f ",cpu_data[i].x);
+		sumnum+=cpu_data[i].x;
+	}
+	printf("block1  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
+
+	nonzeronum=0;sumnum=0;
+	starindex= endindex;
+	endindex = pad_size*pad_size*pad_size;
+	for(int i=starindex;i<endindex;i++)
+	{
+		if(cpu_data[i].x !=0)
+			nonzeronum++;
+		sumnum+=cpu_data[i].x;
+	}
+	printf("block2  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
+}
+void printwhole(double *cpu_data,  int fullszie ,int ranknum)
+{
+	int starindex=(0);
+	int endindex=fullszie/2;
+	int nonzeronum=0;
+	float sumnum=0;
+	for(int i=starindex;i<endindex;i++)
+	{
+		if(cpu_data[i] !=0)
+			nonzeronum++;
+		if(i<10)
+		printf("%f ",cpu_data[i]);
+		sumnum+=cpu_data[i];
+	}
+	printf("block1  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
+
+	nonzeronum=0;sumnum=0;
+	starindex= endindex;
+	endindex = fullszie;
+	for(int i=starindex;i<endindex;i++)
+	{
+		if(cpu_data[i] !=0)
+			nonzeronum++;
+		sumnum+=cpu_data[i] ;
+	}
+	printf("block2  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
+}
+void printwhole(cufftComplex *cpu_data,  int fullszie ,int ranknum)
+{
+	int starindex=(0);
+	int endindex=fullszie/2;
+	int nonzeronum=0;
+	float sumnum=0;
+	for(int i=starindex;i<endindex;i++)
+	{
+		if(cpu_data[i].x !=0)
+			nonzeronum++;
+		if(i<10)
+		printf("%f ",cpu_data[i].x);
+		sumnum+=cpu_data[i].x;
+	}
+	printf("block1  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
+
+	nonzeronum=0;sumnum=0;
+	starindex= endindex;
+	endindex = fullszie;
+	for(int i=starindex;i<endindex;i++)
+	{
+		if(cpu_data[i].x !=0)
+			nonzeronum++;
+		sumnum+=cpu_data[i].x ;
+	}
+	printf("block2  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
 }
 

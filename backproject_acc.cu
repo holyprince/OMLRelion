@@ -11,11 +11,11 @@ __device__ double tab_ftblobgetvalue(double *tabulatedValues, double val,double 
 	else
 		return tabulatedValues[idx];
 }
-__device__ float tab_ftblobgetvalue(float *tabulatedValues, float val,float sampling,int xdim)
+__device__ float tab_ftblobgetvalue(float *tabulatedValues, float val,float sampling,int tabxdim)
 {
 
 	int idx = (int)( ABS(val) / sampling);
-	if (idx >= xdim)
+	if (idx >= tabxdim)
 		return 0.;
 	else
 		return tabulatedValues[idx];
@@ -95,6 +95,7 @@ __global__ void volumeMulti_float(cufftComplex *Mconv, float *tabdata, int numEl
 
 
     int index = blockDim.x * blockIdx.x + threadIdx.x;
+
 	if (index < numElements) {
 
 		int k = index / zslice;
@@ -112,6 +113,38 @@ __global__ void volumeMulti_float(cufftComplex *Mconv, float *tabdata, int numEl
 
 		Mconv[index].x *= (tab_ftblobgetvalue(tabdata, rval, sampling, xdim) / normftblob);
 		Mconv[index].y =0;
+
+	}
+}
+//zslice changed to ydim* padsize
+__global__ void volumeMulti_float_mpi(cufftComplex *Mconv, float *tabdata, int numElements, int tabxdim, double sampling , int padhdim, int pad_size,
+		int ori_size, double padding_factor, float normftblob, int zslice, int ydim, int offset)
+{
+
+
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+
+	if (index < numElements) {
+
+		int k = index / zslice;
+		int xyslice = index % (zslice);
+		int i = xyslice / pad_size;
+		int j = xyslice % pad_size;
+
+		i=i+offset;
+		// real j , i , k ;
+
+		int kp = (k < padhdim) ? k : k - pad_size;
+		int ip = (i < padhdim) ? i : i - pad_size;
+		int jp = (j < padhdim) ? j : j - pad_size;
+		double rval = sqrt((double) (kp * kp + ip * ip + jp * jp)) / (ori_size * padding_factor);
+/*
+    	if (do_mask && rval > 1./(2. * padding_factor))
+    		DIRECT_A3D_ELEM(Mconv, k, i, j) = 0.;*/
+
+		int realindex= k*(pad_size*pad_size)+ i*pad_size + j;
+		Mconv[realindex].x *= (tab_ftblobgetvalue(tabdata, rval, sampling, tabxdim) / normftblob);
+		Mconv[realindex].y =0;
 
 	}
 }
@@ -176,6 +209,18 @@ void initgpu()
 	}
 }
 
+void initgpu_mpi(int ranknum)
+{
+	int devCount;
+	cudaGetDeviceCount(&devCount);
+	printf("GPU num for max %d \n",devCount);
+
+	cudaSetDevice(ranknum);
+	size_t freedata1,total1;
+	cudaMemGetInfo( &freedata1, &total1 );
+	printf("before alloccation  : %ld   %ld and gpu num %d \n",freedata1,total1,ranknum);
+
+}
 
 
 double * gpusetdata_double(double *d_data,int N ,double *c_data)
@@ -238,6 +283,17 @@ void volume_Multi_float(cufftComplex *data1, float *data2, int numElements, int 
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
     int zslice= pad_size*pad_size ;
     volumeMulti_float<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, xdim, sampling,padhdim,pad_size,ori_size,padding_factor,normftblob,zslice);
+}
+
+//int offset meaning is distance to (0,0,0) (0,y,0)
+void volume_Multi_float_mpi(cufftComplex *data1, float *data2, int numElements, int tabxdim, double sampling ,
+		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset)
+{
+    int threadsPerBlock = 512;
+    int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
+    int zslice= ydim*pad_size ;
+    volumeMulti_float_mpi<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, tabxdim, sampling,padhdim,
+    		pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
 }
 
 

@@ -2950,7 +2950,7 @@ void MlOptimiserMpi::maximization()
 					reconstruct_rank1 = ith_recons % (node->size - 1) + 1;
 
 
-				if (node->rank == reconstruct_rank1)
+				if (node->rank == reconstruct_rank1 || node->rank == 3)
 				{
 
 					if ((wsum_model.BPref[iclass].weight).sum() > XMIPP_EQUAL_ACCURACY)
@@ -2969,11 +2969,11 @@ void MlOptimiserMpi::maximization()
 								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, &timer, do_fsc0999);
 #else
 
-						(wsum_model.BPref[ith_recons]).reconstruct_gpu(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
+						(wsum_model.BPref[ith_recons]).reconstruct_gpumpi(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
 								mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
 								mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
 								mymodel.fsc_halves_class[ibody], wsum_model.pdf_class[iclass],
-								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999);
+								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999,node->rank,2);
 #endif
 
 						if (node->rank ==1)
