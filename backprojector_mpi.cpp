@@ -2276,7 +2276,7 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 		if(realranknum == 3)
 			ranknum =3;
 	}
-	printf("ranknum is : %d\n",ranknum);
+	printf("ranknum is %d and ranksize is %d\n",ranknum,ranksize);
 	//end rank change
     MultidimArray<RFLOAT> sigma2, data_vs_prior, fourier_coverage;
 	MultidimArray<RFLOAT> tau2 = tau2_io;
@@ -2530,7 +2530,7 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 			printf(" rank :%d : num %d and offset %d \n",i,numberZ[i],offsetZ[i]);
 	}
 	//int extraz = offsetZ[1] - offsetZ[0];
-	int extraz = numberZ[1] - numberZ[0];
+	//int extraz = numberZ[1] - numberZ[0];
 	//numberZ
 
 	RFLOAT *d_Fweight;
@@ -2549,14 +2549,7 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 	xyN[0] = Ndim[0];
 	xyN[1] = Ndim[1];
 	cufftHandle xyplan;
-	cufftHandle xyextra;
 	cufftHandle zplan;
-
-	int fftoffset[2];
-	fftoffset[0] = 0;
-	fftoffset[1] = Ndim[0] * (Ndim[1] / 2);
-	//===================================
-
 
 
     RCTOCREC(ReconTimer,ReconS_2_5);
@@ -2638,9 +2631,6 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 
 
 
-		//multi_enable_access(dataplan,GPU_N);
-
-
 		cpu_data= (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		//c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
@@ -2653,23 +2643,18 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
          //==================2d fft plan
 
 
-		cufftPlanMany(&xyplan, 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, pad_size / 2);
-		if (ranknum == 1)
-			cufftPlanMany(&xyextra, 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, extraz);
+		cufftPlanMany(&xyplan, 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, numberZ[ranknum]);
+
 
 	    //==================1d fft plan
 		int Ncol[1];
-		Ncol[0] = Ndim[1];
+		Ncol[0] = pad_size;
 		int inembed[3], extraembed[3];
-		inembed[0] = Ndim[0];inembed[1] = numberZ[0];inembed[2] = Ndim[2];
-		extraembed[0] = Ndim[0];extraembed[1] = numberZ[1];extraembed[2] = Ndim[2];
-		if(ranknum ==0)
-			cufftPlanMany(&zplan, 1, Ncol, inembed, Ndim[0] * Ndim[1], 1,inembed, Ndim[0] * Ndim[1], 1, CUFFT_C2C, Ndim[0] * (numberZ[0]));
-		if(ranknum ==1)
-			cufftPlanMany(&zplan, 1, Ncol, extraembed, Ndim[0] * Ndim[1], 1, extraembed, Ndim[0] * Ndim[1], 1, CUFFT_C2C, Ndim[0] * (numberZ[1]));
+		inembed[0] = Ndim[0];inembed[1] = numberZ[ranknum];inembed[2] = Ndim[2];
+		//extraembed[0] = Ndim[0];extraembed[1] = numberZ[1];extraembed[2] = Ndim[2];
+		cufftPlanMany(&zplan, 1, Ncol, inembed, pad_size * pad_size, 1, inembed, pad_size * pad_size, 1, CUFFT_C2C, Ndim[0] * (numberZ[ranknum]));
 
 
-		printf("Before iter \n");
 
 		for (int iter = 0; iter < max_iter_preweight; iter++)
 		{
@@ -2678,25 +2663,17 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 			RCTICREC(ReconTimer,ReconS_6);
 
 			vector_Multi_layout(d_Fnewweight,d_Fweight,dataplan[0].d_Data,fullsize,Fconv.xdim,pad_size);
-			gpu_to_cpu(dataplan,cpu_data);
-			printf("Before fft \n");
-			//data to rank1
-			//multi_memcpy_data_gpu(dataplan,GPU_N,Ndim[0],Ndim[1]);
 
 			cufftExecC2C(xyplan, dataplan[0].d_Data + dataplan[0].selfoffset,dataplan[0].d_Data + dataplan[0].selfoffset, CUFFT_INVERSE);
-
-			//extra FFT
-			if(ranknum ==1 )
-				cufftExecC2C(xyextra, dataplan[0].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1], dataplan[0].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1], CUFFT_INVERSE);
 			cudaDeviceSynchronize();
 
 			gpu_to_cpu(dataplan,cpu_data);
-			//cpu all to all
-			cpu_alltoall(dataplan,cpu_data,numberZ,ranknum,pad_size);
 
-			cufftExecC2C(zplan, dataplan[0].d_Data + fftoffset[ranknum],dataplan[0].d_Data + fftoffset[ranknum], CUFFT_INVERSE);
+			cpu_alltoall_multinode(dataplan,cpu_data,numberZ,offsetZ,ranknum,pad_size,ranksize);
 
+			cufftExecC2C(zplan, dataplan[0].d_Data + (offsetZ[ranknum]*pad_size),dataplan[0].d_Data + (offsetZ[ranknum]*pad_size), CUFFT_INVERSE);
 			cudaDeviceSynchronize();
+
 //          //send to 0 process
 			//if(ranknum ==1) //all copy
 			{
@@ -2709,28 +2686,7 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 				}
 			}
 
-			cpu_alltoalltozero(cpu_data,numberZ,ranknum,pad_size);
-
-/*			if (ranknum == 0) {
-				printf("After end \n");
-				for (int i = 0; i < 10; i++) {
-					printf("%f ", cpu_data[i].x);
-				}
-				printf("\n");
-				int sliceoffset = pad_size * offsetZ[1];
-				for (int i = sliceoffset; i < sliceoffset + 10; i++)
-					printf("%f ", cpu_data[i].x);
-				printf("\n");
-			}*/
-
-
-/*
-			cudaMemcpy(cpu_data,dataplan[0].d_Data,100*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
-			printf("step2 from gpu : \n");
-			for(int i=0;i<0+10;i++)
-				printf("%f %f \n",cpu_data[i].x,cpu_data[i].y);
-			printf("\n");*/
-
+			cpu_alltoalltozero_multi(cpu_data,numberZ,offsetZ,ranknum,pad_size,ranksize);
 			RFLOAT normftblob = tab_ftblob(0.);
 			float *d_tab_ftblob;
 			int tabxdim=tab_ftblob.tabulatedValues.xdim;
@@ -2741,39 +2697,37 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 					numberZ[ranknum],offsetZ[ranknum]);
 			cudaDeviceSynchronize();
 
-//			mulit_datacopy_0to1(dataplan, Ndim[0],Ndim[1],offsetZ);
 //=========================EXE CUFFT_FORWARD
 
-
 			// First do z fft forward
-			cufftExecC2C(zplan, dataplan[0].d_Data + fftoffset[ranknum],dataplan[0].d_Data + fftoffset[ranknum], CUFFT_FORWARD);
-			cpu_alltoall_inverse(dataplan,cpu_data,numberZ,ranknum,pad_size);
+			cufftExecC2C(zplan, dataplan[0].d_Data + (offsetZ[ranknum]*pad_size),dataplan[0].d_Data + (offsetZ[ranknum]*pad_size), CUFFT_FORWARD);
+			cudaDeviceSynchronize();
+
+			cpu_alltoall_inverse_multinode(dataplan,cpu_data,numberZ,offsetZ,ranknum,pad_size,ranksize);
 
 			cufftExecC2C(xyplan, dataplan[0].d_Data + dataplan[0].selfoffset,dataplan[0].d_Data + dataplan[0].selfoffset, CUFFT_FORWARD);
-
-			if(ranknum ==1)
-				cufftExecC2C(xyextra, dataplan[0].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1],
-								dataplan[0].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1], CUFFT_FORWARD);
-			//extra FFT
 			cudaDeviceSynchronize();
 
 			vector_Normlize(dataplan[0].d_Data, normsize ,Ndim[0]*Ndim[1]*Ndim[2]);
 
 			//gpudata->cpu
 			gpu_to_cpu(dataplan,cpu_data);
-			//cpuallcombine
-			cpu_allcombine(cpu_data,ranknum,numberZ,offsetZ,pad_size);
+
+			cpu_allcombine_multi(cpu_data,ranknum,numberZ,offsetZ,pad_size,ranksize);
+
 			//cpu to gpu
+
 			if(ranknum == 0)
 			{
 				cudaMemcpy(dataplan[0].d_Data,cpu_data,fullsize*sizeof(cufftComplex),cudaMemcpyHostToDevice);
 				fft_Divide(dataplan[0].d_Data,d_Fnewweight,fullsize,pad_size*pad_size,pad_size,pad_size,pad_size,halfxdim,max_r2);
 				cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
-				MPI_Send(Fnewweight.data,Fnewweight.nzyxdim,MPI_DOUBLE,3,0,MPI_COMM_WORLD);
+				for(int i=1;i<ranksize;i++)
+					MPI_Send(Fnewweight.data,Fnewweight.nzyxdim,MPI_DOUBLE,i,0,MPI_COMM_WORLD);
 			}
-			if(ranknum ==1)
+			else
 			{
-				MPI_Recv(Fnewweight.data,Fnewweight.nzyxdim,MPI_DOUBLE,1,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				MPI_Recv(Fnewweight.data,Fnewweight.nzyxdim,MPI_DOUBLE,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 				cudaMemcpy(d_Fnewweight,Fnewweight.data,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyHostToDevice);
 			}
 			//gpu_kernel3
@@ -2784,7 +2738,6 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 			//gpu kernel               // cpu fenfa
 			//gpu to cpu               // cpu copy
 			//cpu to gpu [1-N]
-
 
 
 			RCTOCREC(ReconTimer,ReconS_6);
@@ -2800,20 +2753,21 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 		}
 
 
-		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
+		//cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
 
-		printwhole(Fnewweight.data, Fnewweight.nzyxdim,ranknum);
-
+		//printf("Focus : \n");
+		//printwhole(Fnewweight.data, Fnewweight.nzyxdim,ranknum);
+		//if(ranknum==0)
+		//	printwhole(cpu_data, fullsize ,ranknum);
 
 		cufftDestroy(xyplan);
 		cufftDestroy(zplan);
-		if (ranknum == 1)
-			cufftDestroy(xyextra);
 
 		cudaFree(d_Fnewweight);
 		cudaFree(d_Fweight);
 
 		RCTICREC(ReconTimer,ReconS_7);
+
 
 	#ifdef DEBUG_RECONSTRUCT
 		Image<double> tttt;
@@ -2851,7 +2805,7 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 		RCTOCREC(ReconTimer,ReconS_7);
 	} // end if skip_gridding
 
-	printf("After 7 \n");
+
 // Gridding theory says one now has to interpolate the fine grid onto the coarse one using a blob kernel
 // and then do the inverse transform and divide by the FT of the blob (i.e. do the gridding correction)
 // In practice, this gives all types of artefacts (perhaps I never found the right implementation?!)
@@ -2947,11 +2901,28 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
     vol_out.setXmippOrigin();
 	fullsize = padoridim *padoridim*padoridim;
 
-	numberZ[0]=padoridim/2;
-	numberZ[1]=padoridim/2;
+	baseznum= padoridim / ranksize;
+	for(int i=0; i<ranksize;i++)
+	{
+		if(i==0)
+		{
+			offsetZ[0]=0;
+			numberZ[0]=baseznum;
+		}
+		else
+		{
+			offsetZ[i] = offsetZ[i-1]+numberZ[i-1];
+			numberZ[i]= baseznum;
+		}
+	}
+    numberZ[ranksize-1]= padoridim - baseznum*(ranksize-1);
 
-	offsetZ[0]= 0;
-	offsetZ[1]= padoridim/2;
+    if(ranknum==0)
+    {
+    	for(int i=0;i<ranksize;i++)
+    		printf("task divide : %d %d \n",numberZ[i],offsetZ[i]);
+    }
+
 	multi_plan_init_mpi(dataplan,fullsize, numberZ[ranknum],offsetZ[ranknum],ranknum,padoridim,padoridim);
 	if(padoridim > pad_size)
 	{
@@ -2961,7 +2932,6 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 		cudaFreeHost(c_Fconv2);
 		cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
 	}
-	printf("before windows \n");
 	windowFourierTransform(Fconv, padoridim);
 
 //	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
@@ -2969,15 +2939,12 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 //	printf("layoutchangecomp : %ld %ld %ld %d\n",Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim);
 //init plan and for even data
 
-	printwhole(c_Fconv2, padoridim*padoridim*padoridim,ranknum);
 
 
-	fftoffset[0] = 0;
-	fftoffset[1] = padoridim * (padoridim / 2);
 	xyN[0] = padoridim;
 	xyN[1] = padoridim;
     //==================2d fft plan
-	cufftPlanMany(&xyplan, 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, padoridim / 2);
+	cufftPlanMany(&xyplan, 2, xyN, NULL, 0, 0, NULL, 0, 0, CUFFT_C2C, numberZ[ranknum]);
    //==================1d fft plan
 	int Ncol[1];
 	Ncol[0] = padoridim;
@@ -2991,37 +2958,37 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 		//offset += padoridim * padoridim * (padoridim / 2);
 
 	gpu_to_cpu(dataplan,cpu_data); //cpu_data - > c_Fconv2
-			//cpu all to all
+	//cpu all to all
 
-	int starindex=(0);
-	int endindex=(fullsize/2);
-	int nonzeronum=0;
-	for(int i=starindex;i<endindex;i++)
-	{
-		if(cpu_data[i].x !=0)
-			nonzeronum++;
-		if(i<10)
-		printf("%f ",cpu_data[i].x);
-	}
-	printf("nonzeronum block1  : %d from rank %d\n",nonzeronum,ranknum);
+//	int starindex=(0);
+//	int endindex=(fullsize/2);
+//	int nonzeronum=0;
+//	for(int i=starindex;i<endindex;i++)
+//	{
+//		if(cpu_data[i].x !=0)
+//			nonzeronum++;
+//		if(i<10)
+//		printf("%f ",cpu_data[i].x);
+//	}
+//	printf("nonzeronum block1  : %d from rank %d\n",nonzeronum,ranknum);
+//
+//	nonzeronum=0;
+//	starindex=(fullsize/2);
+//	endindex = fullsize;
+//	for(int i=starindex;i<endindex;i++)
+//	{
+//		if(cpu_data[i].x !=0)
+//			nonzeronum++;
+//	}
+//	printf("nonzeronum block2 : %d from rank %d\n",nonzeronum,ranknum);
 
-	nonzeronum=0;
-	starindex=(fullsize/2);
-	endindex = fullsize;
-	for(int i=starindex;i<endindex;i++)
-	{
-		if(cpu_data[i].x !=0)
-			nonzeronum++;
-	}
-	printf("nonzeronum block2 : %d from rank %d\n",nonzeronum,ranknum);
 
-
-	cpu_alltoall(dataplan,cpu_data,numberZ,ranknum,padoridim);
+	cpu_alltoall_multinode(dataplan,cpu_data,numberZ,offsetZ,ranknum,padoridim,ranksize);
 
 
 	//mulit_alltoall_one(dataplan,padoridim,padoridim,padoridim,0,offsetz);
 
-	cufftExecC2C(zplan, dataplan[0].d_Data + fftoffset[ranknum],dataplan[0].d_Data + fftoffset[ranknum], CUFFT_INVERSE);
+	cufftExecC2C(zplan, dataplan[0].d_Data + (offsetZ[ranknum]*padoridim),dataplan[0].d_Data + (offsetZ[ranknum]*padoridim), CUFFT_INVERSE);
 	//gpudata->cpu
 
 	{
@@ -3034,15 +3001,14 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 		}
 	}
 
-	cpu_alltoalltozero(cpu_data,numberZ,ranknum,padoridim);
-
+	cpu_alltoalltozero_multi(cpu_data,numberZ,offsetZ,ranknum,padoridim,ranksize);
 	cufftDestroy(zplan);
 	cufftDestroy(xyplan);
 	cudaFree(dataplan[0].d_Data);
 
 	size_t freedata1,total1;
 	cudaMemGetInfo( &freedata1, &total1 );
-	printf("After alloccation  : %ld   %ld and gpu num %d \n",freedata1,total1,ranknum);
+	//printf("After alloccation  : %ld   %ld and gpu num %d \n",freedata1,total1,ranknum);
 
 	printf("MPI final  \n");
 	if(ranknum == 0)
@@ -3052,11 +3018,8 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
     for(int i=0;i<padoridim *padoridim*padoridim;i++)
     	vol_out.data[i]=cpu_data[i].x;
 
-    for(int i=0;i<10;i++)
-    	printf("%f ",vol_out.data[i]);
-    printf("\n");
 
-
+//	printwhole(vol_out.data, padoridim *padoridim*padoridim ,ranknum);
 
     CenterFFT(vol_out,true);
 
@@ -3162,4 +3125,26 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 	}
 
 }
-
+/*
+			if(ranknum==0)
+			{
+				cudaMemcpy(dataplan[0].d_Data,cpu_data,fullsize*sizeof(cufftComplex),cudaMemcpyHostToDevice);
+				RFLOAT normftblob = tab_ftblob(0.);
+				float *d_tab_ftblob;
+				int tabxdim=tab_ftblob.tabulatedValues.xdim;
+				d_tab_ftblob=gpusetdata_float(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);
+				//gpu_kernel2
+				volume_Multi_float_mpi(dataplan[0].d_Data,d_tab_ftblob, Ndim[0]*Ndim[1]*Ndim[2],
+						tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob,
+						Ndim[1],0);
+				cudaDeviceSynchronize();
+				cudaMemcpy(cpu_data,dataplan[0].d_Data,fullsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+				for(int i=1;i<ranksize;i++)
+					MPI_Send(cpu_data,fullsize*2,MPI_FLOAT,i,0,MPI_COMM_WORLD);
+			}
+			else
+			{
+				MPI_Recv(cpu_data,fullsize*2,MPI_FLOAT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				cudaMemcpy(dataplan[0].d_Data,cpu_data,fullsize*sizeof(cufftComplex),cudaMemcpyHostToDevice);
+			}
+*/

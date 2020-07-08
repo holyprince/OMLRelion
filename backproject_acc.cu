@@ -213,12 +213,12 @@ void initgpu_mpi(int ranknum)
 {
 	int devCount;
 	cudaGetDeviceCount(&devCount);
-	printf("GPU num for max %d \n",devCount);
+	//printf("GPU num for max %d \n",devCount);
 
-	cudaSetDevice(ranknum);
+	cudaSetDevice(ranknum);  //need change
 	size_t freedata1,total1;
 	cudaMemGetInfo( &freedata1, &total1 );
-	printf("before alloccation  : %ld   %ld and gpu num %d \n",freedata1,total1,ranknum);
+	//printf("before alloccation  : %ld   %ld and gpu num is %d \n",freedata1,total1,ranknum);
 
 }
 
@@ -251,6 +251,7 @@ void vector_Multi_layout(double *data1, float *data2, cufftComplex *res, int num
     int threadsPerBlock = 512;
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
     vectorMulti_layout<<<blocksPerGrid, threadsPerBlock>>>(data1, data2, res, numElements,dimx,paddim);
+	cudaDeviceSynchronize();
 }
 
 
@@ -302,6 +303,7 @@ void vector_Normlize(cufftComplex *data1, long int normsize, long int numElement
     int threadsPerBlock = 512;
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
     vectorNormlize<<<blocksPerGrid, threadsPerBlock>>>(data1, normsize, numElements);
+	cudaDeviceSynchronize();
 }
 
 void fft_Divide(cufftComplex *data1, double *Fnewweight, long int numElements,int xysize,int xsize,int ysize,int zsize, int halfxsize,int max_r2)
@@ -309,6 +311,7 @@ void fft_Divide(cufftComplex *data1, double *Fnewweight, long int numElements,in
     int threadsPerBlock = 512;
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
 	fftDivide<<<blocksPerGrid, threadsPerBlock>>>(data1, Fnewweight, numElements, xysize,xsize,ysize,zsize,halfxsize, max_r2);
+	cudaDeviceSynchronize();
 }
 
 

@@ -2059,10 +2059,10 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 			vector_Multi_layout(d_Fnewweight,d_Fweight,dataplan[0].d_Data,fullsize,Fconv.xdim,pad_size);
 
-			cudaFree(d_Fweight);
-			cudaFree(d_Fnewweight);
 
 			cudaMemcpy(c_Fconv,dataplan[0].d_Data,fullsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+
+
 
 			multi_memcpy_data_gpu(dataplan,GPU_N,Ndim[0],Ndim[1]);
 
@@ -2075,12 +2075,15 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			//extra FFT
 			cufftExecC2C(xyextra, dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1],
 					dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1], CUFFT_INVERSE);
-/*			for (int i = 0; i < GPU_N; i++) {
+			for (int i = 0; i < GPU_N; i++) {
 				cudaSetDevice(dataplan[i].devicenum);
 				memset(c_Fconv,0,fullsize*sizeof(cufftComplex));
 				cudaMemcpy(c_Fconv,dataplan[i].d_Data,fullsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+				printf("Start=========\n");
+				printwhole(c_Fconv, fullsize,0);
+				printf("End=========\n");
+			}
 
-			}*/
 
 
 			multi_sync(dataplan,GPU_N);
@@ -2097,15 +2100,20 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 			cudaDeviceSynchronize();
 
-/*			cudaMemcpy(c_Fconv,dataplan[0].d_Data,fullsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
-			printf("step2 from gpu : \n");
+
+
+
+
+
+			cudaMemcpy(c_Fconv,dataplan[0].d_Data,fullsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
+			printf("step2 from gpu  : \n");
 			for(int i=0;i<0+10;i++)
-				printf("%f %f \n",c_Fconv[i].x,c_Fconv[i].y);
+				printf("%f \n",c_Fconv[i].x);
 			printf("\n");
-			int sliceoffset = pad_size * 101;
+			int sliceoffset = pad_size * pad_size* pad_size - 20;
 			for (int i = sliceoffset; i < sliceoffset + 10; i++)
 				printf("%f ", c_Fconv[i].x);
-			printf("\n");*/
+			printf("\n");
 
 			RFLOAT normftblob = tab_ftblob(0.);
 			float *d_tab_ftblob;
@@ -2165,8 +2173,9 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
 
+		printf("Focuseed: \n");
 		printwhole(Fnewweight.data, Fnewweight.nzyxdim,0);
-
+		printf("Focuseed end : \n");
 		for (int i = 0; i < GPU_N; i++) {
 			cudaSetDevice(dataplan[i].devicenum);
 			cufftDestroy(xyplan[i]);

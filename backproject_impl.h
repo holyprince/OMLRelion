@@ -87,12 +87,21 @@ void multi_sync(MultiGPUplan *plan,int GPU_N);
 //==============================================================mpi version
 void multi_plan_init_mpi(MultiGPUplan *plan, size_t fullsize,size_t realznum,size_t offsetz,int cardnum,int dimx,int dimy);
 void gpu_to_cpu(MultiGPUplan *plan,cufftComplex *cpu_data);
+void gpu_to_cpu_1dfft(MultiGPUplan *plan,cufftComplex *cpu_data,int *numberZ,int *offsetZ,int padsize,int ranknum);
 void gpu_to_cpu_inverse(MultiGPUplan *plan,cufftComplex *cpu_data);
+void validatealltoall(cufftComplex *cpu_data,int *numberZ,int *offsetZ, int ranknum,int padsize);
 void cpu_alltoall_inverse(MultiGPUplan *plan,cufftComplex *cpu_data,int *numberZ,int ranknum,int padsize);
+void cpu_alltoall_inverse_multinode(MultiGPUplan *plan,cufftComplex *cpu_data,
+		int *numberZ,int *offsetZ,int ranknum,int padsize,int ranksize);
 void cpu_alltoall(MultiGPUplan *plan,cufftComplex *cpu_data,int *numberZ,int ranknum,int padsize);
+void cpu_alltoall_multinode(MultiGPUplan *plan,cufftComplex *cpu_data,
+		int *numberZ,int *offsetZ,int ranknum,int padsize,int ranksize);
 void cpu_alltoalltozero(cufftComplex *cpu_data,int *numberZ,int ranknum,int padsize);
+void cpu_alltoalltozero_multi(cufftComplex *cpu_data,int *numberZ,int *offsetZ,int ranknum,int padsize,int ranksize);
 void cpu_allcombine(cufftComplex *cpu_data,int ranknum, int *numberZ, int *offsetZ,int padsize);
+void cpu_allcombine_multi(cufftComplex *cpu_data,int ranknum, int *numberZ, int *offsetZ,int padsize,int ranksize);
 void printres(cufftComplex *cpu_data,  int *numberZ ,int *offsetZ,int pad_size,int ranknum);
 void printwhole(double *cpu_data,  int fullszie ,int ranknum);
+void printwhole(float *cpu_data,  int fullszie ,int ranknum);
 void printwhole(cufftComplex *cpu_data,  int fullszie ,int ranknum);
 //void multi_plan_init_mpi(MultiGPUplan *plan, int GPU_N, size_t fullsize, int dimx,int dimy,int dimz,int ranknum);
