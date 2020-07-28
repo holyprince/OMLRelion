@@ -68,6 +68,49 @@ __global__ void vectorMulti_layout(double *A, float *B, cufftComplex *C, int num
 
     }
 }
+//d_blockone,d_Fweight,dataplan[0].d_Data+dataplan[0].selfoffset,dataplan[0].realsize,Fconv.xdim,pad_size
+__global__ void vectorMulti_layout_mpi(double *A, float *B, cufftComplex *C, int numElements,int dimx,int paddim,int zoffset)
+{
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < numElements)
+    {
+    	int zsclie= paddim*paddim;
+    	//coordinate change
+		int zindex = i / zsclie ;
+
+		int xyslice = i % (zsclie);
+		int yindex = xyslice / paddim;
+		int xindex = xyslice % paddim;
+
+		int dimy = paddim;
+		int dimz = paddim;
+
+		//if(xindex < dimx)
+		{
+			//int inputindex = zindex * dimy * dimx + yindex * dimx + xindex;
+			C[i].x = A[i] * B[i];
+			C[i].y = 0;
+		}
+/*		else{
+			zindex =zindex+ zoffset;
+
+			int desy, desz, desx;
+			desx = paddim - xindex;
+			if (yindex == 0)
+				desy = 0;
+			else
+				desy = dimy - yindex;
+			if (zindex == 0)
+				desz = 0;
+			else
+				desz = dimz - zindex;
+			int inputindex = desz * dimy * dimx + desy * dimx + desx;
+			C[i].x = A[inputindex] * B[inputindex];
+			C[i].y = 0;
+		}*/
+
+    }
+}
 
 __global__ void volumeMulti(float *Mconv, double *tabdata, int numElements, int xdim, double sampling , int padhdim, int pad_size, int ori_size, double padding_factor, float normftblob, int zslice)
 {
@@ -192,7 +235,64 @@ __global__ void fftDivide(cufftComplex *A, double *Fnewweight, long int numEleme
 
     }
 }
+__global__ void fftDivide_mpi(cufftComplex *A, double *Fnewweight, long int numElements,int xysize,int xsize,int ysize,int zsize,int xhalfsize,int max_r2,int zoffset)
+{
 
+
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+    int index2;
+    if (index < numElements)
+    {
+
+    	double w;
+		int k = index / xysize;
+		int xyslicenum = index % (xysize);
+		int i = xyslicenum / xsize;
+		int j = xyslicenum % xsize;
+
+		k=k+zoffset;
+		if (j < xhalfsize) {
+			int kp, ip, jp;
+			kp = (k < xhalfsize) ? k : k - zsize;
+			ip = (i < xhalfsize) ? i : i - ysize;
+			jp = (j < xhalfsize) ? j : j - xsize;
+//			index2 = j + i * xhalfsize + k * xhalfsize * ysize;
+			if (kp * kp + ip * ip + jp * jp < max_r2) {
+
+				w = XMIPP_MAX(1e-6, absfftcomplex(A[index]));
+				Fnewweight[index] = Fnewweight[index] / w;
+			}
+		}
+		else //j >= xhalfsize
+		{// find raw xyz
+			//now x,y, z = j,i,k
+
+			int rawy, rawz, rawx;
+			rawx = xsize - j;
+			if (i == 0)
+				rawy = 0;
+			else
+				rawy = ysize - i;
+			if (k == 0)
+				rawz = 0;
+			else
+				rawz = zsize - k;
+
+			int kp, ip, jp;
+			kp = (rawz < xhalfsize) ? rawz : rawz - zsize;
+			ip = (rawy < xhalfsize) ? rawy : rawy - ysize;
+			jp = (rawx < xhalfsize) ? rawx : rawx - xsize;
+			//index2 = j + i * xhalfsize + k * xhalfsize * ysize;
+			if (kp * kp + ip * ip + jp * jp < max_r2) {
+
+				w = XMIPP_MAX(1e-6, absfftcomplex(A[index]));
+				Fnewweight[index] = Fnewweight[index] / w;
+			}
+
+		}
+
+    }
+}
 void initgpu()
 {
 	int devCount;
@@ -253,7 +353,13 @@ void vector_Multi_layout(double *data1, float *data2, cufftComplex *res, int num
     vectorMulti_layout<<<blocksPerGrid, threadsPerBlock>>>(data1, data2, res, numElements,dimx,paddim);
 	cudaDeviceSynchronize();
 }
-
+void vector_Multi_layout_mpi(double *data1, float *data2, cufftComplex *res, int numElements,int dimx,int paddim,int zoffset)
+{
+    int threadsPerBlock = 512;
+    int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
+    vectorMulti_layout_mpi<<<blocksPerGrid, threadsPerBlock>>>(data1, data2, res, numElements,dimx,paddim,zoffset);
+	cudaDeviceSynchronize();
+}
 
 void cpugetdata(tComplex<float> *c_outData, cufftComplex *d_outData,int N)
 {
@@ -313,7 +419,13 @@ void fft_Divide(cufftComplex *data1, double *Fnewweight, long int numElements,in
 	fftDivide<<<blocksPerGrid, threadsPerBlock>>>(data1, Fnewweight, numElements, xysize,xsize,ysize,zsize,halfxsize, max_r2);
 	cudaDeviceSynchronize();
 }
-
+void fft_Divide_mpi(cufftComplex *data1, double *Fnewweight, long int numElements,int xysize,int xsize,int ysize,int zsize, int halfxsize,int max_r2,int zoffset)
+{
+    int threadsPerBlock = 512;
+    int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
+	fftDivide_mpi<<<blocksPerGrid, threadsPerBlock>>>(data1, Fnewweight, numElements, xysize,xsize,ysize,zsize,halfxsize, max_r2,zoffset);
+	cudaDeviceSynchronize();
+}
 
 void layoutchange(cufftComplex *data,int dimx,int dimy,int dimz, int padx, cufftComplex *newdata)
 {
@@ -342,6 +454,155 @@ void layoutchange(cufftComplex *data,int dimx,int dimy,int dimz, int padx, cufft
 		}
 
 }
+
+void layoutchange(double *data,int dimx,int dimy,int dimz, int padx, double *newdata)
+{
+	for (int z = 0; z < dimz; z++)
+		for (int y = 0; y < dimy; y++) {
+			memcpy(newdata + z * dimy * padx + y * padx, data + z * dimy * dimx + y * dimx, dimx * sizeof(double));
+		}
+
+	for(int z=0;z< dimz;z++)
+	for (int y = 0; y < dimy; y++)
+		for (int x = dimx; x < padx; x++) {
+			int desx,desy,desz;
+			if (y == 0)
+				desy = 0;
+			else
+				desy = dimy - y;
+			if(z==0)
+				desz =0;
+			else
+				desz = dimz-z;
+
+			desx=padx - x;
+			newdata[z*padx*dimy+y * padx + x]= newdata[desz*padx*dimy+desy * padx + desx];
+		}
+
+}
+void layoutchange(float *data,int dimx,int dimy,int dimz, int padx, float *newdata)
+{
+	for (int z = 0; z < dimz; z++)
+		for (int y = 0; y < dimy; y++) {
+			memcpy(newdata + z * dimy * padx + y * padx, data + z * dimy * dimx + y * dimx, dimx * sizeof(float));
+		}
+
+	for(int z=0;z< dimz;z++)
+	for (int y = 0; y < dimy; y++)
+		for (int x = dimx; x < padx; x++) {
+			int desx,desy,desz;
+			if (y == 0)
+				desy = 0;
+			else
+				desy = dimy - y;
+			if(z==0)
+				desz =0;
+			else
+				desz = dimz-z;
+
+			desx=padx - x;
+			newdata[z*padx*dimy+y * padx + x]= newdata[desz*padx*dimy+desy * padx + desx];
+		}
+}
+
+void validateconj(fftwf_complex *data,int dimx,int dimy,int dimz, int padx)
+{
+
+	int count1=0;
+	int count2=0;
+	int desx,desy,desz;
+	int x,y,z;
+	for(z=0;z< dimz;z++)
+	for (y = 0; y < dimy; y++)
+		for (x = dimx; x < padx; x++) {
+
+			if (y == 0)
+				desy = 0;
+			else
+				desy = dimy - y;
+			if(z==0)
+				desz =0;
+			else
+				desz = dimz-z;
+
+			desx=padx - x;
+
+
+			if(data[z*padx*dimy+y * padx + x][0] != data[desz*padx*dimy+desy * padx + desx][0])
+			{
+				count1++;
+				if(count1<10)
+				{
+					printf("%d %d %d %d %d %d and value %f %f\n",x,y,z,desx,desy,desz,
+							data[z*padx*dimy+y * padx + x][0],data[desz*padx*dimy+desy * padx + desx][0]);
+				}
+			}
+			if(data[z*padx*dimy+y * padx + x][1] != -data[desz*padx*dimy+desy * padx + desx][1])
+			{
+				count2++;
+				if(count2<10)
+				{
+					printf("%d %d %d %d %d %d and value %f %f\n",x,y,z,desx,desy,desz,
+							data[z*padx*dimy+y * padx + x][1],-data[desz*padx*dimy+desy * padx + desx][1]);
+				}
+			}
+		}
+	printf("Final different x %d\n",count1);
+	printf("Final different y %d\n",count2);
+	x=362;y=0;z=0;
+	desx=361;desy=0;desz=0;
+	printf("%f %f \n",data[z*padx*dimy+y * padx + x][0],data[desz*padx*dimy+desy * padx + desx][0]);
+}
+void validateconj(cufftComplex *data,int dimx,int dimy,int dimz, int padx)
+{
+
+	int count1=0;
+	int count2=0;
+	for(int z=0;z< dimz;z++)
+	for (int y = 0; y < dimy; y++)
+		for (int x = dimx; x < padx; x++) {
+			int desx,desy,desz;
+			if (y == 0)
+				desy = 0;
+			else
+				desy = dimy - y;
+			if(z==0)
+				desz =0;
+			else
+				desz = dimz-z;
+
+			desx=padx - x;
+
+			if(data[z*padx*dimy+y * padx + x].x != data[desz*padx*dimy+desy * padx + desx].x)
+			{
+				count1++;
+				if(count1<10)
+				{
+					printf("%d %d %d %d %d %d and value %f %f\n",x,y,z,desx,desy,desz,
+							data[z*padx*dimy+y * padx + x].x,data[desz*padx*dimy+desy * padx + desx].x);
+				}
+			}
+			if(data[z*padx*dimy+y * padx + x].y != -data[desz*padx*dimy+desy * padx + desx].y)
+			{
+				count2++;
+				if(count2<10)
+				{
+					printf("%d %d %d %d %d %d and value %f %f\n",x,y,z,desx,desy,desz,
+							data[z*padx*dimy+y * padx + x].y,-data[desz*padx*dimy+desy * padx + desx].y);
+				}
+			}
+		}
+	printf("Final different x %d\n",count1);
+	printf("Final different y %d\n",count2);
+}
+void layoutchangeback(double *newdata,int dimx,int dimy,int dimz, int padx, double *data)
+{
+	for (int z = 0; z < dimz; z++)
+		for (int y = 0; y < dimy; y++) {
+			memcpy(data + z * dimy * dimx + y * dimx, newdata + z * dimy * padx + y * padx, dimx * sizeof(double));
+		}
+}
+
 void layoutchangecomp(Complex *data,int dimx,int dimy,int dimz, int padx, cufftComplex *newdata)
 {
 

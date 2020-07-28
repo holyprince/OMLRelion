@@ -1332,7 +1332,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			// That is why Fnewweight is multiplied by Fweight prior to the convolution
 
 
-			//printf("data: %ld %ld %ld %ld \n",Fnewweight.ndim,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
+			printf("data: %ld %ld %ld %ld \n",Fnewweight.ndim,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
 
 			FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
 			{

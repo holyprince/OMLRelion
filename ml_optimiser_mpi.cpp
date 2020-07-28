@@ -2876,7 +2876,6 @@ void MlOptimiserMpi::combineWeightedSumsTwoRandomHalves()
 			Mpack.clear();
 
 		}
-
 	}
 
 }
@@ -2898,14 +2897,13 @@ void MlOptimiserMpi::maximization()
 #endif
 
 
-	if (node->rank ==1)
+/*	if (node->rank ==1)
 	{
 		printf("before maximizationOtherParameters\n");
 		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
 			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
 		printf("\n");
-	}
-
+	}*/
 
 	// For multi-body refinement: check if all bodies are fixed. If so, just return
 	if (mymodel.nr_bodies > 1)
@@ -2917,11 +2915,14 @@ void MlOptimiserMpi::maximization()
 			return;
 	}
 
+
 	if (verb > 0)
 	{
 		std::cout << " Maximization ..."<< std::endl;
 		init_progress_bar(mymodel.nr_classes);
+
 	}
+
 
 	RFLOAT helical_twist_half1, helical_rise_half1, helical_twist_half2, helical_rise_half2;
 	helical_twist_half1 = helical_twist_half2 = helical_twist_initial;
@@ -2949,13 +2950,10 @@ void MlOptimiserMpi::maximization()
 				else
 					reconstruct_rank1 = ith_recons % (node->size - 1) + 1;
 
-
 				if (node->rank == reconstruct_rank1 || node->rank == 3)
 				{
-
 					if ((wsum_model.BPref[iclass].weight).sum() > XMIPP_EQUAL_ACCURACY)
 					{
-
 						MultidimArray<RFLOAT> Iref_old;
 
 						if(do_sgd)
@@ -2976,13 +2974,7 @@ void MlOptimiserMpi::maximization()
 								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999,node->rank,2);
 #endif
 
-						if (node->rank ==1)
-						{
-							printf("before maximizationOtherParameters 2 \n");
-						for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
-							printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
-							printf("\n");
-						}
+
 						if(do_sgd)
 						{
 							// Now update formula: dV_kl^(n) = (mu) * dV_kl^(n-1) + (1-mu)*step_size*G_kl^(n)
@@ -2999,6 +2991,7 @@ void MlOptimiserMpi::maximization()
 						}
 					}
 
+					if(node->rank == reconstruct_rank1) {
 					// Apply the body mask
 					if (mymodel.nr_bodies > 1)
 					{
@@ -3063,6 +3056,7 @@ void MlOptimiserMpi::maximization()
 						readTemporaryDataAndWeightArraysAndReconstruct(ith_recons, 1);
 					}
 
+				}  // new add rank 1
 				}
 
 				// In some cases there is not enough memory to reconstruct two random halves in parallel
@@ -3075,7 +3069,7 @@ void MlOptimiserMpi::maximization()
 				{
 					int reconstruct_rank2 = 2 * (ith_recons % ( (node->size - 1)/2 ) ) + 2;
 
-					if (node->rank == reconstruct_rank2)
+					if (node->rank == reconstruct_rank2 || node->rank == 4)
 					{
 						// Rank 2 does not need to do the joined reconstruction
 						if (!do_join_random_halves)
@@ -3084,11 +3078,11 @@ void MlOptimiserMpi::maximization()
 							if(do_sgd)
 								Iref_old = mymodel.Iref[ith_recons];
 							//printf("Before rank2 reconstruction \n");
-							(wsum_model.BPref[ith_recons]).reconstruct_gpu(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
+							(wsum_model.BPref[ith_recons]).reconstruct_gpumpi(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
 									mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
 									mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
 									mymodel.fsc_halves_class[ibody], wsum_model.pdf_class[iclass],
-									do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999);
+									do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999,node->rank,2);
 
 							if (do_sgd)
 							{
@@ -3104,7 +3098,8 @@ void MlOptimiserMpi::maximization()
 									DIRECT_MULTIDIM_ELEM(mymodel.Iref[ith_recons], n) = DIRECT_MULTIDIM_ELEM(Iref_old, n) + DIRECT_MULTIDIM_ELEM(mymodel.Igrad[ith_recons], n);
 								}
 							}
-
+							if (node->rank == reconstruct_rank2 )
+							{
 							// Apply the body mask
 							if (mymodel.nr_bodies > 1)
 							{
@@ -3159,13 +3154,17 @@ void MlOptimiserMpi::maximization()
 							}
 							helical_rise_half2 = mymodel.helical_rise[ith_recons];
 							helical_twist_half2 = mymodel.helical_twist[ith_recons];
+							}  //end rank 2
 						} // end if !do_join_random_halves
 
+						if(node->rank == reconstruct_rank2)
+						{
 						// But rank 2 always does the unfiltered reconstruction
 						if (do_auto_refine && has_converged)
 						{
 							readTemporaryDataAndWeightArraysAndReconstruct(ith_recons, 2);
 						}
+						} // add 2 twice
 					}
 				}
 
@@ -3186,11 +3185,11 @@ void MlOptimiserMpi::maximization()
 #endif
 		} // end for iclass
 	} // end for ibody
-
 #ifdef DEBUG
 	std::cerr << "rank= "<<node->rank<<" has reached barrier of reconstruction" << std::endl;
 #endif
 	MPI_Barrier(MPI_COMM_WORLD);
+
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
@@ -3209,6 +3208,7 @@ void MlOptimiserMpi::maximization()
 
 		if (mymodel.nr_bodies > 1 && mymodel.keep_fixed_bodies[ibody] > 0)
 			continue;
+
 
 		for (int iclass = 0; iclass < mymodel.nr_classes; iclass++)
 		{
@@ -3259,7 +3259,6 @@ void MlOptimiserMpi::maximization()
 					}
 					// No one should continue until we're all here
 					MPI_Barrier(MPI_COMM_WORLD);
-
 					// Now all slaves have all relevant reconstructions to continue
 				}
 			}
@@ -3288,7 +3287,6 @@ void MlOptimiserMpi::maximization()
 					node->relion_MPI_Bcast(&mymodel.helical_twist[iclass], 1, MY_MPI_DOUBLE, reconstruct_rank, MPI_COMM_WORLD);
 				}
 			}
-
 			// Re-set the origin (this may be lost in some cases??)
 			mymodel.Iref[ith_recons].setXmippOrigin();
 			if (do_sgd)
@@ -3361,7 +3359,6 @@ void MlOptimiserMpi::maximization()
 	printf("Maximazation . maximizationOtherParameters : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
 #endif
 	}
-
 	// The master broadcasts the changes in hidden variables to all other nodes
 	node->relion_MPI_Bcast(&current_changes_optimal_classes, 1, MY_MPI_DOUBLE, 0, MPI_COMM_WORLD);
 	node->relion_MPI_Bcast(&current_changes_optimal_orientations, 1, MY_MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -3810,7 +3807,7 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct(int iclass, 
 	{
 		A3D_ELEM(wsum_model.BPref[iclass].weight, k, i, j) = A3D_ELEM(Itmp(), k, i, j);
 	}
-
+	Itmp.clear();
 	//printf("Test recon \n ");
 	// Now perform the unregularized reconstruction
 	wsum_model.BPref[iclass].reconstruct_gpu(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, nr_threads, -1, false, do_fsc0999);
@@ -4192,6 +4189,7 @@ void MlOptimiserMpi::iterate()
 		timer.toc(TIMING_EXP);
 		timer.tic(TIMING_MAX);
 #endif
+
 
 		maximization();
 #ifdef TIMEICT

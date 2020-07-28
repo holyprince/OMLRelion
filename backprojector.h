@@ -338,6 +338,26 @@ public:
 					 int realranknum = 0,
 					 int ranksize = 1);
 
+	void reconstruct_gpustd(MultidimArray<RFLOAT> &vol_out,
+                     int max_iter_preweight,
+                     bool do_map,
+                     RFLOAT tau2_fudge,
+                     MultidimArray<RFLOAT> &tau2_io,
+                     MultidimArray<RFLOAT> &sigma2_out,
+                     MultidimArray<RFLOAT> &evidence_vs_prior_out,
+                     MultidimArray<RFLOAT> &fourier_coverage_out,
+                     const MultidimArray<RFLOAT>& fsc,
+                     RFLOAT normalise = 1.,
+                     bool update_tau2_with_fsc = false,
+                     bool is_whole_instead_of_half = false,
+                     int nr_threads = 1,
+                     int minres_map = -1,
+                     bool printTimes= false,
+					 bool do_fsc0999 = false,
+					 int realranknum = 0,
+					 int ranksize = 1);
+
+
 	/*  Enforce Hermitian symmetry, apply helical symmetry as well as point-group symmetry
 	 */
 	void symmetrise(int nr_helical_asu = 1, RFLOAT helical_twist = 0., RFLOAT helical_rise = 0.);

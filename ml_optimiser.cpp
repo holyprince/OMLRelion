@@ -449,7 +449,9 @@ void MlOptimiser::parseContinue(int argc, char **argv)
 	fn_sigma = getParameter(argc, argv, "--sigma","");
 	sigma2_fudge = textToFloat(getParameter(argc, argv, "--sigma2_fudge", "1."));
 	do_acc_currentsize_despite_highres_exp = checkParameter(argc, argv, "--accuracy_current_size");
+
 	do_sequential_halves_recons  = checkParameter(argc, argv, "--sequential_halves_recons");
+
 	do_always_join_random_halves = checkParameter(argc, argv, "--always_join_random_halves");
 	do_use_all_data = checkParameter(argc, argv, "--use_all_data");
 	do_always_cc  = checkParameter(argc, argv, "--always_cc");

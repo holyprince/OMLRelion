@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "multidim_array.h"
 #include "mpi.h"
+#include "fftw3.h"
 /*
 static void HandleError( cudaError_t err,
                          const char *file,
@@ -43,6 +44,9 @@ float * gpusetdata_float(float *d_data,int N ,float *c_data);
 void vector_Multi(double *data1, float *data2, cufftComplex *res,int numElements);
 
 void vector_Multi_layout(double *data1, float *data2, cufftComplex *res, int numElements,int dimx,int paddim);
+void vector_Multi_layout_mpi(double *data1, float *data2, cufftComplex *res,
+		int numElements,int dimx,int paddim,int zoffset);
+
 cufftComplex * gpumallocdata(cufftComplex *d_outData,int N);
 void cpugetdata(tComplex<float> *c_outData, cufftComplex *d_outData,int N);
 void printdatatofile(Complex *data,int N,int dimx,int rank,int iter,int flag);
@@ -61,11 +65,18 @@ void volume_Multi_float_mpi(cufftComplex *data1, float *data2, int numElements, 
 
 void vector_Normlize(cufftComplex *data1, long int normsize, long int numElements);
 void fft_Divide(cufftComplex *data1, double *Fnewweight, long int numElements,int xysize,int xsize,int ysize,int zsize,int halfxsize,int max_r2);
+void fft_Divide_mpi(cufftComplex *data1, double *Fnewweight, long int numElements,int xysize,
+		int xsize,int ysize,int zsize, int halfxsize,int max_r2,int zoffset);
+
 
 void layoutchange(cufftComplex *data,int dimx,int dimy,int dimz, int padx, cufftComplex *newdata);
+void layoutchange(double *data,int dimx,int dimy,int dimz, int padx, double *newdata);
+void layoutchange(float *data,int dimx,int dimy,int dimz, int padx, float *newdata);
 void layoutchangecomp(Complex *data,int dimx,int dimy,int dimz, int padx, cufftComplex *newdata);
+void layoutchangeback(double *newdata,int dimx,int dimy,int dimz, int padx, double *data);
 void windowFourier(cufftComplex *d_Fconv,cufftComplex *d_Fconv_window,int rawdim, int newdim);
-
+void validateconj(cufftComplex *data,int dimx,int dimy,int dimz, int padx);
+void validateconj(fftwf_complex *data,int dimx,int dimy,int dimz, int padx);
 
 
 //=======================================================================backproject_3d_fft.cu
@@ -92,15 +103,20 @@ void gpu_to_cpu_inverse(MultiGPUplan *plan,cufftComplex *cpu_data);
 void validatealltoall(cufftComplex *cpu_data,int *numberZ,int *offsetZ, int ranknum,int padsize);
 void cpu_alltoall_inverse(MultiGPUplan *plan,cufftComplex *cpu_data,int *numberZ,int ranknum,int padsize);
 void cpu_alltoall_inverse_multinode(MultiGPUplan *plan,cufftComplex *cpu_data,
-		int *numberZ,int *offsetZ,int ranknum,int padsize,int ranksize);
+		int *numberZ,int *offsetZ,int ranknum,int padsize,int ranksize,int *realrankarray);
 void cpu_alltoall(MultiGPUplan *plan,cufftComplex *cpu_data,int *numberZ,int ranknum,int padsize);
 void cpu_alltoall_multinode(MultiGPUplan *plan,cufftComplex *cpu_data,
-		int *numberZ,int *offsetZ,int ranknum,int padsize,int ranksize);
+		int *numberZ,int *offsetZ,int ranknum,int padsize,int ranksize,int *realrankarray);
 void cpu_alltoalltozero(cufftComplex *cpu_data,int *numberZ,int ranknum,int padsize);
-void cpu_alltoalltozero_multi(cufftComplex *cpu_data,int *numberZ,int *offsetZ,int ranknum,int padsize,int ranksize);
+void cpu_alltoalltozero_multi(cufftComplex *cpu_data,int *numberZ,int *offsetZ,
+		int ranknum,int padsize,int ranksize,int *realrankarray);
 void cpu_allcombine(cufftComplex *cpu_data,int ranknum, int *numberZ, int *offsetZ,int padsize);
-void cpu_allcombine_multi(cufftComplex *cpu_data,int ranknum, int *numberZ, int *offsetZ,int padsize,int ranksize);
+void cpu_allcombine_multi(cufftComplex *cpu_data,int ranknum, int *numberZ, int *offsetZ,
+		int padsize,int ranksize,int *realrankarray);
 void printres(cufftComplex *cpu_data,  int *numberZ ,int *offsetZ,int pad_size,int ranknum);
+void printgpures(cufftComplex *cpu_data, int fullsize,int ranknum);
+void printgpures(double *cpu_data, int fullsize,int ranknum);
+void printgpures(float *cpu_data, int fullsize,int ranknum);
 void printwhole(double *cpu_data,  int fullszie ,int ranknum);
 void printwhole(float *cpu_data,  int fullszie ,int ranknum);
 void printwhole(cufftComplex *cpu_data,  int fullszie ,int ranknum);
