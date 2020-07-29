@@ -85,29 +85,10 @@ __global__ void vectorMulti_layout_mpi(double *A, float *B, cufftComplex *C, int
 		int dimy = paddim;
 		int dimz = paddim;
 
-		//if(xindex < dimx)
-		{
-			//int inputindex = zindex * dimy * dimx + yindex * dimx + xindex;
-			C[i].x = A[i] * B[i];
-			C[i].y = 0;
-		}
-/*		else{
-			zindex =zindex+ zoffset;
+		C[i].x = A[i] * B[i];
+		C[i].y = 0;
 
-			int desy, desz, desx;
-			desx = paddim - xindex;
-			if (yindex == 0)
-				desy = 0;
-			else
-				desy = dimy - yindex;
-			if (zindex == 0)
-				desz = 0;
-			else
-				desz = dimz - zindex;
-			int inputindex = desz * dimy * dimx + desy * dimx + desx;
-			C[i].x = A[inputindex] * B[inputindex];
-			C[i].y = 0;
-		}*/
+
 
     }
 }
@@ -191,6 +172,39 @@ __global__ void volumeMulti_float_mpi(cufftComplex *Mconv, float *tabdata, int n
 
 	}
 }
+
+__global__ void volumeMulti_float_transone(cufftComplex *Mconv, float *tabdata, int numElements, int tabxdim, double sampling , int padhdim, int pad_size,
+		int ori_size, double padding_factor, float normftblob, int zslice, int ydim, int offset)
+{
+
+
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+
+	if (index < numElements) {
+
+		int k = index / zslice;
+		int xyslice = index % (zslice);
+		int i = xyslice / pad_size;
+		int j = xyslice % pad_size;
+
+		k=k+offset;
+		// real j , i , k ;
+
+		int kp = (k < padhdim) ? k : k - pad_size;
+		int ip = (i < padhdim) ? i : i - pad_size;
+		int jp = (j < padhdim) ? j : j - pad_size;
+		double rval = sqrt((double) (kp * kp + ip * ip + jp * jp)) / (ori_size * padding_factor);
+/*
+    	if (do_mask && rval > 1./(2. * padding_factor))
+    		DIRECT_A3D_ELEM(Mconv, k, i, j) = 0.;*/
+
+		//int realindex= k*(pad_size*pad_size)+ i*pad_size + j;
+		Mconv[index].x *= (tab_ftblobgetvalue(tabdata, rval, sampling, tabxdim) / normftblob);
+		Mconv[index].y =0;
+
+	}
+}
+
 __global__ void vectorNormlize(cufftComplex *A, long int size , long int numElements)
 {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -293,19 +307,39 @@ __global__ void fftDivide_mpi(cufftComplex *A, double *Fnewweight, long int numE
 
     }
 }
-void initgpu()
+
+
+__global__ void transpositionyz(cufftComplex *src_data, cufftComplex *des_data, int dimy,int dimz, int offset,int tempydim,int pad_size)
+{
+
+
+	unsigned int xindex = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned int yindex = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned int zindex = blockIdx.z * blockDim.z;
+
+    int NX=pad_size;
+    int NY=pad_size;
+    if(xindex < NX && yindex < dimy && zindex < dimz )
+    {
+    	des_data[yindex * NX*tempydim + (zindex + offset) *NX+ xindex ]  = src_data[zindex * NX* NY + (yindex+offset)*NX+ xindex ] ;
+    }
+}
+
+
+void initgpu(int GPU_N)
 {
 	int devCount;
 	cudaGetDeviceCount(&devCount);
 	printf("GPU num for max %d \n",devCount);
+	if(devCount < GPU_N)
+		printf("Error\n");
 
 
-	for (int i = 0; i < devCount; i++) {
+	for (int i = 0; i < GPU_N; i++) {
 		cudaSetDevice(i);
 		size_t freedata1,total1;
 		cudaMemGetInfo( &freedata1, &total1 );
 		printf("before alloccation  : %ld   %ld and gpu num %d \n",freedata1,total1,i);
-
 	}
 }
 
@@ -400,6 +434,16 @@ void volume_Multi_float_mpi(cufftComplex *data1, float *data2, int numElements, 
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
     int zslice= ydim*pad_size ;
     volumeMulti_float_mpi<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, tabxdim, sampling,padhdim,
+    		pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
+}
+
+void volume_Multi_float_transone(cufftComplex *data1, float *data2, int numElements, int tabxdim, double sampling ,
+		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset)
+{
+    int threadsPerBlock = 512;
+    int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
+    int zslice= ydim*pad_size ;
+    volumeMulti_float_transone<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, tabxdim, sampling,padhdim,
     		pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
 }
 
@@ -757,5 +801,24 @@ void printdatatofile(cufftComplex *data,int N,int dimx,int flag)
 	fclose(fp);
 }*/
 
+void yzlocal_transpose(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ)
+{
+	int K =32;
+	int NX=pad_size;
+	for (int i = 0; i < GPU_N; i++)
+	{
+		cudaSetDevice(plan[i].devicenum);
+		for(int desnum=0;desnum<GPU_N;desnum++)
+		{
+			dim3 threads(K,K);
+			dim3 blocks((NX + threads.x - 1)/ threads.x, (plan[desnum].selfZ + threads.y - 1) / threads.y, plan[i].selfZ);
+			int offset = offsetZ[desnum];
+			transpositionyz<<<blocks, threads>>>(plan[i].d_Data, plan[i].temp_Data,plan[desnum].selfZ,
+					plan[i].selfZ,offset,plan[i].tempydim,pad_size);
+		}
+		//copy data to de
 
+		cudaDeviceSynchronize();
+	}
+}
 

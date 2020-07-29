@@ -25,19 +25,21 @@ typedef struct
     size_t datasize; // full size and the real size is half
 
     int devicenum;
-
+    int selfZ;
     int selfoffset;
-    int realsize;
+    int tempydim;
+    size_t realsize;
+    size_t tempsize; // need pad to max size
 
     cufftComplex *h_Data;
-
     //Device buffers
     cufftComplex *d_Data;
-    int selfZ;
+    cufftComplex *temp_Data;
+
 
 } MultiGPUplan;
 
-void initgpu();
+void initgpu(int GPU_N);
 void initgpu_mpi(int ranknum);
 double * gpusetdata_double(double *d_data,int N ,double *c_data);
 float * gpusetdata_float(float *d_data,int N ,float *c_data);
@@ -53,6 +55,8 @@ void printdatatofile(Complex *data,int N,int dimx,int rank,int iter,int flag);
 //void printdatatofile(double *data,int N,int dimx,int flag);
 //void printdatatofile(cufftComplex *data,int N,int dimx,int flag);
 void printdatatofile(float *data,int N,int dimx,int rank,int iter,int flag);
+
+
 void volume_Multi(float *data1, double *data2, int numElements, int xdim, double sampling , \
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob);
 
@@ -121,3 +125,12 @@ void printwhole(double *cpu_data,  int fullszie ,int ranknum);
 void printwhole(float *cpu_data,  int fullszie ,int ranknum);
 void printwhole(cufftComplex *cpu_data,  int fullszie ,int ranknum);
 //void multi_plan_init_mpi(MultiGPUplan *plan, int GPU_N, size_t fullsize, int dimx,int dimy,int dimz,int ranknum);
+
+
+//==========================transpose version
+void dividetask(int *numberZ, int *offsetZ,int pad_size,int ranksize);
+void multi_plan_init_transpose(MultiGPUplan *plan, int GPU_N, int *numberZ, int *offsetZ, int pad_size);
+void transpose_exchange(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ);
+void yzlocal_transpose(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ);
+void volume_Multi_float_transone(cufftComplex *data1, float *data2, int numElements, int tabxdim, double sampling ,
+		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);

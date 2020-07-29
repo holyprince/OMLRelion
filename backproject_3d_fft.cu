@@ -46,20 +46,74 @@ void multi_plan_init(MultiGPUplan *plan, int GPU_N, size_t fullsize, int dimx,in
 	plan[1].selfoffset = dimx * dimy * (dimz / 2);
 }
 
+void dividetask(int *numberZ, int *offsetZ,int pad_size,int ranksize)
+{
+	//divide task
+	//process divide data
+
+	int baseznum= pad_size / ranksize;
+	int extranum= pad_size % ranksize;
+	for(int i=0;i<ranksize;i++)
+	{
+		numberZ[i]=baseznum;
+		if(i<extranum)
+			numberZ[i]++;
+		if(i == 0)
+			offsetZ[0]=0;
+		else
+			offsetZ[i] = offsetZ[i-1]+numberZ[i-1];
+	}
+
+	for(int i=0;i<ranksize;i++)
+		printf(" rank :%d : num %d and offset %d \n",i,numberZ[i],offsetZ[i]);
+
+}
+
+
+void multi_plan_init_transpose(MultiGPUplan *plan, int GPU_N, int *numberZ, int *offsetZ, int pad_size)
+{
+	//MultiGPUplan plan[MAXGPU];
+	for (int i = 0; i < GPU_N; i++) {
+		//deviceNum[i] = i;
+		plan[i].devicenum = i;
+		plan[i].datasize = pad_size* pad_size * numberZ[i];
+		plan[i].selfoffset = pad_size* pad_size * offsetZ[i];
+		plan[i].selfZ =  numberZ[i];
+		plan[i].tempydim = numberZ[0]*GPU_N;
+		plan[i].tempsize = pad_size * plan[i].tempydim *numberZ[0]; // use the max dimy and dimz
+		plan[i].realsize= plan[i].datasize;
+	}
+
+}
+
 
 void multi_enable_access(MultiGPUplan *plan,int GPU_N)
 {
 	int can_access_peer = -100;
-	cudaDeviceCanAccessPeer(&can_access_peer, plan[0].devicenum,
-			plan[1].devicenum);
+	for (int i = 0; i < GPU_N; i++) {
+		for(int j=0;j< GPU_N;j++)
+		{
+			if(i!=j)
+			{
+				cudaDeviceCanAccessPeer(&can_access_peer, plan[i].devicenum,plan[j].devicenum);
+				printf("%d to %d : access %d\n",i,j,can_access_peer);
+			}
+		}
+	}
+
 	for (int i = 0; i < GPU_N; i++) {
 		cudaSetDevice(plan[i].devicenum);
-		cudaDeviceEnablePeerAccess((GPU_N - 1) - plan[i].devicenum, 0);
+		for(int j=0;j<GPU_N;j++)
+		{
+			if(i!=j)
+				cudaDeviceEnablePeerAccess(j, 0);
+		}
 	}
 	for (int i = 0; i < GPU_N; i++) {
 		cudaSetDevice(plan[i].devicenum);
 		cudaDeviceSynchronize();
 	}
+
 }
 void multi_memcpy_data(MultiGPUplan *plan, cufftComplex *f,int GPU_N,int dimx,int dimy )
 {
@@ -980,7 +1034,7 @@ void printwhole(double *cpu_data,  int fullszie ,int ranknum)
 	int endindex=fullszie/2;
 	int nonzeronum=0;
 	double sumnum=0;
-	for(int i=starindex;i<endindex;i++)
+	for(int i=starindex;i<fullszie;i++)
 	{
 		if(cpu_data[i] !=0)
 			nonzeronum++;
@@ -989,7 +1043,7 @@ void printwhole(double *cpu_data,  int fullszie ,int ranknum)
 		sumnum+=cpu_data[i];
 	}
 	printf("block1  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
-
+/*
 	nonzeronum=0;sumnum=0;
 	starindex= endindex;
 	endindex = fullszie;
@@ -999,7 +1053,7 @@ void printwhole(double *cpu_data,  int fullszie ,int ranknum)
 			nonzeronum++;
 		sumnum+=cpu_data[i] ;
 	}
-	printf("block2  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
+	printf("block2  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);*/
 }
 void printwhole(float *cpu_data,  int fullszie ,int ranknum)
 {
@@ -1007,7 +1061,7 @@ void printwhole(float *cpu_data,  int fullszie ,int ranknum)
 	int endindex=fullszie/2;
 	int nonzeronum=0;
 	double sumnum=0;
-	for(int i=starindex;i<10;i++)
+	for(int i=starindex;i<fullszie;i++)
 	{
 		if(cpu_data[i] !=0)
 			nonzeronum++;
@@ -1015,7 +1069,7 @@ void printwhole(float *cpu_data,  int fullszie ,int ranknum)
 		printf("%f ",cpu_data[i]);
 		sumnum+=cpu_data[i];
 	}
-	printf("block1  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
+	printf("\nblock1  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
 /*
 	nonzeronum=0;sumnum=0;
 	starindex= endindex;
@@ -1039,16 +1093,16 @@ void printwhole(cufftComplex *cpu_data,  int fullszie ,int ranknum)
 	int endindex=fullszie/2;
 	int nonzeronum=0;
 	float sumnum=0;
-	for(int i=starindex;i<endindex;i++)
+	for(int i=starindex;i<fullszie;i++)
 	{
 		if(cpu_data[i].x !=0)
 			nonzeronum++;
 		if(i<10)
-		printf("%f ",cpu_data[i].x);
+		printf("%.4f ",cpu_data[i].x);
 		sumnum+=cpu_data[i].x;
 	}
-	printf("block1  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
-
+	printf("\nblock1  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
+/*
 	nonzeronum=0;sumnum=0;
 	starindex= endindex;
 	endindex = fullszie;
@@ -1060,6 +1114,27 @@ void printwhole(cufftComplex *cpu_data,  int fullszie ,int ranknum)
 		if(i>(endindex-10))
 			printf("%f ",cpu_data[i].x);
 	}
-	printf("block2  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);
+	printf("block2  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);*/
 }
 
+void transpose_exchange(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ)
+{
+	int NX=pad_size;
+	int NY=pad_size;
+	for(int i = 0; i < GPU_N; i++)
+	{
+		cudaSetDevice(plan[i].devicenum);
+		for(int desnum=0;desnum<GPU_N;desnum++)  // i -> desnum
+		{
+			int offsetcpydes=offsetZ[i]*NX;     //from where need coresponeing i offset
+			int offsetcpysrc=offsetZ[desnum]*NX;
+			for(int j=0;j<plan[desnum].selfZ;j++)
+			{
+				cudaMemcpy(plan[desnum].d_Data+offsetcpydes,plan[i].temp_Data+offsetcpysrc,NX*plan[i].selfZ*sizeof(cufftComplex), cudaMemcpyDeviceToDevice);
+				offsetcpysrc+= NX* plan[i].tempydim ;
+				offsetcpydes+= NX*NY;
+			}
+		}
+		cudaDeviceSynchronize();
+	}
+}
