@@ -493,8 +493,11 @@ void BackProjector::reconstruct_gpustd(MultidimArray<RFLOAT> &vol_out,
 		cpu_data= (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		//c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
-
+#ifdef RELION_SINGLE_PRECISION
 		d_Fweight = gpusetdata_float(d_Fweight,Fweight.nzyxdim,Fweight.data);
+#else
+		d_Fweight = gpusetdata_double(d_Fweight,Fweight.nzyxdim,Fweight.data);
+#endif
 		d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
 
 
@@ -1497,8 +1500,11 @@ void BackProjector::reconstruct_gpumpi(MultidimArray<RFLOAT> &vol_out,
 		cpu_data= (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		//c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
-
+#ifdef RELION_SINGLE_PRECISION
 		d_Fweight = gpusetdata_float(d_Fweight,Fweight.nzyxdim,Fweight.data);
+#else
+		d_Fweight = gpusetdata_double(d_Fweight,Fweight.nzyxdim,Fweight.data);
+#endif
 		d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
 
 

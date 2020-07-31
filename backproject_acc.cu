@@ -30,7 +30,7 @@ __global__ void vectorMulti(double *A, float *B, cufftComplex *C, int numElement
     }
 }
 
-__global__ void vectorMulti_layout(double *A, float *B, cufftComplex *C, int numElements,int dimx,int paddim)
+__global__ void vectorMulti_layout(double *A, RFLOAT *B, cufftComplex *C, int numElements,int dimx,int paddim)
 {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     if (i < numElements)
@@ -114,7 +114,7 @@ __global__ void volumeMulti(float *Mconv, double *tabdata, int numElements, int 
 
 	}
 }
-__global__ void volumeMulti_float(cufftComplex *Mconv, float *tabdata, int numElements, int xdim, double sampling , int padhdim, int pad_size, int ori_size, double padding_factor, float normftblob, int zslice)
+__global__ void volumeMulti_float(cufftComplex *Mconv, RFLOAT *tabdata, int numElements, int xdim, double sampling , int padhdim, int pad_size, int ori_size, double padding_factor, float normftblob, int zslice)
 {
 
 
@@ -173,7 +173,7 @@ __global__ void volumeMulti_float_mpi(cufftComplex *Mconv, float *tabdata, int n
 	}
 }
 
-__global__ void volumeMulti_float_transone(cufftComplex *Mconv, float *tabdata, int numElements, int tabxdim, double sampling , int padhdim, int pad_size,
+__global__ void volumeMulti_float_transone(cufftComplex *Mconv, RFLOAT *tabdata, int numElements, int tabxdim, double sampling , int padhdim, int pad_size,
 		int ori_size, double padding_factor, float normftblob, int zslice, int ydim, int offset)
 {
 
@@ -373,6 +373,18 @@ float * gpusetdata_float(float *d_data,int N ,float *c_data)
 	return d_data;
 }
 
+float * gpusetdata_float(float *d_data,int N ,double *c_data)
+{
+	cudaMalloc((void**) &d_data, N * sizeof(float));
+	float *tempdata= (float *)malloc(sizeof(float)*N);
+	for(int i=0;i<N;i++)
+		tempdata[i]=c_data[i];
+	cudaMemcpy(d_data, tempdata, N * sizeof(float),cudaMemcpyHostToDevice);
+	return d_data;
+}
+
+
+
 void vector_Multi(double *data1, float *data2, cufftComplex *res, int numElements)
 {
     int threadsPerBlock = 512;
@@ -380,7 +392,7 @@ void vector_Multi(double *data1, float *data2, cufftComplex *res, int numElement
 	vectorMulti<<<blocksPerGrid, threadsPerBlock>>>(data1, data2, res, numElements);
 }
 
-void vector_Multi_layout(double *data1, float *data2, cufftComplex *res, int numElements,int dimx,int paddim)
+void vector_Multi_layout(double *data1, RFLOAT *data2, cufftComplex *res, int numElements,int dimx,int paddim)
 {
     int threadsPerBlock = 512;
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
@@ -418,7 +430,7 @@ void volume_Multi(float *data1, double *data2, int numElements, int xdim, double
     volumeMulti<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, xdim, sampling,padhdim,pad_size,ori_size,padding_factor,normftblob,zslice);
 }
 
-void volume_Multi_float(cufftComplex *data1, float *data2, int numElements, int xdim, double sampling , int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob)
+void volume_Multi_float(cufftComplex *data1, RFLOAT *data2, int numElements, int xdim, double sampling , int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob)
 {
     int threadsPerBlock = 512;
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
@@ -437,7 +449,7 @@ void volume_Multi_float_mpi(cufftComplex *data1, float *data2, int numElements, 
     		pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
 }
 
-void volume_Multi_float_transone(cufftComplex *data1, float *data2, int numElements, int tabxdim, double sampling ,
+void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, int numElements, int tabxdim, double sampling ,
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset)
 {
     int threadsPerBlock = 512;
@@ -529,6 +541,32 @@ void layoutchange(float *data,int dimx,int dimy,int dimz, int padx, float *newda
 	for (int z = 0; z < dimz; z++)
 		for (int y = 0; y < dimy; y++) {
 			memcpy(newdata + z * dimy * padx + y * padx, data + z * dimy * dimx + y * dimx, dimx * sizeof(float));
+		}
+
+	for(int z=0;z< dimz;z++)
+	for (int y = 0; y < dimy; y++)
+		for (int x = dimx; x < padx; x++) {
+			int desx,desy,desz;
+			if (y == 0)
+				desy = 0;
+			else
+				desy = dimy - y;
+			if(z==0)
+				desz =0;
+			else
+				desz = dimz-z;
+
+			desx=padx - x;
+			newdata[z*padx*dimy+y * padx + x]= newdata[desz*padx*dimy+desy * padx + desx];
+		}
+}
+void layoutchange(double *data,int dimx,int dimy,int dimz, int padx, float *newdata)
+{
+	for (int z = 0; z < dimz; z++)
+		for (int y = 0; y < dimy; y++) {
+			for(int x=0;x<dimx;x++)
+				newdata[z * dimy * padx + y * padx+x] =  data[z * dimy * dimx + y * dimx+x];
+			//memcpy(newdata + z * dimy * padx + y * padx, data + z * dimy * dimx + y * dimx, dimx * sizeof(float));
 		}
 
 	for(int z=0;z< dimz;z++)

@@ -2027,7 +2027,11 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 		//c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 		cudaMallocHost((void **) &c_Fconv2, sizeof(cufftComplex) * fullsize);
 
+#ifdef RELION_SINGLE_PRECISION
 		d_Fweight = gpusetdata_float(d_Fweight,Fweight.nzyxdim,Fweight.data);
+#else
+		d_Fweight = gpusetdata_double(d_Fweight,Fweight.nzyxdim,Fweight.data);
+#endif
 		d_Fnewweight = gpusetdata_double(d_Fnewweight,Fnewweight.nzyxdim,Fnewweight.data);
 
 
@@ -2093,9 +2097,14 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 
 
 			RFLOAT normftblob = tab_ftblob(0.);
-			float *d_tab_ftblob;
+			RFLOAT *d_tab_ftblob;
 			int tabxdim=tab_ftblob.tabulatedValues.xdim;
+#ifdef RELION_SINGLE_PRECISION
 			d_tab_ftblob=gpusetdata_float(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);
+#else
+			d_tab_ftblob=gpusetdata_double(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);
+#endif
+
 			//gpu_kernel2
 			volume_Multi_float(dataplan[0].d_Data,d_tab_ftblob, Ndim[0]*Ndim[1]*Ndim[2], tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob);
 			cudaDeviceSynchronize();
@@ -2821,7 +2830,7 @@ void BackProjector::reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
 	plan = (MultiGPUplan *)malloc(sizeof(MultiGPUplan)*GPU_N);
 	multi_plan_init_transpose(plan,GPU_N,numberZ,offsetZ,pad_size);
 
-	cufftComplex *c_Fconv;
+
 
 	for (int i = 0; i < GPU_N; ++i) {
 		cudaSetDevice(plan[i].devicenum);
@@ -2908,7 +2917,7 @@ void BackProjector::reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
 		printf("%ld %ld %ld \n",Fconv.xdim,Fconv.ydim,Fconv.zdim);
 		printf("Fnewweight: %ld %ld %ld \n",Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
 		multi_enable_access(plan,GPU_N);
-		c_Fconv = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
+
 
          //==================2d fft plan
 
@@ -2959,6 +2968,8 @@ void BackProjector::reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
 
 
 
+
+
 		for (int iter = 0; iter < max_iter_preweight; iter++)
 		{
 
@@ -2990,9 +3001,13 @@ void BackProjector::reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
 
 
 			RFLOAT normftblob = tab_ftblob(0.);
-			float *d_tab_ftblob;
+			RFLOAT *d_tab_ftblob;
 			int tabxdim=tab_ftblob.tabulatedValues.xdim;
+#ifdef RELION_SINGLE_PRECISION
 			d_tab_ftblob=gpusetdata_float(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);
+#else
+			d_tab_ftblob=gpusetdata_double(d_tab_ftblob,tab_ftblob.tabulatedValues.xdim,tab_ftblob.tabulatedValues.data);
+#endif
 			//gpu_kernel2
 			for(int i = 0; i < GPU_N; i++)
 			{
@@ -3059,12 +3074,20 @@ void BackProjector::reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
 			cudaSetDevice(plan[i].devicenum);
 			cufftDestroy(xyplan[i]);
 			cufftDestroy(zplan[i]);
+			cudaFree(d_blockone[i]);
+			cudaFree(d_blocktwo[i]);
 		}
 		free(tempdata);
 		free(d_blockone);
 		free(d_blocktwo);
 		RCTICREC(ReconTimer,ReconS_7);
 
+		for (int i = 0; i < GPU_N; i++) {
+			cudaSetDevice(plan[i].devicenum);
+			size_t freedata1,total1;
+			cudaMemGetInfo( &freedata1, &total1 );
+			printf("After alloccation loop : %ld   %ld and gpu num %d \n",freedata1,total1,i);
+		}
 
 	#ifdef DEBUG_RECONSTRUCT
 		Image<double> tttt;
@@ -3212,10 +3235,11 @@ void BackProjector::reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
 			cudaMalloc((void**) &(plan[i].temp_Data),sizeof(cufftComplex) * plan[i].tempsize);
 		}
 
-		free(c_Fconv);
-		c_Fconv= (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
-	}
 
+
+	}
+	cufftComplex *c_Fconv;
+	c_Fconv= (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
 	windowFourierTransform(Fconv, padoridim);
 
 	layoutchangecomp(Fconv.data,Fconv.xdim,Fconv.ydim,Fconv.zdim,padoridim,c_Fconv);
@@ -3285,6 +3309,7 @@ void BackProjector::reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
 	}
 	free(xyplan);
 	free(zplan);
+
 	for (int i = 0; i < GPU_N; i++) {
 		cudaSetDevice(plan[i].devicenum);
 		size_t freedata1,total1;
@@ -3299,10 +3324,10 @@ void BackProjector::reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
 	//cudaMemcpy(c_Fconv,plan[0].d_Data,padoridim *padoridim*padoridim *sizeof(cufftComplex),cudaMemcpyDeviceToHost);
     for(int i=0;i<padoridim *padoridim*padoridim;i++)
     	vol_out.data[i]=c_Fconv[i].x;
-/*
+
     printf("FINAL:");
     for(int i=0;i<10;i++)
-    	printf("%f ",vol_out.data[i]);*/
+    	printf("%f ",vol_out.data[i]);
 
 
     free(c_Fconv);

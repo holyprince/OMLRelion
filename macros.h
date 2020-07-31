@@ -69,7 +69,7 @@
 //#define TIMING
 #define COMGPU
 
-#define RELION_SINGLE_PRECISION
+//#define RELION_SINGLE_PRECISION
 
 #ifdef RELION_SINGLE_PRECISION
 #define RFLOAT float
@@ -83,6 +83,7 @@
 #define LARGE_NUMBER 99e99
 #define MY_MPI_DOUBLE  MPI_DOUBLE
 #define MY_MPI_COMPLEX MPI_DOUBLE_COMPLEX
+#define MY_MPI_INT  MPI_INT
 #endif
 
 #if defined CUDA and DEBUG_CUDA

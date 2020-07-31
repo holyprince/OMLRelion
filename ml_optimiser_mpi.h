@@ -106,6 +106,7 @@ public:
      * This takes care of the parallel reconstruction of the classes
      */
     void maximization();
+    void maximization_mpi();
 
     /** Perform unregularized reconstruction
       * With the aim of performing solvent mask corrected FSC inside the auto-refine
@@ -122,6 +123,7 @@ public:
      *  Also write the unregularized reconstructions to disc.
      */
     void readTemporaryDataAndWeightArraysAndReconstruct(int iclass, int ihalf);
+    void readTemporaryDataAndWeightArraysAndReconstruct_gpu_trans(int iclass, int ihalf);
 
     /**
      * Join two independent reconstructions ate the lowest frequencies to avoid convergence in distinct orientations
