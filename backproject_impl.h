@@ -91,11 +91,14 @@ void datainit(cufftComplex *data,int NXYZ);
 
 void multi_enable_access(MultiGPUplan *plan,int GPU_N);
 void multi_memcpy_data(MultiGPUplan *plan, cufftComplex *f,int GPU_N,int dimx,int dimy);
+void multi_plan_init(MultiGPUplan *plan, int GPU_N, size_t fullsize, int *numberZ, int *offsetZ, int pad_size);
 void multi_plan_init(MultiGPUplan *plan, int GPU_N, size_t fullsize, int dimx,int dimy,int dimz);
 void multi_memcpy_data_gpu(MultiGPUplan *plan,int GPU_N,int dimx,int dimy );
 
 void multi_memcpy_databack(MultiGPUplan *plan, cufftComplex *f,int GPU_N,int dimx,int dimy);
 void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ);
+void gpu_alltoall_multinode(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ);
+void gpu_alltoall_multinode_inverse(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ);
 void mulit_alltoall_two(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ);
 void mulit_alltoall_all1to0(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ);
 void mulit_datacopy_0to1(MultiGPUplan *plan, int dimx,int dimy,int *offsetZ);

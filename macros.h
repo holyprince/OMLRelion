@@ -69,7 +69,7 @@
 //#define TIMING
 #define COMGPU
 
-//#define RELION_SINGLE_PRECISION
+#define RELION_SINGLE_PRECISION
 
 #ifdef RELION_SINGLE_PRECISION
 #define RFLOAT float

@@ -302,6 +302,41 @@ public:
                      bool printTimes= false,
 					 bool do_fsc0999 = false);
 
+
+	void reconstruct_onegpu(MultidimArray<RFLOAT> &vol_out,
+                     int max_iter_preweight,
+                     bool do_map,
+                     RFLOAT tau2_fudge,
+                     MultidimArray<RFLOAT> &tau2_io,
+                     MultidimArray<RFLOAT> &sigma2_out,
+                     MultidimArray<RFLOAT> &evidence_vs_prior_out,
+                     MultidimArray<RFLOAT> &fourier_coverage_out,
+                     const MultidimArray<RFLOAT>& fsc,
+                     RFLOAT normalise = 1.,
+                     bool update_tau2_with_fsc = false,
+                     bool is_whole_instead_of_half = false,
+                     int nr_threads = 1,
+                     int minres_map = -1,
+                     bool printTimes= false,
+					 bool do_fsc0999 = false);
+
+	void reconstruct_gpu_raw(MultidimArray<RFLOAT> &vol_out,
+                     int max_iter_preweight,
+                     bool do_map,
+                     RFLOAT tau2_fudge,
+                     MultidimArray<RFLOAT> &tau2_io,
+                     MultidimArray<RFLOAT> &sigma2_out,
+                     MultidimArray<RFLOAT> &evidence_vs_prior_out,
+                     MultidimArray<RFLOAT> &fourier_coverage_out,
+                     const MultidimArray<RFLOAT>& fsc,
+                     RFLOAT normalise = 1.,
+                     bool update_tau2_with_fsc = false,
+                     bool is_whole_instead_of_half = false,
+                     int nr_threads = 1,
+                     int minres_map = -1,
+                     bool printTimes= false,
+					 bool do_fsc0999 = false);
+
 	void reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
                      int max_iter_preweight,
                      bool do_map,
@@ -318,6 +353,26 @@ public:
                      int minres_map = -1,
                      bool printTimes= false,
 					 bool do_fsc0999 = false);
+
+	void reconstruct_gpu_single(MultidimArray<RFLOAT> &vol_out,
+                     int max_iter_preweight,
+                     bool do_map,
+                     RFLOAT tau2_fudge,
+                     MultidimArray<RFLOAT> &tau2_io,
+                     MultidimArray<RFLOAT> &sigma2_out,
+                     MultidimArray<RFLOAT> &evidence_vs_prior_out,
+                     MultidimArray<RFLOAT> &fourier_coverage_out,
+                     const MultidimArray<RFLOAT>& fsc,
+                     RFLOAT normalise = 1.,
+                     bool update_tau2_with_fsc = false,
+                     bool is_whole_instead_of_half = false,
+                     int nr_threads = 1,
+                     int minres_map = -1,
+                     bool printTimes= false,
+					 bool do_fsc0999 = false);
+
+
+
 
 	void reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
                      int max_iter_preweight,

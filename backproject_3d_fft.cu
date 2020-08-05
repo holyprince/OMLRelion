@@ -34,6 +34,18 @@ void datainit(cufftComplex *data,int dimxYZ)
         }
 }
 
+void multi_plan_init(MultiGPUplan *plan, int GPU_N, size_t fullsize, int *numberZ, int *offsetZ, int pad_size)
+{
+	for (int i = 0; i < GPU_N; i++) {
+		//deviceNum[i] = i;
+		plan[i].devicenum = i;
+		plan[i].datasize = fullsize;
+		plan[i].selfoffset = pad_size* pad_size * offsetZ[i];
+		plan[i].selfZ =  numberZ[i];
+		plan[i].realsize= pad_size* pad_size* numberZ[i];
+	}
+}
+
 void multi_plan_init(MultiGPUplan *plan, int GPU_N, size_t fullsize, int dimx,int dimy,int dimz)
 {
 	//MultiGPUplan plan[MAXGPU];
@@ -163,10 +175,59 @@ void multi_memcpy_databack(MultiGPUplan *plan, cufftComplex *out,int GPU_N,int d
 	}
 }
 
+void gpu_alltoall_multinode(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ)
+{
+	int NX=pad_size;
+	int NY=pad_size;
+	for(int i = 0; i < GPU_N; i++)
+	{
+		cudaSetDevice(plan[i].devicenum);
+		int baseoffset=offsetZ[i]*pad_size*pad_size;
+		for(int desnum=0;desnum<GPU_N;desnum++)  // i -> desnum
+		{
+			if(i == desnum) continue;
+			int offsetcpydes=offsetZ[desnum]*NX + baseoffset;     //src == dev?
+			int offsetcpysrc=offsetZ[desnum]*NX + baseoffset;
+			for(int j=0;j<plan[i].selfZ;j++)
+			{
+				cudaMemcpy(plan[desnum].d_Data+offsetcpydes,plan[i].d_Data+offsetcpysrc,NX*plan[desnum].selfZ*sizeof(cufftComplex), cudaMemcpyDeviceToDevice);
+				offsetcpydes+= NX*NY;
+				offsetcpysrc+= NX*NY;
+			}
+		}
+		cudaDeviceSynchronize();
+	}
+}
+void gpu_alltoall_multinode_inverse(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ)
+{
+	int NX=pad_size;
+	int NY=pad_size;
+	for(int i = 0; i < GPU_N; i++)
+	{
+		cudaSetDevice(plan[i].devicenum);
 
+		for(int desnum=0;desnum<GPU_N;desnum++)  // i -> desnum
+		{
+			int baseoffset=offsetZ[desnum]*pad_size*pad_size;
+			if(i == desnum) continue;
+			int offsetcpydes=offsetZ[i]*NX+ baseoffset;    //src == dev?
+			int offsetcpysrc=offsetZ[i]*NX+ baseoffset;
+			for(int j=0;j<plan[desnum].selfZ;j++)
+			{
+				cudaMemcpy(plan[desnum].d_Data+offsetcpysrc,plan[i].d_Data+offsetcpydes, NX*plan[i].selfZ*sizeof(cufftComplex), cudaMemcpyDeviceToDevice);
+				offsetcpydes+= NX*NY;
+				offsetcpysrc+= NX*NY;
+			}
+		}
+		cudaDeviceSynchronize();
+	}
+}
 
 void mulit_alltoall_one(MultiGPUplan *plan, int dimx,int dimy,int dimz, int extraz,int *offsetZ)
 {
+
+
+
 	cudaSetDevice(0);
 	int dimxy = dimx * dimy;
 	int halfslice1 = (offsetZ[0]) * dimx; //Z reperesent Y
@@ -419,8 +480,7 @@ void cpu_alltoall_multinode(MultiGPUplan *plan,cufftComplex *cpu_data,int *numbe
 // 4.2 : cpu all to all
 	//send numberZ[0] to 1
 	//recv numberZ[1] from 1
-	int rawranknum,desranknum;
-
+	int desranknum;
 
 	if(ranknum==0)
 	{
