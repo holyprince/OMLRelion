@@ -78,6 +78,8 @@ size_t MlDeviceBundle::checkFixedSizedObjects(int shares)
 	DEBUG_HANDLE_ERROR(cudaMemGetInfo( &free, &total ));
 	float margin(1.05);
 	BoxLimit = pow(free/(margin*2.5*sizeof(XFLOAT)*((float)shares)),(1/3.0)) / ((float) baseMLO->mymodel.padding_factor);
+	printf("device_id : %d \n",device_id);
+	printf("free :%ld margin %f shares %d BoxLimit %ld baseMLO->mymodel.padding_factor %f \n",free,margin, shares, BoxLimit,baseMLO->mymodel.padding_factor);
 	//size_t BytesNeeded = ((float)shares)*margin*2.5*sizeof(XFLOAT)*pow((baseMLO->mymodel.ori_size*baseMLO->mymodel.padding_factor),3);
 
 	return(BoxLimit);
