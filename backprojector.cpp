@@ -2073,6 +2073,10 @@ void BackProjector::reconstruct_gpu_raw(MultidimArray<RFLOAT> &vol_out,
 		cudaSetDevice(1);
 		cufftPlanMany(&zplan[1], 1, Ncol, extraembed, Ndim[0] * Ndim[1], 1, extraembed, Ndim[0] * Ndim[1], 1, CUFFT_C2C, Ndim[0] * (offsetZ[1]));
 
+		struct timeval tv1,tv2;
+		struct timezone tz;
+
+		float time_use=0;
 
 
 		for (int iter = 0; iter < max_iter_preweight; iter++)
@@ -2082,11 +2086,12 @@ void BackProjector::reconstruct_gpu_raw(MultidimArray<RFLOAT> &vol_out,
 			RCTICREC(ReconTimer,ReconS_6);
 
 			vector_Multi_layout(d_Fnewweight,d_Fweight,dataplan[0].d_Data,fullsize,Fconv.xdim,pad_size);
-
+			gettimeofday (&tv1, &tz);
 			cudaMemcpy(c_Fconv,dataplan[0].d_Data,fullsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
 
 			multi_memcpy_data_gpu(dataplan,GPU_N,Ndim[0],Ndim[1]);
-
+			gettimeofday (&tv2, &tz);
+			time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 			offset = 0;
 			for (int i = 0; i < GPU_N; i++) {
 				cudaSetDevice(dataplan[i].devicenum);
@@ -2099,24 +2104,23 @@ void BackProjector::reconstruct_gpu_raw(MultidimArray<RFLOAT> &vol_out,
 
 
 
-			cudaMemcpy(c_Fconv,dataplan[0].d_Data,dataplan[0].realsize*sizeof(cufftComplex),cudaMemcpyDeviceToHost);
-
-			for(int i=0;i<10;i++)
-				printf("%f ",c_Fconv[i].x);
-
-
+			gettimeofday (&tv1, &tz);
 			multi_sync(dataplan,GPU_N);
 			mulit_alltoall_one(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
 			multi_sync(dataplan,GPU_N);
-
+			gettimeofday (&tv2, &tz);
+			time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 
 			cudaSetDevice(0);
 			cufftExecC2C(zplan[0], dataplan[0].d_Data + fftoffset[0],dataplan[0].d_Data + fftoffset[0], CUFFT_INVERSE);
 			cudaSetDevice(1);
 			cufftExecC2C(zplan[1], dataplan[1].d_Data + fftoffset[1],dataplan[1].d_Data + fftoffset[1], CUFFT_INVERSE);
 			multi_sync(dataplan,GPU_N);
-			mulit_alltoall_all1to0(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
 
+			gettimeofday (&tv1, &tz);
+			mulit_alltoall_all1to0(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
+			gettimeofday (&tv2, &tz);
+			time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 			cudaDeviceSynchronize();
 
 
@@ -2136,8 +2140,10 @@ void BackProjector::reconstruct_gpu_raw(MultidimArray<RFLOAT> &vol_out,
 			cudaDeviceSynchronize();
 
 
-
+			gettimeofday (&tv1, &tz);
 			mulit_datacopy_0to1(dataplan, Ndim[0],Ndim[1],offsetZ);
+			gettimeofday (&tv2, &tz);
+			time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 //=========================EXE CUFFT_FORWARD
 			offset =0;
 			for (int i = 0; i < GPU_N; i++) {
@@ -2150,18 +2156,22 @@ void BackProjector::reconstruct_gpu_raw(MultidimArray<RFLOAT> &vol_out,
 			cufftExecC2C(xyextra, dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1],
 					dataplan[1].d_Data + (Ndim[2] - extraz) * Ndim[0] * Ndim[1], CUFFT_FORWARD);
 			multi_sync(dataplan,GPU_N);
-
+			gettimeofday (&tv1, &tz);
 			mulit_alltoall_one(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
 			multi_sync(dataplan,GPU_N);
+			gettimeofday (&tv2, &tz);
+			time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 			cudaSetDevice(0);
 			cufftExecC2C(zplan[0], dataplan[0].d_Data + fftoffset[0],dataplan[0].d_Data + fftoffset[0], CUFFT_FORWARD);
 			cudaSetDevice(1);
 			cufftExecC2C(zplan[1], dataplan[1].d_Data + fftoffset[1],
 					dataplan[1].d_Data + fftoffset[1], CUFFT_FORWARD);
 			multi_sync(dataplan,GPU_N);
+			gettimeofday (&tv1, &tz);
 			mulit_alltoall_all1to0(dataplan,Ndim[0],Ndim[1],Ndim[2],extraz,offsetZ);
 			multi_sync(dataplan,GPU_N);
-
+			gettimeofday (&tv2, &tz);
+			time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 			vector_Normlize(dataplan[0].d_Data, normsize ,Ndim[0]*Ndim[1]*Ndim[2]);
 
 			//gpu_kernel3
@@ -2184,10 +2194,11 @@ void BackProjector::reconstruct_gpu_raw(MultidimArray<RFLOAT> &vol_out,
 
 		}
 
+		printf("\ncpy time : %f \n",time_use);
 
 		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
 
-		double sum=0;
+/*		double sum=0;
 		printf("TEMP res :\n");
 		for(int i=0;i<Fnewweight.xdim*Fnewweight.ydim*Fnewweight.zdim;i++)
 		{
@@ -2195,7 +2206,7 @@ void BackProjector::reconstruct_gpu_raw(MultidimArray<RFLOAT> &vol_out,
 				printf("%f ",Fnewweight.data[i]);
 			sum+=Fnewweight.data[i];
 		}
-		printf("sum : %f \n",sum);
+		printf("sum : %f \n",sum);*/
 
 
 
@@ -2850,7 +2861,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 //========================reconstruct_gpu  =============================add  GPU version
 
 	int Ndim[3];
-	int GPU_N=2;
+	int GPU_N=4;
 	Ndim[0]=pad_size;
 	Ndim[1]=pad_size;
 	Ndim[2]=pad_size;
@@ -3011,6 +3022,13 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 			cudaMemcpy(d_blockone[i],tempdata+dataplan[i].selfoffset,dataplan[i].realsize*sizeof(double),cudaMemcpyHostToDevice);
 		}
 		multi_sync(dataplan,GPU_N);
+		struct timeval tv1,tv2;
+		struct timezone tz;
+
+		float time_use=0;
+
+
+
 
 
 		RFLOAT **d_tab_ftblob;
@@ -3027,9 +3045,11 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 				cufftExecC2C(xyplan[i], dataplan[i].d_Data + dataplan[i].selfoffset,dataplan[i].d_Data + dataplan[i].selfoffset, CUFFT_INVERSE);
 				cudaDeviceSynchronize();
 			}
-
+			gettimeofday (&tv1, &tz);
 
 			gpu_alltoall_multinode(dataplan,GPU_N,pad_size,offsetZ);
+			gettimeofday (&tv2, &tz);
+				time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 			multi_sync(dataplan,GPU_N);
 			for (int i = 0; i < GPU_N; i++) {
 				cudaSetDevice(dataplan[i].devicenum);
@@ -3065,9 +3085,11 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 				cufftExecC2C(zplan[i], dataplan[i].d_Data + (offsetZ[i]*pad_size),dataplan[i].d_Data + (offsetZ[i]*pad_size), CUFFT_FORWARD);
 				cudaDeviceSynchronize();
 			}
-
+			gettimeofday (&tv1, &tz);
 
 			gpu_alltoall_multinode_inverse(dataplan,GPU_N,pad_size,offsetZ);
+			gettimeofday (&tv2, &tz);
+						time_use +=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
 //=========================EXE CUFFT_FORWARD
 
 			for (int i = 0; i < GPU_N; i++) {
@@ -3107,7 +3129,8 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 		}
 		multi_sync(dataplan,GPU_N);
 		layoutchangeback(tempdata,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim,pad_size,Fnewweight.data);
-
+		printf("\ncpy time : %f \n",time_use);
+/*
 		double sum=0;
 		printf("TEMP res :\n");
 		for(int i=0;i<Fnewweight.xdim*Fnewweight.ydim*Fnewweight.zdim;i++)
@@ -3116,7 +3139,7 @@ void BackProjector::reconstruct_gpu(MultidimArray<RFLOAT> &vol_out,
 				printf("%f ",Fnewweight.data[i]);
 			sum+=Fnewweight.data[i];
 		}
-		printf("sum : %f \n",sum);
+		printf("sum : %f \n",sum);*/
 		//cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
 
 		for (int i = 0; i < GPU_N; i++) {
@@ -3936,7 +3959,7 @@ void BackProjector::reconstruct_gpu_single(MultidimArray<RFLOAT> &vol_out,
 
 
 		cudaMemcpy(Fnewweight.data,d_Fnewweight,Fnewweight.nzyxdim*sizeof(double),cudaMemcpyDeviceToHost);
-
+/*
 		double sum=0;
 		printf("TEMP res :\n");
 		for(int i=0;i<Fnewweight.xdim*Fnewweight.ydim*Fnewweight.zdim;i++)
@@ -3945,7 +3968,7 @@ void BackProjector::reconstruct_gpu_single(MultidimArray<RFLOAT> &vol_out,
 				printf("%f ",Fnewweight.data[i]);
 			sum+=Fnewweight.data[i];
 		}
-		printf("sum : %f \n",sum);
+		printf("sum : %f \n",sum);*/
 
 
 

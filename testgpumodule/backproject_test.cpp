@@ -123,14 +123,14 @@ int main(int argc, char *argv[])
 
 	MPI_Finalize();
 	return 0;
-} */
-
+}
+*/
 
 
 int main(int argc, char *argv[])
 {
 
-    int ori_size=750;
+    int ori_size=600;
 	FileName fn_root = "gpu3_half1";
 	int ref_dim=3;
 	int pad_size= 2* ori_size + 3;
@@ -196,6 +196,9 @@ int main(int argc, char *argv[])
 	// Now perform the unregularized reconstruction
 	int gridding_nr_iter=10;
 	bool do_fsc0999 = false;
+
+//	backprojector.reconstruct_gpu_raw(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
+//	backprojector.reconstruct_gpu_single(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
 //	backprojector.reconstruct(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
 //	backprojector.reconstruct_gpu(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);
 	backprojector.reconstruct_gpu_transpose(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, 1, -1, false, do_fsc0999);

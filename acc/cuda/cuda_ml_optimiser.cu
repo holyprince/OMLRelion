@@ -145,6 +145,8 @@ void MlDeviceBundle::setupFixedSizedObjects()
 				baseMLO->wsum_model.BPref[imodel].yoffsetdata);
 		backprojectors[imodel].initcompressMdl();
 
+
+
 #else
 		backprojectors[imodel].setMdlDim(
 				baseMLO->wsum_model.BPref[imodel].data.xdim,

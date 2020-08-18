@@ -4611,11 +4611,11 @@ void MlOptimiserMpi::iterate()
 //	struct timeval tv1,tv2;
 //	struct timezone tz;
 //	float time_use;
-//		gettimeofday (&tv1, &tz);
+//	gettimeofday (&tv1, &tz);
 //	printf("combine_weights_thru_disc: %d \n",combine_weights_thru_disc);
-//		if (combine_weights_thru_disc)
-//			combineAllWeightedSumsViaFile();
-//		else
+		if (combine_weights_thru_disc)
+			combineAllWeightedSumsViaFile();
+		else
 		{
 #ifdef COMGPU
 			combineAllWeightedSumsallreducewithcompress();
