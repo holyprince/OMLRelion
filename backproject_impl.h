@@ -48,8 +48,7 @@ float * gpusetdata_float(float *d_data,int N ,double *c_data);
 void vector_Multi(double *data1, float *data2, cufftComplex *res,int numElements);
 
 void vector_Multi_layout(double *data1, RFLOAT *data2, cufftComplex *res, int numElements,int dimx,int paddim);
-void vector_Multi_layout_mpi(double *data1, float *data2, cufftComplex *res,
-		int numElements,int dimx,int paddim,int zoffset);
+void vector_Multi_layout_mpi(double *data1, float *data2, cufftComplex *res,size_t numElements);
 
 cufftComplex * gpumallocdata(cufftComplex *d_outData,int N);
 void cpugetdata(tComplex<float> *c_outData, cufftComplex *d_outData,int N);
@@ -69,18 +68,18 @@ void volume_Multi_float(cufftComplex *data1, RFLOAT *data2, int numElements, int
 void volume_Multi_float_mpi(cufftComplex *data1, float *data2, int numElements, int tabxdim, double sampling ,
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);
 
-void vector_Normlize(cufftComplex *data1, long int normsize, long int numElements);
+void vector_Normlize(cufftComplex *data1, long int normsize, size_t numElements);
 void fft_Divide(cufftComplex *data1, double *Fnewweight, long int numElements,int xysize,int xsize,int ysize,int zsize,int halfxsize,int max_r2);
-void fft_Divide_mpi(cufftComplex *data1, double *Fnewweight, long int numElements,int xysize,
+void fft_Divide_mpi(cufftComplex *data1, double *Fnewweight, size_t numElements,int xysize,
 		int xsize,int ysize,int zsize, int halfxsize,int max_r2,int zoffset);
 
 
-void layoutchange(cufftComplex *data,int dimx,int dimy,int dimz, int padx, cufftComplex *newdata);
-void layoutchange(double *data,int dimx,int dimy,int dimz, int padx, double *newdata);
-void layoutchange(float *data,int dimx,int dimy,int dimz, int padx, float *newdata);
-void layoutchange(double *data,int dimx,int dimy,int dimz, int padx, float *newdata);
-void layoutchangecomp(Complex *data,int dimx,int dimy,int dimz, int padx, cufftComplex *newdata);
-void layoutchangeback(double *newdata,int dimx,int dimy,int dimz, int padx, double *data);
+void layoutchange(cufftComplex *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, cufftComplex *newdata);
+void layoutchange(double *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, double *newdata);
+void layoutchange(float *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, float *newdata);
+void layoutchange(double *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, float *newdata);
+void layoutchangecomp(Complex *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, cufftComplex *newdata);
+void layoutchangeback(double *newdata,size_t dimx,size_t dimy,size_t dimz, size_t padx, double *data);
 void windowFourier(cufftComplex *d_Fconv,cufftComplex *d_Fconv_window,int rawdim, int newdim);
 void validateconj(cufftComplex *data,int dimx,int dimy,int dimz, int padx);
 void validateconj(fftwf_complex *data,int dimx,int dimy,int dimz, int padx);
@@ -128,7 +127,7 @@ void printgpures(cufftComplex *cpu_data, int fullsize,int ranknum);
 void printgpures(double *cpu_data, int fullsize,int ranknum);
 void printgpures(float *cpu_data, int fullsize,int ranknum);
 void printwhole(double *cpu_data,  int fullszie ,int ranknum);
-void printwhole(float *cpu_data,  int fullszie ,int ranknum);
+void printwhole(float *cpu_data,  size_t fullszie ,int ranknum);
 void printwhole(cufftComplex *cpu_data,  int fullszie ,int ranknum);
 //void multi_plan_init_mpi(MultiGPUplan *plan, int GPU_N, size_t fullsize, int dimx,int dimy,int dimz,int ranknum);
 
@@ -136,7 +135,26 @@ void printwhole(cufftComplex *cpu_data,  int fullszie ,int ranknum);
 //==========================transpose version
 void dividetask(int *numberZ, int *offsetZ,int pad_size,int ranksize);
 void multi_plan_init_transpose(MultiGPUplan *plan, int GPU_N, int *numberZ, int *offsetZ, int pad_size);
-void transpose_exchange(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ);
-void yzlocal_transpose(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ);
+void multi_plan_init_transpose_multi(MultiGPUplan *plan, int GPU_N, int *numberZ, int *offsetZ, size_t pad_size,int ranknum,int ranksize);
+void transpose_exchange(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ,int *offsettmpZ);
+
+void transpose_exchange_intra(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ ,int *numberZ,
+		int *offsettmpZ,int ranknum);
+void data_exchange_gputocpu(MultiGPUplan *plan, cufftComplex *cpu_data, int GPU_N,size_t pad_size,int *offsetZ ,int ranknum);
+
+void data_exchange_cputogpu(MultiGPUplan *plan, cufftComplex *cpu_data, int GPU_N,int pad_size,int *offsetZ ,
+		int *numberZ, int *offsettmpZ, int *numbertmpZ, int ranknum,int sumranknum, int padsizetmp);
+
+
+void yzlocal_transpose(MultiGPUplan *plan,int GPU_N,int pad_size,int *numberZ,int *offsetZ,int *offsettmpZ);
 void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, int numElements, int tabxdim, double sampling ,
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);
+
+void yzlocal_transpose_multicard(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ,int *numberZ,int *offsettmpZ,int ranknum,int sumrank);
+
+void cpu_alltoalltrans_multinode(MultiGPUplan *plan,cufftComplex *cpu_data,size_t padsize, int *numberZ,
+		int *offsetZ,int ranknum,int padtmpsize,int ranksize,int *realrankarray);
+void cpu_alltozero_multinode(cufftComplex *pad_data,size_t padsize,
+		int *processnumberZ, int *processoffsetZ, int ranknum,size_t padtmpsize,int ranksize,int *realrankarray);
+void cpu_datarearrange_multinode(cufftComplex *pad_data,cufftComplex *real_data,size_t padsize, int *numberZ,int *offsetZ,
+		int *numbertmpZ,int *offsettmpZ, int ranknum,size_t padtmpsize,int sumranknum);

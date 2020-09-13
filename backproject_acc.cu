@@ -69,27 +69,13 @@ __global__ void vectorMulti_layout(double *A, RFLOAT *B, cufftComplex *C, int nu
     }
 }
 //d_blockone,d_Fweight,dataplan[0].d_Data+dataplan[0].selfoffset,dataplan[0].realsize,Fconv.xdim,pad_size
-__global__ void vectorMulti_layout_mpi(double *A, float *B, cufftComplex *C, int numElements,int dimx,int paddim,int zoffset)
+__global__ void vectorMulti_layout_mpi(double *A, float *B, cufftComplex *C, size_t numElements)
 {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     if (i < numElements)
     {
-    	int zsclie= paddim*paddim;
-    	//coordinate change
-		int zindex = i / zsclie ;
-
-		int xyslice = i % (zsclie);
-		int yindex = xyslice / paddim;
-		int xindex = xyslice % paddim;
-
-		int dimy = paddim;
-		int dimz = paddim;
-
 		C[i].x = A[i] * B[i];
 		C[i].y = 0;
-
-
-
     }
 }
 
@@ -178,9 +164,40 @@ __global__ void volumeMulti_float_transone(cufftComplex *Mconv, RFLOAT *tabdata,
 {
 
 
-    int index = blockDim.x * blockIdx.x + threadIdx.x;
+	size_t index = blockDim.x * blockIdx.x + threadIdx.x;
 
 	if (index < numElements) {
+
+		int k = index / zslice;
+		int xyslice = index % (zslice);
+		int i = xyslice / pad_size;
+		int j = xyslice % pad_size;
+
+		k=k+offset;
+		// real j , i , k ;
+
+		size_t kp = (k < padhdim) ? k : k - pad_size;
+		size_t ip = (i < padhdim) ? i : i - pad_size;
+		size_t jp = (j < padhdim) ? j : j - pad_size;
+		double rval = sqrt((double) (kp * kp + ip * ip + jp * jp)) / (ori_size * padding_factor);
+/*
+    	if (do_mask && rval > 1./(2. * padding_factor))
+    		DIRECT_A3D_ELEM(Mconv, k, i, j) = 0.;*/
+
+		//int realindex= k*(pad_size*pad_size)+ i*pad_size + j;
+		Mconv[index].x *= (tab_ftblobgetvalue(tabdata, rval, sampling, tabxdim) / normftblob);
+		Mconv[index].y =0;
+
+	}
+}
+__global__ void volumeMulti_float_transonetest(cufftComplex *Mconv, RFLOAT *tabdata, int numElements, int tabxdim, double sampling , int padhdim, int pad_size,
+		int ori_size, double padding_factor, float normftblob, int zslice, int ydim, int offset)
+{
+
+
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+
+	if (index < 2) {
 
 		int k = index / zslice;
 		int xyslice = index % (zslice);
@@ -199,13 +216,26 @@ __global__ void volumeMulti_float_transone(cufftComplex *Mconv, RFLOAT *tabdata,
     		DIRECT_A3D_ELEM(Mconv, k, i, j) = 0.;*/
 
 		//int realindex= k*(pad_size*pad_size)+ i*pad_size + j;
-		Mconv[index].x *= (tab_ftblobgetvalue(tabdata, rval, sampling, tabxdim) / normftblob);
+		//Mconv[index].x *= (tab_ftblobgetvalue(tabdata, rval, sampling, tabxdim) / normftblob);
 		Mconv[index].y =0;
+		int res;
+		int idx = (int)( ABS(rval) / sampling);
+		if (idx >= tabxdim)
+			res = 0.;
+		else
+			res= tabdata[idx];
+		printf("\n res in kernel %f \n",res);
+
+		Mconv[index+1].x= rval;
+		Mconv[index+2].x= normftblob;
+		Mconv[index+3].x= sampling;
+		Mconv[index+4].x= tabxdim;
+        Mconv[index+5].x= tabdata[0];
 
 	}
 }
 
-__global__ void vectorNormlize(cufftComplex *A, long int size , long int numElements)
+__global__ void vectorNormlize(cufftComplex *A, long int size , size_t numElements)
 {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     if (i < numElements)
@@ -249,12 +279,12 @@ __global__ void fftDivide(cufftComplex *A, double *Fnewweight, long int numEleme
 
     }
 }
-__global__ void fftDivide_mpi(cufftComplex *A, double *Fnewweight, long int numElements,int xysize,int xsize,int ysize,int zsize,int xhalfsize,int max_r2,int zoffset)
+__global__ void fftDivide_mpi(cufftComplex *A, double *Fnewweight, size_t numElements,int xysize,int xsize,int ysize,int zsize,int xhalfsize,int max_r2,int zoffset)
 {
 
 
-    int index = blockDim.x * blockIdx.x + threadIdx.x;
-    int index2;
+	size_t index = blockDim.x * blockIdx.x + threadIdx.x;
+
     if (index < numElements)
     {
 
@@ -266,7 +296,7 @@ __global__ void fftDivide_mpi(cufftComplex *A, double *Fnewweight, long int numE
 
 		k=k+zoffset;
 		if (j < xhalfsize) {
-			int kp, ip, jp;
+			size_t kp, ip, jp;
 			kp = (k < xhalfsize) ? k : k - zsize;
 			ip = (i < xhalfsize) ? i : i - ysize;
 			jp = (j < xhalfsize) ? j : j - xsize;
@@ -309,19 +339,19 @@ __global__ void fftDivide_mpi(cufftComplex *A, double *Fnewweight, long int numE
 }
 
 
-__global__ void transpositionyz(cufftComplex *src_data, cufftComplex *des_data, int dimy,int dimz, int offset,int tempydim,int pad_size)
+__global__ void transpositionyz(cufftComplex *src_data, cufftComplex *des_data, size_t dimy,size_t dimz, size_t offset,size_t tmpoffset,size_t tempydim,size_t pad_size)
 {
 
 
-	unsigned int xindex = threadIdx.x + blockIdx.x * blockDim.x;
-    unsigned int yindex = threadIdx.y + blockIdx.y * blockDim.y;
-    unsigned int zindex = blockIdx.z * blockDim.z;
+	size_t xindex = threadIdx.x + blockIdx.x * blockDim.x;
+	size_t yindex = threadIdx.y + blockIdx.y * blockDim.y;
+	size_t zindex = blockIdx.z * blockDim.z;
 
     int NX=pad_size;
     int NY=pad_size;
     if(xindex < NX && yindex < dimy && zindex < dimz )
     {
-    	des_data[yindex * NX*tempydim + (zindex + offset) *NX+ xindex ]  = src_data[zindex * NX* NY + (yindex+offset)*NX+ xindex ] ;
+    	des_data[yindex * NX*tempydim + (zindex + tmpoffset) *NX+ xindex ]  = src_data[zindex * NX* NY + (yindex+offset)*NX+ xindex ] ;
     }
 }
 
@@ -399,11 +429,11 @@ void vector_Multi_layout(double *data1, RFLOAT *data2, cufftComplex *res, int nu
     vectorMulti_layout<<<blocksPerGrid, threadsPerBlock>>>(data1, data2, res, numElements,dimx,paddim);
 	cudaDeviceSynchronize();
 }
-void vector_Multi_layout_mpi(double *data1, float *data2, cufftComplex *res, int numElements,int dimx,int paddim,int zoffset)
+void vector_Multi_layout_mpi(double *data1, float *data2, cufftComplex *res, size_t numElements)
 {
     int threadsPerBlock = 512;
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
-    vectorMulti_layout_mpi<<<blocksPerGrid, threadsPerBlock>>>(data1, data2, res, numElements,dimx,paddim,zoffset);
+    vectorMulti_layout_mpi<<<blocksPerGrid, threadsPerBlock>>>(data1, data2, res, numElements);
 	cudaDeviceSynchronize();
 }
 
@@ -457,10 +487,12 @@ void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, int numElem
     int zslice= ydim*pad_size ;
     volumeMulti_float_transone<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, tabxdim, sampling,padhdim,
     		pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
+    //volumeMulti_float_transonetest<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, tabxdim, sampling,padhdim,
+   // 	   	pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
 }
 
 
-void vector_Normlize(cufftComplex *data1, long int normsize, long int numElements)
+void vector_Normlize(cufftComplex *data1, long int normsize, size_t numElements)
 {
     int threadsPerBlock = 512;
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
@@ -475,7 +507,7 @@ void fft_Divide(cufftComplex *data1, double *Fnewweight, long int numElements,in
 	fftDivide<<<blocksPerGrid, threadsPerBlock>>>(data1, Fnewweight, numElements, xysize,xsize,ysize,zsize,halfxsize, max_r2);
 	cudaDeviceSynchronize();
 }
-void fft_Divide_mpi(cufftComplex *data1, double *Fnewweight, long int numElements,int xysize,int xsize,int ysize,int zsize, int halfxsize,int max_r2,int zoffset)
+void fft_Divide_mpi(cufftComplex *data1, double *Fnewweight, size_t numElements,int xysize,int xsize,int ysize,int zsize, int halfxsize,int max_r2,int zoffset)
 {
     int threadsPerBlock = 512;
     int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
@@ -483,7 +515,7 @@ void fft_Divide_mpi(cufftComplex *data1, double *Fnewweight, long int numElement
 	cudaDeviceSynchronize();
 }
 
-void layoutchange(cufftComplex *data,int dimx,int dimy,int dimz, int padx, cufftComplex *newdata)
+void layoutchange(cufftComplex *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, cufftComplex *newdata)
 {
 	for (int z = 0; z < dimz; z++)
 		for (int y = 0; y < dimy; y++) {
@@ -511,7 +543,7 @@ void layoutchange(cufftComplex *data,int dimx,int dimy,int dimz, int padx, cufft
 
 }
 
-void layoutchange(double *data,int dimx,int dimy,int dimz, int padx, double *newdata)
+void layoutchange(double *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, double *newdata)
 {
 	for (int z = 0; z < dimz; z++)
 		for (int y = 0; y < dimy; y++) {
@@ -536,7 +568,7 @@ void layoutchange(double *data,int dimx,int dimy,int dimz, int padx, double *new
 		}
 
 }
-void layoutchange(float *data,int dimx,int dimy,int dimz, int padx, float *newdata)
+void layoutchange(float *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, float *newdata)
 {
 	for (int z = 0; z < dimz; z++)
 		for (int y = 0; y < dimy; y++) {
@@ -560,7 +592,7 @@ void layoutchange(float *data,int dimx,int dimy,int dimz, int padx, float *newda
 			newdata[z*padx*dimy+y * padx + x]= newdata[desz*padx*dimy+desy * padx + desx];
 		}
 }
-void layoutchange(double *data,int dimx,int dimy,int dimz, int padx, float *newdata)
+void layoutchange(double *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, float *newdata)
 {
 	for (int z = 0; z < dimz; z++)
 		for (int y = 0; y < dimy; y++) {
@@ -677,7 +709,7 @@ void validateconj(cufftComplex *data,int dimx,int dimy,int dimz, int padx)
 	printf("Final different x %d\n",count1);
 	printf("Final different y %d\n",count2);
 }
-void layoutchangeback(double *newdata,int dimx,int dimy,int dimz, int padx, double *data)
+void layoutchangeback(double *newdata,size_t dimx,size_t dimy,size_t dimz, size_t padx, double *data)
 {
 	for (int z = 0; z < dimz; z++)
 		for (int y = 0; y < dimy; y++) {
@@ -685,7 +717,7 @@ void layoutchangeback(double *newdata,int dimx,int dimy,int dimz, int padx, doub
 		}
 }
 
-void layoutchangecomp(Complex *data,int dimx,int dimy,int dimz, int padx, cufftComplex *newdata)
+void layoutchangecomp(Complex *data,size_t dimx,size_t dimy,size_t dimz, size_t padx, cufftComplex *newdata)
 {
 
 	for(int z=0;z< dimz;z++)
@@ -839,7 +871,9 @@ void printdatatofile(cufftComplex *data,int N,int dimx,int flag)
 	fclose(fp);
 }*/
 
-void yzlocal_transpose(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ)
+
+//MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ,int *numberZ,int *offsettmpZ,int ranknum,int sumrank
+void yzlocal_transpose(MultiGPUplan *plan,int GPU_N,int pad_size,int *numberZ,int *offsetZ,int *offsettmpZ)
 {
 	int K =32;
 	int NX=pad_size;
@@ -849,10 +883,37 @@ void yzlocal_transpose(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ)
 		for(int desnum=0;desnum<GPU_N;desnum++)
 		{
 			dim3 threads(K,K);
-			dim3 blocks((NX + threads.x - 1)/ threads.x, (plan[desnum].selfZ + threads.y - 1) / threads.y, plan[i].selfZ);
-			int offset = offsetZ[desnum];
-			transpositionyz<<<blocks, threads>>>(plan[i].d_Data, plan[i].temp_Data,plan[desnum].selfZ,
-					plan[i].selfZ,offset,plan[i].tempydim,pad_size);
+			dim3 blocks((NX + threads.x - 1)/ threads.x, (numberZ[desnum] + threads.y - 1) / threads.y, numberZ[i]);
+			size_t offset = offsetZ[desnum];
+			size_t offsettmp = offsettmpZ[desnum];
+			transpositionyz<<<blocks, threads>>>(plan[i].d_Data, plan[i].temp_Data,numberZ[desnum],
+					numberZ[i],offset,offsettmp,plan[i].tempydim,pad_size);
+		}
+		//copy data to de
+
+		cudaDeviceSynchronize();
+	}
+}
+
+
+
+
+void yzlocal_transpose_multicard(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ,int *numberZ,int *offsettmpZ,int ranknum,int sumrank)
+{
+	int K =32;
+	int NX=pad_size;
+	for (int i = 0; i < GPU_N; i++)
+	{
+		cudaSetDevice(plan[i].devicenum);
+		int reali= i+ranknum*GPU_N;  //
+		for(int desnum=0;desnum<sumrank;desnum++)
+		{
+			dim3 threads(K,K);
+			dim3 blocks((NX + threads.x - 1)/ threads.x, (numberZ[desnum] + threads.y - 1) / threads.y, numberZ[reali]);
+			size_t offset = offsetZ[desnum];
+			size_t tmpoffset = offsettmpZ[desnum];
+			transpositionyz<<<blocks, threads>>>(plan[i].d_Data, plan[i].temp_Data,numberZ[desnum],
+					numberZ[reali],offset,tmpoffset,plan[i].tempydim, pad_size);   //int dimy,int dimz
 		}
 		//copy data to de
 

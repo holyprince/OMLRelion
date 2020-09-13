@@ -1,6 +1,76 @@
 #include "backproject_impl.h"
 
+int self_MPI_Send(void *buf, size_t count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm) {
 
+    int result(0);
+    RFLOAT start_time = MPI_Wtime();
+
+//#define ONLY_NORMAL_SEND
+//#ifdef ONLY_NORMAL_SEND
+    int unitsize(0);
+    MPI_Type_size(datatype, &unitsize);
+    size_t blocksize(512*1024*1024);
+    size_t totalsize(count*unitsize);
+    if (totalsize <= blocksize ) {
+        result = MPI_Send(buf, count, datatype, dest, tag, comm);
+
+    } else {
+        char * const buffer(reinterpret_cast<char*>(buf));
+        size_t ntimes(totalsize/blocksize);
+        size_t nremain(totalsize%blocksize);
+//        if(rank == 1)
+//        printf("send divide block %d \n",ntimes);
+        std::ptrdiff_t i(0);
+        for(; i<ntimes; ++i) {
+            result = MPI_Send(buffer+i*blocksize, blocksize, MPI_CHAR, dest, tag, comm);
+
+        }
+        if(nremain>0) {
+            result = MPI_Send(buffer+i*blocksize, nremain, MPI_CHAR, dest, tag, comm);
+
+        }
+    }
+
+
+#ifdef VERBOSE_MPISENDRECV
+        if (count > 100)
+                std::cerr <<" relion_MPI_Send: message to " << dest << " of size "<< count << " arrived in " << MPI_Wtime() - start_time << " seconds" << std::endl;
+#endif
+        return result;
+
+}
+
+int self_MPI_Recv(void *buf, size_t count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Status *status) {
+    int result=0;
+
+
+    int unitsize(0);
+    MPI_Type_size(datatype, &unitsize);
+    size_t blocksize(512*1024*1024);
+    size_t totalsize(count*unitsize);
+    if (totalsize <= blocksize ) {
+        int result_irecv = MPI_Recv(buf, count, datatype, source, tag, comm,status);
+
+    } else {
+        char * const buffer(reinterpret_cast<char*>(buf));
+        size_t ntimes(totalsize/blocksize);
+        size_t nremain(totalsize%blocksize);
+        size_t i(0);
+        for(; i<ntimes; ++i) {
+            int result_irecv = MPI_Recv(buffer+i*blocksize, blocksize, MPI_CHAR, source, tag, comm,status);
+
+        }
+        if(nremain>0) {
+            int result_irecv = MPI_Recv(buffer+i*blocksize, nremain, MPI_CHAR, source, tag, comm,status);
+        }
+    }
+#ifdef VERBOSE_MPISENDRECV
+        if (count > 100)
+                std::cerr <<" relion_MPI_Recv: message from "<<source << " of size "<< count <<" arrived in " << MPI_Wtime() - start_time << " seconds" << std::endl;
+#endif
+        return result;
+
+}
 
 void printwholeres(cufftComplex *out, int dimx,int dimy,int dimz) {
 
@@ -76,9 +146,6 @@ void dividetask(int *numberZ, int *offsetZ,int pad_size,int ranksize)
 			offsetZ[i] = offsetZ[i-1]+numberZ[i-1];
 	}
 
-	for(int i=0;i<ranksize;i++)
-		printf(" rank :%d : num %d and offset %d \n",i,numberZ[i],offsetZ[i]);
-
 }
 
 
@@ -92,6 +159,23 @@ void multi_plan_init_transpose(MultiGPUplan *plan, int GPU_N, int *numberZ, int 
 		plan[i].selfoffset = pad_size* pad_size * offsetZ[i];
 		plan[i].selfZ =  numberZ[i];
 		plan[i].tempydim = numberZ[0]*GPU_N;
+		plan[i].tempsize = pad_size * plan[i].tempydim *numberZ[0]; // use the max dimy and dimz
+		plan[i].realsize= plan[i].datasize;
+	}
+
+}
+void multi_plan_init_transpose_multi(MultiGPUplan *plan, int GPU_N, int *numberZ, int *offsetZ, size_t pad_size,int ranknum,int ranksize)
+{
+	//MultiGPUplan plan[MAXGPU];
+	int reali;
+	for (int i = 0; i < GPU_N; i++) {
+		//deviceNum[i] = i;
+		reali = i+ranknum*GPU_N;
+		plan[i].devicenum = i;
+		plan[i].datasize = pad_size* pad_size * numberZ[reali];
+		plan[i].selfoffset = pad_size* pad_size * offsetZ[reali];
+		plan[i].selfZ =  numberZ[reali];
+		plan[i].tempydim = numberZ[0]*GPU_N*ranksize;
 		plan[i].tempsize = pad_size * plan[i].tempydim *numberZ[0]; // use the max dimy and dimz
 		plan[i].realsize= plan[i].datasize;
 	}
@@ -621,6 +705,203 @@ void cpu_alltoall_multinode(MultiGPUplan *plan,cufftComplex *cpu_data,int *numbe
 	}
 
 }
+
+void cpu_alltoalltrans_multinode(MultiGPUplan *plan,cufftComplex *cpu_data,size_t padsize, int *numberZ,int *offsetZ,int ranknum,int padtmpsize,int ranksize,int *realrankarray)
+{
+// 4.2 : cpu all to all
+	//send numberZ[0] to 1
+	//recv numberZ[1] from 1
+	int desranknum;
+
+	if(ranknum==0)
+	{
+		for(int i=1;i<ranksize;i++)
+		{
+
+			size_t sendsliceoffset = padsize *offsetZ[i];
+			size_t sendslicesize =padsize*numberZ[i];
+			for(int slicenum=0;slicenum<numberZ[ranknum];slicenum++)
+			{
+				MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,realrankarray[i],0,MPI_COMM_WORLD);
+				sendsliceoffset+=padsize*padtmpsize;
+			}
+			size_t recvsliceoffset=padsize* padtmpsize *offsetZ[i];
+			size_t recvslicesize= padsize*numberZ[ranknum];
+			for(int slicenum=0;slicenum<numberZ[i];slicenum++)
+			{
+				MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, realrankarray[i] , 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE );
+				recvsliceoffset += padsize*padtmpsize;
+			}
+
+
+		}
+	}
+	else
+	{
+		desranknum = 0;  //all recv and send from 0
+		size_t recvsliceoffset=padsize*offsetZ[ranknum];
+		size_t recvslicesize=padsize*numberZ[ranknum];
+		for(int slicenum=0;slicenum<numberZ[desranknum];slicenum++)
+		{
+			MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, realrankarray[desranknum], 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			recvsliceoffset += padsize*padtmpsize;
+		}
+		size_t sendsliceoffset=padsize* padtmpsize *offsetZ[ranknum];
+		size_t sendslicesize=padsize*numberZ[desranknum];
+		for(int slicenum=0;slicenum<numberZ[ranknum];slicenum++)
+		{
+			MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,realrankarray[desranknum],0,MPI_COMM_WORLD);
+			sendsliceoffset+=padsize*padtmpsize;
+		}
+
+	}
+
+	if(ranknum==1)
+	{
+		//rank 1 send
+		for(int i=2;i<ranksize;i++)
+		{
+			size_t globaloffset=padsize*padsize*offsetZ[ranknum]; //globaloffset offsetZ[1] = number[0]
+			size_t sendsliceoffset=padsize*offsetZ[i]+globaloffset;
+			int sendslicesize=padsize*numberZ[i];
+			for(int slicenum=0;slicenum<numberZ[ranknum];slicenum++)
+			{
+				MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,realrankarray[i],0,MPI_COMM_WORLD);
+				sendsliceoffset+=padsize*padsize;
+			}
+			globaloffset=padsize*offsetZ[ranknum];
+			int recvsliceoffset=padsize*padsize*offsetZ[i]+globaloffset;
+			int recvslicesize=padsize*numberZ[ranknum];
+			for(int slicenum=0;slicenum<numberZ[i];slicenum++)
+			{
+				MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, realrankarray[i], 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				recvsliceoffset += padsize*padsize;
+			}
+		}
+	}
+	else
+	{
+		//rank 1 recv
+		if(ranknum==2||ranknum==3)
+		{
+			desranknum = 1;
+			int globaloffset=padsize*padsize*offsetZ[desranknum];
+			int recvsliceoffset=padsize*offsetZ[ranknum]+globaloffset;
+			int recvslicesize=padsize*numberZ[ranknum];
+			for(int slicenum=0;slicenum<numberZ[desranknum];slicenum++)
+			{
+				MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, realrankarray[desranknum] , 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE );
+				recvsliceoffset += padsize*padsize;
+			}
+			globaloffset=padsize*offsetZ[desranknum];
+			int sendsliceoffset = padsize *padsize*offsetZ[ranknum]+globaloffset;
+			int sendslicesize =padsize*numberZ[desranknum];
+			for(int slicenum=0;slicenum<numberZ[ranknum];slicenum++)
+			{
+				MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,realrankarray[desranknum],0,MPI_COMM_WORLD);
+				sendsliceoffset+=padsize*padsize;
+			}
+		}
+	}
+	if(ranknum==2)
+	{
+		for(int i=3;i<ranksize;i++)
+		{
+			int globaloffset=padsize*padsize*offsetZ[ranknum]; //globaloffset offsetZ[1] = number[0]
+			int sendsliceoffset=padsize*offsetZ[i]+globaloffset;
+			int sendslicesize=padsize*numberZ[i];
+			for(int slicenum=0;slicenum<numberZ[ranknum];slicenum++)
+			{
+				MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,realrankarray[i],0,MPI_COMM_WORLD);
+				sendsliceoffset+=padsize*padsize;
+			}
+			globaloffset=padsize*offsetZ[ranknum];
+			int recvsliceoffset=padsize*padsize*offsetZ[i]+globaloffset;
+			int recvslicesize=padsize*numberZ[ranknum];
+			for(int slicenum=0;slicenum<numberZ[i];slicenum++)
+			{
+				MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, realrankarray[i], 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+				recvsliceoffset += padsize*padsize;
+			}
+		}
+	}
+	else
+	{
+		if(ranknum==3)
+		{
+			desranknum = 2;
+			int globaloffset=padsize*padsize*offsetZ[desranknum];
+			int recvsliceoffset=padsize*offsetZ[ranknum]+globaloffset;
+			int recvslicesize=padsize*numberZ[ranknum];
+			for(int slicenum=0;slicenum<numberZ[desranknum];slicenum++)
+			{
+				MPI_Recv(cpu_data+recvsliceoffset, recvslicesize*2, MPI_FLOAT, realrankarray[desranknum] , 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE );
+				recvsliceoffset += padsize*padsize;
+			}
+			globaloffset=padsize*offsetZ[desranknum];
+			int sendsliceoffset = padsize *padsize*offsetZ[ranknum]+globaloffset;
+			int sendslicesize =padsize*numberZ[desranknum];
+			for(int slicenum=0;slicenum<numberZ[ranknum];slicenum++)
+			{
+				MPI_Send(cpu_data+sendsliceoffset,sendslicesize*2,MPI_FLOAT,realrankarray[desranknum],0,MPI_COMM_WORLD);
+				sendsliceoffset+=padsize*padsize;
+			}
+		}
+	}
+}
+
+
+void cpu_alltozero_multinode(cufftComplex *pad_data,size_t padsize,
+		int *processnumberZ, int *processoffsetZ, int ranknum,size_t padtmpsize,int ranksize,int *realrankarray)
+{
+
+
+	//all process send data to zero
+	int rawranknum,desranknum;
+
+	if(ranknum==0)
+	{
+		for(int i=1;i<ranksize;i++)
+		{
+			size_t recvsliceoffset = padtmpsize*padsize*processoffsetZ[i];
+			self_MPI_Recv(pad_data+recvsliceoffset,processnumberZ[i]*padtmpsize*padsize*2,MPI_FLOAT,realrankarray[i],0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		}
+	}
+	else
+	{
+		desranknum=realrankarray[0];
+		size_t sendsliceoffset = padtmpsize*padsize*processoffsetZ[ranknum];
+		//MPI_Send(pad_data+sendsliceoffset,processnumberZ[ranknum]*padtmpsize*padsize*2,MPI_FLOAT,desranknum,0,MPI_COMM_WORLD);
+		self_MPI_Send(pad_data+sendsliceoffset,processnumberZ[ranknum]*padtmpsize*padsize*2,MPI_FLOAT,desranknum,0,MPI_COMM_WORLD); //void *buf, std::ptrdiff_t count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm
+	}
+    // rearrage pad_data to cpudata
+}
+
+void cpu_datarearrange_multinode(cufftComplex *pad_data,cufftComplex *real_data,size_t padsize, int *numberZ,int *offsetZ,
+		int *numbertmpZ,int *offsettmpZ, int ranknum,size_t padtmpsize,int sumranknum)
+{
+	size_t srcaddr=0;
+	size_t desaddr=0;
+	size_t slicesize=0;
+	for(int i=0;i<sumranknum;i++)
+	{
+
+		for(int j=0;j<sumranknum;j++)
+		{
+			srcaddr=offsettmpZ[i]*padsize + offsettmpZ[j]*padsize * padtmpsize;
+			desaddr = offsetZ[j]*padsize  + offsetZ[i]*padsize*padsize;
+			slicesize = numberZ[j]*padsize;
+			for(int slicenum=0;slicenum<numberZ[i];slicenum++)   // yiding yu i xiangguna
+			{
+
+				memcpy(real_data+desaddr,pad_data+srcaddr,sizeof(cufftComplex)*slicesize);
+				srcaddr+=padsize * padtmpsize;
+				desaddr+=padsize * padsize;
+			}
+		}
+	}
+
+}
 void validatealltoall(cufftComplex *cpu_data,int *numberZ,int *offsetZ, int ranknum,int padsize)
 {
 
@@ -1115,7 +1396,7 @@ void printwhole(double *cpu_data,  int fullszie ,int ranknum)
 	}
 	printf("block2  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);*/
 }
-void printwhole(float *cpu_data,  int fullszie ,int ranknum)
+void printwhole(float *cpu_data,  size_t fullszie ,int ranknum)
 {
 	int starindex=(0);
 	int endindex=fullszie/2;
@@ -1177,7 +1458,7 @@ void printwhole(cufftComplex *cpu_data,  int fullszie ,int ranknum)
 	printf("block2  : %d from rank %d and sum is %f\n",nonzeronum,ranknum,sumnum);*/
 }
 
-void transpose_exchange(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ)
+void transpose_exchange(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ,int *offsettmpZ)
 {
 	int NX=pad_size;
 	int NY=pad_size;
@@ -1187,7 +1468,7 @@ void transpose_exchange(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ)
 		for(int desnum=0;desnum<GPU_N;desnum++)  // i -> desnum
 		{
 			int offsetcpydes=offsetZ[i]*NX;     //from where need coresponeing i offset
-			int offsetcpysrc=offsetZ[desnum]*NX;
+			int offsetcpysrc=offsettmpZ[desnum]*NX;
 			for(int j=0;j<plan[desnum].selfZ;j++)
 			{
 				cudaMemcpy(plan[desnum].d_Data+offsetcpydes,plan[i].temp_Data+offsetcpysrc,NX*plan[i].selfZ*sizeof(cufftComplex), cudaMemcpyDeviceToDevice);
@@ -1198,3 +1479,75 @@ void transpose_exchange(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ)
 		cudaDeviceSynchronize();
 	}
 }
+
+void transpose_exchange_intra(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ ,int *numberZ,
+		int *offsettmpZ,int ranknum)
+{
+	int NX=pad_size;
+	int NY=pad_size;
+	for(int i = 0; i < GPU_N; i++)
+	{
+		int reali= i+ranknum*GPU_N;
+		cudaSetDevice(plan[i].devicenum);
+		for(int desnum=0;desnum<GPU_N;desnum++)  // i -> desnum
+		{
+			size_t realdex=desnum+ranknum*GPU_N;
+			size_t offsetcpydes=offsetZ[reali]*NX;     //from where need coresponeing i offset
+			size_t offsetcpysrc=offsettmpZ[realdex]*NX;
+			for(int j=0;j<numberZ[realdex];j++)
+			{
+				cudaMemcpy(plan[desnum].d_Data+offsetcpydes,plan[i].temp_Data+offsetcpysrc,NX*numberZ[reali]*sizeof(cufftComplex), cudaMemcpyDeviceToDevice);
+				offsetcpysrc+= NX* plan[i].tempydim ;
+				offsetcpydes+= NX*NY;
+			}
+		}
+		cudaDeviceSynchronize();
+	}
+}
+
+void data_exchange_gputocpu(MultiGPUplan *plan, cufftComplex *cpu_data, int GPU_N,size_t pad_size,int *offsetZ ,int ranknum)
+{
+	//step1: tmpdata all to device
+	size_t offsetcpydes=0;
+	for(int i = 0; i < GPU_N; i++)
+	{
+		int reali= i+ ranknum*GPU_N;
+		cudaSetDevice(plan[i].devicenum);
+		offsetcpydes = offsetZ[reali]*pad_size*plan[i].tempydim;
+		cudaMemcpy(cpu_data+offsetcpydes,plan[i].temp_Data,plan[i].tempsize*sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+		cudaDeviceSynchronize();
+	}
+}
+void data_exchange_cputogpu(MultiGPUplan *plan, cufftComplex *cpu_data, int GPU_N,int pad_size,int *offsetZ ,
+		int *numberZ, int *offsettmpZ, int *numbertmpZ, int ranknum,int sumranknum, int padsizetmp)
+{
+	//step1: tmpdata all to device
+	size_t offsetcpydes=0;
+	size_t NX=pad_size;
+	//int NY=newpadsize;
+	for(int i = 0; i < GPU_N; i++)
+	{
+		int reali= i+ ranknum*GPU_N;
+		cudaSetDevice(plan[i].devicenum);
+
+		for(int desnum=0;desnum<sumranknum;desnum++)
+		{
+			size_t srcstart= offsettmpZ[desnum] * NX* padsizetmp ;
+			if(desnum >= ranknum*GPU_N  && desnum < (ranknum+1)*GPU_N) continue;
+			else
+			{
+				size_t offsetcpydes=offsetZ[desnum]*NX;
+				size_t offsetcpysrc=srcstart + offsettmpZ[reali]*NX;
+				for(int j=0;j< numberZ[i];j++)
+				{
+					cudaMemcpy(plan[i].d_Data+ offsetcpydes, cpu_data+offsetcpysrc, NX*numberZ[desnum]*sizeof(cufftComplex) ,cudaMemcpyHostToDevice);
+					offsetcpysrc += NX*padsizetmp;
+					offsetcpydes += NX*pad_size;
+				}
+			}
+		}
+		cudaDeviceSynchronize();
+	}
+}
+// from  desnum other to i
+
