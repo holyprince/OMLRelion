@@ -25,9 +25,9 @@ typedef struct
     size_t datasize; // full size and the real size is half
 
     int devicenum;
-    int selfZ;
-    int selfoffset;
-    int tempydim;
+    size_t selfZ;
+    size_t selfoffset;
+    size_t tempydim;
     size_t realsize;
     size_t tempsize; // need pad to max size
 

@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
 
 
 //MPI any dimension
-/*
+
 #define NUMP 2
 int main(int argc, char *argv[])
 {
@@ -147,12 +147,11 @@ int main(int argc, char *argv[])
 	gethostname(hostname,sizeof(hostname));
 	printf("process %d: %d on computer %s \n",my_rank,numprocs,hostname);
 
-    int ori_size=300;
+    int ori_size=750;
 
  	int ref_dim=3;
  	int pad_size= 2* ori_size + 3;
  	BackProjector backprojector(ori_size,ref_dim,"I3");
- 	int fullsize=pad_size*pad_size*pad_size;
 //	int ori_size=360;
 //	FileName fn_root = "run_ct5kdata_half1";
 //	int ref_dim=3;
@@ -230,8 +229,9 @@ int main(int argc, char *argv[])
 
 	MPI_Finalize();
 	return 0;
-}*/
+}
 
+/*
 
  // any dimension
 int main(int argc, char *argv[])

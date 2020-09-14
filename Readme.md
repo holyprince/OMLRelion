@@ -28,3 +28,6 @@ version for mixed-presion
 3.before combine data
 write data at 1,10,25
 
+
+### 2020.9.13
+including debug info for twonodes FFT

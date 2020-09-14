@@ -71,7 +71,7 @@ __global__ void vectorMulti_layout(double *A, RFLOAT *B, cufftComplex *C, int nu
 //d_blockone,d_Fweight,dataplan[0].d_Data+dataplan[0].selfoffset,dataplan[0].realsize,Fconv.xdim,pad_size
 __global__ void vectorMulti_layout_mpi(double *A, float *B, cufftComplex *C, size_t numElements)
 {
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
+	size_t i = blockDim.x * blockIdx.x + threadIdx.x;
     if (i < numElements)
     {
 		C[i].x = A[i] * B[i];
@@ -159,7 +159,7 @@ __global__ void volumeMulti_float_mpi(cufftComplex *Mconv, float *tabdata, int n
 	}
 }
 
-__global__ void volumeMulti_float_transone(cufftComplex *Mconv, RFLOAT *tabdata, int numElements, int tabxdim, double sampling , int padhdim, int pad_size,
+__global__ void volumeMulti_float_transone(cufftComplex *Mconv, RFLOAT *tabdata, size_t numElements, int tabxdim, double sampling , int padhdim, int pad_size,
 		int ori_size, double padding_factor, float normftblob, int zslice, int ydim, int offset)
 {
 
@@ -479,7 +479,7 @@ void volume_Multi_float_mpi(cufftComplex *data1, float *data2, int numElements, 
     		pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
 }
 
-void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, int numElements, int tabxdim, double sampling ,
+void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, size_t numElements, int tabxdim, double sampling ,
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset)
 {
     int threadsPerBlock = 512;
