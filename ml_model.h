@@ -455,6 +455,14 @@ public:
 	// For each group store weighted sums of squared reference as a function of resolution
 	std::vector<MultidimArray<RFLOAT > > wsum_reference_power_spectra;
 
+#ifdef TIMBPS
+	float timebp;
+	float timecalc;
+	float timememcpy;
+	int count;
+	int countsum;
+#endif
+
 	// Constructor
 	MlWsumModel()
 	{

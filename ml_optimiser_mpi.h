@@ -107,6 +107,7 @@ public:
      */
     void maximization();
     void maximization_mpi();
+    void maximization_cpu();
 
     /** Perform unregularized reconstruction
       * With the aim of performing solvent mask corrected FSC inside the auto-refine
@@ -124,6 +125,8 @@ public:
      */
     void readTemporaryDataAndWeightArraysAndReconstruct(int iclass, int ihalf);
     void readTemporaryDataAndWeightArraysAndReconstruct_gpu_trans(int iclass, int ihalf);
+    void readTemporaryDataAndWeightArraysAndReconstructmpi(int iclass, int ihalf, int my_rank);
+
 
     /**
      * Join two independent reconstructions ate the lowest frequencies to avoid convergence in distinct orientations

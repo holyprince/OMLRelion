@@ -1854,10 +1854,8 @@ void MlOptimiser::initialiseGeneral(int rank)
 	// Resize the pdf_direction arrays to the correct size and fill with an even distribution
 	if (directions_have_changed)
 		mymodel.initialisePdfDirection(sampling.NrDirections());
-
 	// Initialise the wsum_model according to the mymodel
 	wsum_model.initialise(mymodel, sampling.symmetryGroup(), asymmetric_padding, skip_gridding);
-
 	// Initialise sums of hidden variable changes
 	// In later iterations, this will be done in updateOverallChangesInHiddenVariables
 	sum_changes_optimal_orientations = 0.;
@@ -2629,10 +2627,10 @@ void MlOptimiser::expectation()
 	// Initialise some stuff
 	// A. Update current size (may have been changed to ori_size in autoAdjustAngularSampling) and resolution pointers
 	updateImageSizeAndResolutionPointers();
-
+	printf("------------------2630  \n");
 	// B. Initialise Fouriertransform, set weights in wsum_model to zero, initialise AB-matrices for FFT-phase shifts, etc
 	expectationSetup();
-
+	printf("------------------2633  \n");
 #ifdef DEBUG_EXP
 	std::cerr << "Expectation: done setup" << std::endl;
 #endif
@@ -2654,12 +2652,12 @@ void MlOptimiser::expectation()
 
 	// E. Check whether everything fits into memory
 	expectationSetupCheckMemory(verb);
-
+	printf("------------------2655  \n");
 	// F. Precalculate AB-matrices for on-the-fly shifts
 	// Use tabulated sine and cosine values instead for 2D helical segments / 3D helical sub-tomogram averaging with on-the-fly shifts
 	if ( (do_shifts_onthefly) && (!((do_helical_refine) && (!ignore_helical_symmetry))) && !(do_sgd && iter > 1))
 		precalculateABMatrices();
-
+	printf("------------------2660  \n");
 
 #ifdef DEBUG_EXP
 	std::cerr << "Expectation: done setupCheckMemory" << std::endl;
@@ -2668,14 +2666,14 @@ void MlOptimiser::expectation()
 #ifdef CUDA
 	/************************************************************************/
 	//GPU memory setup
-
+	printf("--GPU memory setup------2660  \n");
 	if (do_gpu)
     {
 		for (int i = 0; i < cudaDevices.size(); i ++)
 		{
 			MlDeviceBundle *b = new MlDeviceBundle(this);
 			b->setDevice(cudaDevices[i]);
-			b->setupFixedSizedObjects();
+			b->setupFixedSizedObjects(iter);
 			accDataBundles.push_back((void*)b);
 		}
 
@@ -3004,6 +3002,7 @@ void MlOptimiser::expectationSetup()
 	mymodel.setFourierTransformMaps(!fix_tau, nr_threads, do_gpu);
 
 	// Initialise all weighted sums to zero
+
 	wsum_model.initZeros();
 	//printf("BPref size : %d %d %d \n",wsum_model.BPref.data()->data.xdim,wsum_model.BPref.data()->data.ydim,wsum_model.BPref.data()->data.zdim);
 	// If we're doing SGD with gradual decrease of sigma2_fudge: calculate current fudge-factor here
@@ -4041,7 +4040,6 @@ void MlOptimiser::maximizationOtherParameters()
 	for (int iclass = 0; iclass < mymodel.nr_classes; iclass++)
 		sum_weight += wsum_model.pdf_class[iclass];
 
-	printf("maximazation : sum_weight: %f \n",sum_weight);
 
 	// For multi-body refinement: it is possible we haven't done any bodies anymore, so sum_weight is zero
 	// in that case we need to leave all parameters as they were
@@ -8903,8 +8901,9 @@ void MlOptimiser::checkConvergence(bool myverb)
 
 	if (do_realign_movies)
 		return;
-
+#ifndef FMDEBUG
 	if ( has_fine_enough_angular_sampling && nr_iter_wo_resol_gain >= MAX_NR_ITER_WO_RESOL_GAIN && nr_iter_wo_large_hidden_variable_changes >= MAX_NR_ITER_WO_LARGE_HIDDEN_VARIABLE_CHANGES )
+#endif
 	{
 		has_converged = true;
 		do_join_random_halves = true;

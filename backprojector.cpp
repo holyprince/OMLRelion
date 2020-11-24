@@ -127,6 +127,66 @@ void BackProjector::initZeros(int current_size)
 	weight.initZeros();
 }
 
+#ifdef BACKSLICE
+void BackProjector::initslicedata(int current_size)
+{
+
+	if(pad_size == 0)
+	{
+		if (current_size < 0)
+			r_max = ori_size / 2;
+		else
+			r_max = current_size / 2;
+
+		// Never allow r_max beyond Nyquist...
+		r_max = XMIPP_MIN(r_max, ori_size / 2);
+
+		// Set pad_size
+		pad_size = 2 * (ROUND(padding_factor * r_max) + 1) + 1;
+	}
+	int padx= pad_size /2 +1;
+	int imgx = padx / 2;
+	int imgy= (imgx-1)*2;
+	int fullsize = imgx*imgy*8;
+
+#ifdef PINMEM
+	cudaHostAlloc((void **)&cpuindex, fullsize * sizeof(int), cudaHostAllocDefault);
+	cudaHostAlloc((void **)&cpureal, fullsize * sizeof(RFLOAT), cudaHostAllocDefault);
+	cudaHostAlloc((void **)&cpuimag, fullsize * sizeof(RFLOAT), cudaHostAllocDefault);
+	cudaHostAlloc((void **)&cpuweight, fullsize * sizeof(RFLOAT), cudaHostAllocDefault);
+#else
+
+	cpuindex.resize(fullsize);
+	cpureal.resize(fullsize);
+	cpuimag.resize(fullsize);
+	cpuweight.resize(fullsize);
+	cpuindex.initZeros();
+	cpureal.initZeros();
+	cpuimag.initZeros();
+	cpuweight.initZeros();
+#endif
+
+#ifdef FILTERSLICE
+	int centerx= padx /2;
+	int centery= pad_size/2;
+	int centerz= pad_size/2;
+
+	fxsize = 300;
+	fysize = fxsize*2;
+	fzsize = fxsize*2;
+	fstartx=0;
+	fendx=fxsize;
+	fstarty = centery - fysize/2;
+	fendy = fstarty+fysize -1;
+	fstartz = centerz - fzsize /2;
+	fendz = fstartz+fzsize -1 ;
+	fxyzsize = fxsize * fysize * fzsize;
+
+#endif
+
+}
+#endif
+
 void BackProjector::backproject2Dto3D(const MultidimArray<Complex > &f2d,
 		                        const Matrix2D<RFLOAT> &A, bool inv,
 		                        const MultidimArray<RFLOAT> *Mweight,
@@ -1332,17 +1392,17 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			// That is why Fnewweight is multiplied by Fweight prior to the convolution
 
 
-			printf("data: %ld %ld %ld %ld \n",Fnewweight.ndim,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
+//			printf("data: %ld %ld %ld %ld \n",Fnewweight.ndim,Fnewweight.xdim,Fnewweight.ydim,Fnewweight.zdim);
 
 			FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(Fconv)
 			{
 				DIRECT_MULTIDIM_ELEM(Fconv, n) = DIRECT_MULTIDIM_ELEM(Fnewweight, n) * DIRECT_MULTIDIM_ELEM(Fweight, n);
 			}
-
+/*
 			printf("CPU step1: \n");
 			for(int i=0;i<0+10;i++)
 				printf("%f %f \n",Fconv.data[i].real,Fconv.data[i].imag);
-			printf("\n");
+			printf("\n");*/
 
 /*			size_t fullsize= pad_size*pad_size*pad_size;
 			cufftComplex *c_Fconv2 = (cufftComplex *)malloc(fullsize * sizeof(cufftComplex));
@@ -1416,7 +1476,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 			std::cerr << " corr_max= " << corr_max << std::endl;
 	#endif
 		}
-
+/*
 		int index=0;
 		for(int i=0;i<Fnewweight.nzyxdim;i++)
 			if(Fnewweight.data[i]!=0)
@@ -1429,7 +1489,7 @@ void BackProjector::reconstruct(MultidimArray<RFLOAT> &vol_out,
 		for(int i=index;i<index+10;i++)
 			printf("%f ",Fnewweight.data[i]);
 		printf("\n");
-
+*/
 		RCTICREC(ReconTimer,ReconS_7);
 	#ifdef DEBUG_RECONSTRUCT
 		Image<double> tttt;
@@ -5629,11 +5689,11 @@ void BackProjector::convoluteBlobRealSpace(FourierTransformer &transformer, bool
 	transformer.inverseFourierTransform();
 
 
-
+/*
 	printf("step2 from cpu : \n");
 	for(int i=0;i<0+10;i++)
 		printf("%f  \n",Mconv.data[i]);
-	printf("\n");
+	printf("\n");*/
 
 /*	maxdatareal=1; mindatareal=1000000;
 
@@ -6361,8 +6421,7 @@ void BackProjector::reconstruct_gpu_transpose(MultidimArray<RFLOAT> &vol_out,
 			{
 				cudaSetDevice(plan[i].devicenum);
 				volume_Multi_float_transone(plan[i].d_Data,d_tab_ftblob, Ndim[0]*Ndim[1]*numberZ[i],
-									tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob,
-									Ndim[1],offsetZ[i]);
+									tabxdim, tab_ftblob.sampling , pad_size/2, pad_size, ori_size, padding_factor, normftblob,Ndim[1],offsetZ[i]);
 			}
 
 

@@ -147,8 +147,12 @@ void data_exchange_cputogpu(MultiGPUplan *plan, cufftComplex *cpu_data, int GPU_
 
 
 void yzlocal_transpose(MultiGPUplan *plan,int GPU_N,int pad_size,int *numberZ,int *offsetZ,int *offsettmpZ);
-void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, int numElements, int tabxdim, double sampling ,
+//void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, int numElements, int tabxdim, double sampling ,
+	//	int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);
+
+void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, size_t numElements, int tabxdim, double sampling ,
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);
+
 
 void yzlocal_transpose_multicard(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ,int *numberZ,int *offsettmpZ,int ranknum,int sumrank);
 

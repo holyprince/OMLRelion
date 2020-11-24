@@ -488,6 +488,7 @@ will still yield good performance and possibly a more stable execution. \n" << s
 	gettimeofday (&tv1, &tz);
 #endif
 
+
     initialiseWorkLoad();
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
@@ -875,6 +876,7 @@ void MlOptimiserMpi::expectation()
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
+
 #ifdef TIMING
 		timer.toc(TIMING_EXP_1a);
 #endif
@@ -976,6 +978,7 @@ void MlOptimiserMpi::expectation()
 		node->relion_MPI_Bcast(&acc_rot, 1, MY_MPI_DOUBLE, first_slave, MPI_COMM_WORLD);
 		node->relion_MPI_Bcast(&acc_trans, 1, MY_MPI_DOUBLE, first_slave, MPI_COMM_WORLD);
 	}
+
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
 	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
@@ -1056,6 +1059,9 @@ void MlOptimiserMpi::expectation()
 
 	// Wait until expected angular errors have been calculated
 	MPI_Barrier(MPI_COMM_WORLD);
+
+	printf("=====before cuda \n");
+	fflush(stdout);
 	sleep(1);
 #ifdef TIMING
 		timer.toc(TIMING_EXP_4a);
@@ -1089,7 +1095,7 @@ void MlOptimiserMpi::expectation()
 			MlDeviceBundle *b = new MlDeviceBundle(this);
 			b->setDevice(cudaDevices[i]);
 			//printf("cuda ID : %d and my process :  %d \n",cudaDevices[i],node->rank);
-			b->setupFixedSizedObjects();
+			b->setupFixedSizedObjects(iter,fn_out);
 			accDataBundles.push_back((void*)b);
 #ifdef TIMING
 		timer.toc(TIMING_EXP_4b);
@@ -1124,9 +1130,10 @@ void MlOptimiserMpi::expectation()
 
 			size_t free, total, allocationSize;
 			HANDLE_ERROR(cudaMemGetInfo( &free, &total ));
-			//printf("%ld   %ld \n",free,total);
+
 			free = (float) free / (float)cudaDeviceShares[i];
 			size_t required_free = requested_free_gpu_memory + GPU_THREAD_MEMORY_OVERHEAD_MB*1000*1000*threadcountOnDevice[i];
+
 
 			if (free < required_free)
 			{
@@ -1135,7 +1142,6 @@ void MlOptimiserMpi::expectation()
 			}
 			else
 				allocationSize = free - required_free;
-
 			if (allocationSize < 200000000)
 				printf("WARNING: The available space on the GPU after initialization (%zu MB) might be insufficient for the expectation step.\n", allocationSize/1000000);
 
@@ -1635,8 +1641,8 @@ void MlOptimiserMpi::expectation()
 #ifdef  COMGPU
 					for (int j = 0; j < b->backprojectors.size(); j++)
 					{
-						unsigned long s = wsum_model.BPref[j].sumalldata;
-
+						//unsigned long s = wsum_model.BPref[j].sumalldata;
+						size_t s = wsum_model.BPref[j].sumalldata;
 						XFLOAT *reals = new XFLOAT[s];
 						XFLOAT *imags = new XFLOAT[s];
 						XFLOAT *weights = new XFLOAT[s];
@@ -1656,6 +1662,56 @@ void MlOptimiserMpi::expectation()
 
 						b->projectors[j].clear();
 						b->backprojectors[j].compressclear();
+					}
+
+#else
+
+#ifdef BACKSLICE
+
+#ifdef FILTERSLICE
+					for (int j = 0; j < b->backprojectors.size(); j++)
+					{
+						//unsigned long s = wsum_model.BPref[j].sumalldata;
+						size_t s = wsum_model.BPref[j].fxyzsize;
+						XFLOAT *reals = new XFLOAT[s];
+						XFLOAT *imags = new XFLOAT[s];
+						XFLOAT *weights = new XFLOAT[s];
+
+						b->backprojectors[j].getcompressMdlData(reals, imags, weights);
+
+						int mdlz=wsum_model.BPref[j].pad_size;
+						int mdly= mdlz;
+						int mdlx= mdlz / 2 + 1;
+
+						for (int z = 0; z < wsum_model.BPref[j].fzsize; z++)
+							for (int y = 0; y < wsum_model.BPref[j].fysize; y++)
+								for (int x = 0; x < wsum_model.BPref[j].fxsize; x++)
+						{
+									int rawxindex= x+wsum_model.BPref[j].fstartx;
+									int rawyindex= y+wsum_model.BPref[j].fstarty;
+									int rawzindex= z+wsum_model.BPref[j].fstartz;
+									int desindex= rawzindex * mdlx*mdly + rawyindex *mdlx+rawxindex;
+									int srcindex= z*wsum_model.BPref[j].fysize*wsum_model.BPref[j].fxsize+y*wsum_model.BPref[j].fxsize+x;
+								wsum_model.BPref[j].data.data[desindex].real = reals[srcindex];
+								wsum_model.BPref[j].data.data[desindex].imag = imags[srcindex];
+								wsum_model.BPref[j].weight.data[desindex] = weights[srcindex];
+
+						}
+
+						delete [] reals;
+						delete [] imags;
+						delete [] weights;
+
+						b->projectors[j].clear();
+						b->backprojectors[j].compressclear();
+					}
+#endif
+					for (int j = 0; j < b->backprojectors.size(); j++)
+					{
+						unsigned long s = wsum_model.BPref[j].data.nzyxdim;
+
+						b->projectors[j].clear();
+						b->backprojectors[j].clear();
 					}
 
 #else
@@ -1684,6 +1740,7 @@ void MlOptimiserMpi::expectation()
 						b->backprojectors[j].clear();
 					}
 #endif
+#endif
 					for (int j = 0; j < b->coarseProjectionPlans.size(); j++)
 						b->coarseProjectionPlans[j].clear();
 #ifdef TIMING
@@ -1697,6 +1754,9 @@ void MlOptimiserMpi::expectation()
 					delete (MlOptimiserCuda*) cudaOptimisers[i];
 
 				cudaOptimisers.clear();
+
+
+
 
 
 				for (int i = 0; i < accDataBundles.size(); i ++)
@@ -2474,7 +2534,7 @@ void MlOptimiserMpi::combineAllWeightedSumsallreducewithcompress()
 			}
 			//printf("pack finished %d \n",node->rank);
 			node->relion_MPI_Allreduce_float(MULTIDIM_ARRAY(Mpack),MULTIDIM_ARRAY(Msum),MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, MPI_SUM, node->group_comm);
-			node->relion_MPI_Allreduce(MULTIDIM_ARRAY(Mpack),MULTIDIM_ARRAY(Msum),MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, MPI_SUM, node->group_comm);
+			//node->relion_MPI_Allreduce(MULTIDIM_ARRAY(Mpack),MULTIDIM_ARRAY(Msum),MULTIDIM_SIZE(Msum), MY_MPI_DOUBLE, MPI_SUM, node->group_comm);
 			/*
 			// Loop through all slaves: each slave sends its Msum to the next slave for its subset.
 			// Each next slave sums its own Mpack to the received Msum and sends it on to the next slave
@@ -2746,11 +2806,12 @@ void MlOptimiserMpi::combineAllWeightedSumscompressdata()
 #endif
 
 }
-#endif
+
 void MlOptimiserMpi::uncompressdata()
 {
 	wsum_model.uncompressdataandweight();
 }
+#endif
 void MlOptimiserMpi::combineWeightedSumsTwoRandomHalvesViaFile()
 {
 	// Just sum the weighted halves from slave 1 and slave 2 and Bcast to everyone else
@@ -3392,7 +3453,7 @@ void MlOptimiserMpi::maximization()
 #endif
 
 }
-void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
+void MlOptimiserMpi::maximization_cpu()
 {
 #ifdef DEBUG
 	std::cerr << "MlOptimiserMpi::maximization: Entering " << std::endl;
@@ -3409,13 +3470,6 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 #endif
 
 
-/*	if (node->rank ==1)
-	{
-		printf("before maximizationOtherParameters\n");
-		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
-			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
-		printf("\n");
-	}*/
 
 	// For multi-body refinement: check if all bodies are fixed. If so, just return
 	if (mymodel.nr_bodies > 1)
@@ -3462,7 +3516,7 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 				else
 					reconstruct_rank1 = ith_recons % (node->size - 1) + 1;
 
-				if (node->rank == reconstruct_rank1 || node->rank == 3)
+				if (node->rank == reconstruct_rank1)
 				{
 					if ((wsum_model.BPref[iclass].weight).sum() > XMIPP_EQUAL_ACCURACY)
 					{
@@ -3479,11 +3533,11 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, &timer, do_fsc0999);
 #else
 
-						(wsum_model.BPref[ith_recons]).reconstruct_gpumpi(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
+						(wsum_model.BPref[ith_recons]).reconstruct(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
 								mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
 								mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
 								mymodel.fsc_halves_class[ibody], wsum_model.pdf_class[iclass],
-								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999,node->rank,2);
+								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999);
 #endif
 
 
@@ -3503,7 +3557,7 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 						}
 					}
 
-					if(node->rank == reconstruct_rank1) {
+
 					// Apply the body mask
 					if (mymodel.nr_bodies > 1)
 					{
@@ -3568,7 +3622,6 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 						readTemporaryDataAndWeightArraysAndReconstruct(ith_recons, 1);
 					}
 
-				}  // new add rank 1
 				}
 
 				// In some cases there is not enough memory to reconstruct two random halves in parallel
@@ -3581,7 +3634,7 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 				{
 					int reconstruct_rank2 = 2 * (ith_recons % ( (node->size - 1)/2 ) ) + 2;
 
-					if (node->rank == reconstruct_rank2 || node->rank == 4)
+					if (node->rank == reconstruct_rank2 )
 					{
 						// Rank 2 does not need to do the joined reconstruction
 						if (!do_join_random_halves)
@@ -3589,12 +3642,11 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 							MultidimArray<RFLOAT> Iref_old;
 							if(do_sgd)
 								Iref_old = mymodel.Iref[ith_recons];
-							//printf("Before rank2 reconstruction \n");
-							(wsum_model.BPref[ith_recons]).reconstruct_gpumpi(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
+							(wsum_model.BPref[ith_recons]).reconstruct(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
 									mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
 									mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
 									mymodel.fsc_halves_class[ibody], wsum_model.pdf_class[iclass],
-									do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999,node->rank,2);
+									do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999);
 
 							if (do_sgd)
 							{
@@ -3610,8 +3662,8 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 									DIRECT_MULTIDIM_ELEM(mymodel.Iref[ith_recons], n) = DIRECT_MULTIDIM_ELEM(Iref_old, n) + DIRECT_MULTIDIM_ELEM(mymodel.Igrad[ith_recons], n);
 								}
 							}
-							if (node->rank == reconstruct_rank2 )
-							{
+
+
 							// Apply the body mask
 							if (mymodel.nr_bodies > 1)
 							{
@@ -3666,17 +3718,16 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 							}
 							helical_rise_half2 = mymodel.helical_rise[ith_recons];
 							helical_twist_half2 = mymodel.helical_twist[ith_recons];
-							}  //end rank 2
+
 						} // end if !do_join_random_halves
 
-						if(node->rank == reconstruct_rank2)
-						{
+
 						// But rank 2 always does the unfiltered reconstruction
 						if (do_auto_refine && has_converged)
 						{
 							readTemporaryDataAndWeightArraysAndReconstruct(ith_recons, 2);
 						}
-						} // add 2 twice
+
 					}
 				}
 
@@ -3825,6 +3876,533 @@ void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
 			}
 		}
 	}
+	RCTOC(timer,RCT_2);
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
+	printf("Maximazation . send data : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
+#endif
+#ifdef TIMING
+		timer.toc(TIMING_RECONS);
+#endif
+
+	if (node->isMaster())
+	{
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
+#endif
+		RCTIC(timer,RCT_4);
+		// The master also updates the changes in hidden variables
+		updateOverallChangesInHiddenVariables();
+		RCTOC(timer,RCT_4);
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
+	printf("Maximazation . updateOverallChangesInHiddenVariables : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
+#endif
+	}
+	else
+	{
+		// Now do the maximisation of all other parameters (and calculate the tau2_class-spectra of the reconstructions
+		// The lazy master never does this: it only handles metadata and does not have the weighted sums
+#ifdef TIMEICT
+		gettimeofday (&tv1, &tz);
+#endif
+		RCTIC(timer,RCT_3);
+
+		maximizationOtherParameters();
+
+		RCTOC(timer,RCT_3);
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
+	printf("Maximazation . maximizationOtherParameters : %f and process id is %d iter num: %d \n", time_use,node->rank,iter) ;
+#endif
+	}
+	// The master broadcasts the changes in hidden variables to all other nodes
+	node->relion_MPI_Bcast(&current_changes_optimal_classes, 1, MY_MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	node->relion_MPI_Bcast(&current_changes_optimal_orientations, 1, MY_MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	node->relion_MPI_Bcast(&current_changes_optimal_offsets, 1, MY_MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	node->relion_MPI_Bcast(&nr_iter_wo_large_hidden_variable_changes, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	node->relion_MPI_Bcast(&smallest_changes_optimal_classes, 1, MY_MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	node->relion_MPI_Bcast(&smallest_changes_optimal_offsets, 1, MY_MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	node->relion_MPI_Bcast(&smallest_changes_optimal_orientations, 1, MY_MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+	if (verb > 0)
+		progress_bar(mymodel.nr_classes);
+
+	if ( (verb > 0) && (do_helical_refine) && (!ignore_helical_symmetry) )
+	{
+		outputHelicalSymmetryStatus(
+				iter,
+				helical_rise_initial,
+				mymodel.helical_rise_min,
+				mymodel.helical_rise_max,
+				helical_twist_initial,
+				mymodel.helical_twist_min,
+				mymodel.helical_twist_max,
+				do_helical_symmetry_local_refinement,
+				mymodel.helical_rise,
+				mymodel.helical_twist,
+				helical_rise_half1,
+				helical_rise_half2,
+				helical_twist_half1,
+				helical_twist_half2,
+				do_split_random_halves, // TODO: && !join_random_halves ???
+				std::cout);
+	}
+	if ( (do_helical_refine) && (!ignore_helical_symmetry) && (do_split_random_halves))
+	{
+		mymodel.helical_rise[0] = (helical_rise_half1 + helical_rise_half2) / 2.;
+		mymodel.helical_twist[0] = (helical_twist_half1 + helical_twist_half2) / 2.;
+	}
+
+#ifdef DEBUG
+	std::cerr << "MlOptimiserMpi::maximization: done" << std::endl;
+#endif
+
+}
+void MlOptimiserMpi::maximization_mpi()  //add by wangzihao
+{
+#ifdef DEBUG
+	std::cerr << "MlOptimiserMpi::maximization: Entering " << std::endl;
+#endif
+
+#ifdef TIMING
+		timer.tic(TIMING_RECONS);
+#endif
+#ifdef TIMEICT
+	struct timeval tv1,tv2;
+	struct timezone tz;
+	float time_use;
+	gettimeofday (&tv1, &tz);
+#endif
+
+
+/*	if (node->rank ==1)
+	{
+		printf("before maximizationOtherParameters\n");
+		for(int i=0;i<mymodel.data_vs_prior_class[0].nzyxdim;i++)
+			printf("%f ",mymodel.data_vs_prior_class[0].data[i]);
+		printf("\n");
+	}*/
+
+	// For multi-body refinement: check if all bodies are fixed. If so, just return
+	if (mymodel.nr_bodies > 1)
+	{
+		int all_fixed = 1;
+		for (int ibody=0; ibody < mymodel.nr_bodies; ibody++)
+			all_fixed *= mymodel.keep_fixed_bodies[ibody];
+		if (all_fixed > 0)
+			return;
+	}
+
+
+	if (verb > 0)
+	{
+		std::cout << " Maximization ..."<< std::endl;
+		init_progress_bar(mymodel.nr_classes);
+
+	}
+
+
+	RFLOAT helical_twist_half1, helical_rise_half1, helical_twist_half2, helical_rise_half2;
+	helical_twist_half1 = helical_twist_half2 = helical_twist_initial;
+	helical_rise_half1 = helical_rise_half2 = helical_rise_initial;
+
+	// First reconstruct all classes in parallel
+	for (int ibody = 0; ibody < mymodel.nr_bodies; ibody++)
+	{
+
+		if (mymodel.nr_bodies > 1 && mymodel.keep_fixed_bodies[ibody] > 0)
+			continue;
+
+		for (int iclass = 0; iclass < mymodel.nr_classes; iclass++)
+		{
+			RCTIC(timer,RCT_1);
+			// either ibody or iclass can be larger than 0, never 2 at the same time!
+			int ith_recons = (mymodel.nr_bodies > 1) ? ibody : iclass;
+
+			if (wsum_model.pdf_class[iclass] > 0.)
+			{
+				// Parallelise: each MPI-node has a different reference
+				int reconstruct_rank1;
+				if (do_split_random_halves)
+					reconstruct_rank1 = 2 * (ith_recons % ( (node->size - 1)/2 ) ) + 1;
+				else
+					reconstruct_rank1 = ith_recons % (node->size - 1) + 1;
+
+				if (node->rank == reconstruct_rank1 || node->rank == 5)
+				{
+					if ((wsum_model.BPref[iclass].weight).sum() > XMIPP_EQUAL_ACCURACY)
+					{
+						MultidimArray<RFLOAT> Iref_old;
+
+						if(do_sgd)
+							Iref_old = mymodel.Iref[ith_recons];
+
+#ifdef TIMING
+						(wsum_model.BPref[ith_recons]).reconstruct(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
+								mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
+								mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
+								mymodel.fsc_halves_class[ibody], wsum_model.pdf_class[iclass],
+								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, &timer, do_fsc0999);
+#else
+
+						(wsum_model.BPref[ith_recons]).reconstruct_gpumpicard(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
+								mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
+								mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
+								mymodel.fsc_halves_class[ibody], wsum_model.pdf_class[iclass],
+								do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999,node->rank,2);
+#endif
+
+
+						if(do_sgd)
+						{
+							// Now update formula: dV_kl^(n) = (mu) * dV_kl^(n-1) + (1-mu)*step_size*G_kl^(n)
+							// where G_kl^(n) is now in mymodel.Iref[iclass]!!!
+							FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(mymodel.Igrad[ith_recons])
+								DIRECT_MULTIDIM_ELEM(mymodel.Igrad[ith_recons], n) = mu * DIRECT_MULTIDIM_ELEM(mymodel.Igrad[ith_recons], n) +
+										(1. - mu) * sgd_stepsize * DIRECT_MULTIDIM_ELEM(mymodel.Iref[ith_recons], n);
+
+							// update formula: V_kl^(n+1) = V_kl^(n) + dV_kl^(n)
+							FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(mymodel.Iref[ith_recons])
+							{
+								DIRECT_MULTIDIM_ELEM(mymodel.Iref[ith_recons], n) = DIRECT_MULTIDIM_ELEM(Iref_old, n) + DIRECT_MULTIDIM_ELEM(mymodel.Igrad[ith_recons], n);
+							}
+						}
+					}
+
+					if(node->rank == reconstruct_rank1 ) {
+					// Apply the body mask
+					if (mymodel.nr_bodies > 1)
+					{
+						// 19may2015 translate the reconstruction back to its C.O.M.
+						selfTranslate(mymodel.Iref[ibody], mymodel.com_bodies[ibody], DONT_WRAP);
+
+//#define DEBUG_BODIES_SPI
+#ifdef DEBUG_BODIES_SPI
+						// Also write out unmasked body reconstruction
+						FileName fn_tmp;
+						fn_tmp.compose(fn_out + "_unmasked_half1_body", ibody+1,"spi");
+						Image<RFLOAT> Itmp;
+						Itmp()=mymodel.Iref[ibody];
+						Itmp.write(fn_tmp);
+#endif
+
+					}
+
+					// Apply local symmetry according to a list of masks and their operators
+					if ( (fn_local_symmetry_masks.size() >= 1) && (fn_local_symmetry_operators.size() >= 1) && (!has_converged) )
+						applyLocalSymmetry(mymodel.Iref[ith_recons], fn_local_symmetry_masks, fn_local_symmetry_operators);
+
+					// Shaoda Jul26,2015 - Helical symmetry local refinement
+					if ( (iter > 1) && (do_helical_refine) && (!ignore_helical_symmetry) && (do_helical_symmetry_local_refinement) )
+					{
+						localSearchHelicalSymmetry(
+								mymodel.Iref[ith_recons],
+								mymodel.pixel_size,
+								(particle_diameter / 2.),
+								(helical_tube_inner_diameter / 2.),
+								(helical_tube_outer_diameter / 2.),
+								helical_z_percentage,
+								mymodel.helical_rise_min,
+								mymodel.helical_rise_max,
+								mymodel.helical_rise_inistep,
+								mymodel.helical_rise[ith_recons],
+								mymodel.helical_twist_min,
+								mymodel.helical_twist_max,
+								mymodel.helical_twist_inistep,
+								mymodel.helical_twist[ith_recons]);
+					}
+					// Sjors & Shaoda Apr 2015 - Apply real space helical symmetry and real space Z axis expansion.
+					if ( (do_helical_refine) && (!ignore_helical_symmetry) && (!has_converged) )
+					{
+						imposeHelicalSymmetryInRealSpace(
+								mymodel.Iref[ith_recons],
+								mymodel.pixel_size,
+								(particle_diameter / 2.),
+								(helical_tube_inner_diameter / 2.),
+								(helical_tube_outer_diameter / 2.),
+								helical_z_percentage,
+								mymodel.helical_rise[ith_recons],
+								mymodel.helical_twist[ith_recons],
+								width_mask_edge);
+					}
+					helical_rise_half1 = mymodel.helical_rise[ith_recons];
+					helical_twist_half1 = mymodel.helical_twist[ith_recons];
+
+					}  // new add rank 1
+
+					// Also perform the unregularized reconstruction
+					if(node->rank == reconstruct_rank1 || node->rank == 5){
+					if (do_auto_refine && has_converged)
+					{
+						readTemporaryDataAndWeightArraysAndReconstructmpi(ith_recons, 1,node->rank);
+					}
+					}
+
+				}
+
+				// In some cases there is not enough memory to reconstruct two random halves in parallel
+				// Therefore the following option exists to perform them sequentially
+				if (do_sequential_halves_recons)
+					MPI_Barrier(MPI_COMM_WORLD);
+
+				// When splitting the data into two random halves, perform two reconstructions in parallel: one for each subset
+				if (do_split_random_halves)
+				{
+					int reconstruct_rank2 = 2 * (ith_recons % ( (node->size - 1)/2 ) ) + 2;
+
+					if (node->rank == reconstruct_rank2 || node->rank == 6)
+					{
+						// Rank 2 does not need to do the joined reconstruction
+						if (!do_join_random_halves)
+						{
+							MultidimArray<RFLOAT> Iref_old;
+							if(do_sgd)
+								Iref_old = mymodel.Iref[ith_recons];
+							//printf("Before rank2 reconstruction \n");
+							(wsum_model.BPref[ith_recons]).reconstruct_gpumpicard(mymodel.Iref[ith_recons], gridding_nr_iter, do_map,
+									mymodel.tau2_fudge_factor, mymodel.tau2_class[ith_recons], mymodel.sigma2_class[ith_recons],
+									mymodel.data_vs_prior_class[ith_recons], mymodel.fourier_coverage_class[ith_recons],
+									mymodel.fsc_halves_class[ibody], wsum_model.pdf_class[iclass],
+									do_split_random_halves, (do_join_random_halves || do_always_join_random_halves), nr_threads, minres_map, false, do_fsc0999,node->rank,2);
+
+							if (do_sgd)
+							{
+								// Now update formula: dV_kl^(n) = (mu) * dV_kl^(n-1) + (1-mu)*step_size*G_kl^(n)
+								// where G_kl^(n) is now in mymodel.Iref[iclass]!!!
+								FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(mymodel.Igrad[ith_recons])
+									DIRECT_MULTIDIM_ELEM(mymodel.Igrad[ith_recons], n) = mu * DIRECT_MULTIDIM_ELEM(mymodel.Igrad[ith_recons], n) +
+											(1. - mu) * sgd_stepsize * DIRECT_MULTIDIM_ELEM(mymodel.Iref[ith_recons], n);
+
+								// update formula: V_kl^(n+1) = V_kl^(n) + dV_kl^(n)
+								FOR_ALL_DIRECT_ELEMENTS_IN_MULTIDIMARRAY(mymodel.Iref[ith_recons])
+								{
+									DIRECT_MULTIDIM_ELEM(mymodel.Iref[ith_recons], n) = DIRECT_MULTIDIM_ELEM(Iref_old, n) + DIRECT_MULTIDIM_ELEM(mymodel.Igrad[ith_recons], n);
+								}
+							}
+							if (node->rank == reconstruct_rank2 )
+							{
+							// Apply the body mask
+							if (mymodel.nr_bodies > 1)
+							{
+								// 19may2015 translate the reconstruction back to its C.O.M.
+								selfTranslate(mymodel.Iref[ibody], mymodel.com_bodies[ibody], DONT_WRAP);
+
+#ifdef DEBUG_BODIES_SPI
+								FileName fn_tmp;
+								fn_tmp.compose(fn_out + "_unmasked_half2_body", ibody+1,"spi");
+								Image<RFLOAT> Itmp;
+								Itmp()=mymodel.Iref[ibody];
+								Itmp.write(fn_tmp);
+#endif
+							}
+
+							// Apply local symmetry according to a list of masks and their operators
+							if ( (fn_local_symmetry_masks.size() >= 1) && (fn_local_symmetry_operators.size() >= 1) && (!has_converged) )
+								applyLocalSymmetry(mymodel.Iref[ith_recons], fn_local_symmetry_masks, fn_local_symmetry_operators);
+
+							// Shaoda Jul26,2015 - Helical symmetry local refinement
+							if ( (iter > 1) && (do_helical_refine) && (!ignore_helical_symmetry) && (do_helical_symmetry_local_refinement) )
+							{
+								localSearchHelicalSymmetry(
+										mymodel.Iref[ith_recons],
+										mymodel.pixel_size,
+										(particle_diameter / 2.),
+										(helical_tube_inner_diameter / 2.),
+										(helical_tube_outer_diameter / 2.),
+										helical_z_percentage,
+										mymodel.helical_rise_min,
+										mymodel.helical_rise_max,
+										mymodel.helical_rise_inistep,
+										mymodel.helical_rise[ith_recons],
+										mymodel.helical_twist_min,
+										mymodel.helical_twist_max,
+										mymodel.helical_twist_inistep,
+										mymodel.helical_twist[ith_recons]);
+							}
+							// Sjors & Shaoda Apr 2015 - Apply real space helical symmetry and real space Z axis expansion.
+							if( (do_helical_refine) && (!ignore_helical_symmetry) && (!has_converged) )
+							{
+								imposeHelicalSymmetryInRealSpace(
+										mymodel.Iref[ith_recons],
+										mymodel.pixel_size,
+										(particle_diameter / 2.),
+										(helical_tube_inner_diameter / 2.),
+										(helical_tube_outer_diameter / 2.),
+										helical_z_percentage,
+										mymodel.helical_rise[ith_recons],
+										mymodel.helical_twist[ith_recons],
+										width_mask_edge);
+							}
+							helical_rise_half2 = mymodel.helical_rise[ith_recons];
+							helical_twist_half2 = mymodel.helical_twist[ith_recons];
+							}  //end rank 2
+						} // end if !do_join_random_halves
+
+						if(node->rank == reconstruct_rank2 || node->rank == 6)
+						{
+						// But rank 2 always does the unfiltered reconstruction
+						if (do_auto_refine && has_converged)
+						{
+							readTemporaryDataAndWeightArraysAndReconstructmpi(ith_recons, 2,node->rank);
+						}
+						} // add 2 twice
+					}
+				}
+
+			} // endif pdf_class[iclass] > 0.
+			else
+			{
+				// When not doing SGD, initialise to zero, but when doing SGD just keep the previous reference
+				if (!do_sgd)
+					mymodel.Iref[ith_recons].initZeros();
+				// When doing SGD also re-initialise the gradient to zero
+				if (do_sgd)
+					mymodel.Igrad[ith_recons].initZeros();
+			}
+			RCTOC(timer,RCT_1);
+//#define DEBUG_RECONSTRUCT
+#ifdef DEBUG_RECONSTRUCT
+			MPI_Barrier( MPI_COMM_WORLD);
+#endif
+		} // end for iclass
+	} // end for ibody
+#ifdef DEBUG
+	std::cerr << "rank= "<<node->rank<<" has reached barrier of reconstruction" << std::endl;
+#endif
+	printf("numrnak is %d \n",node->rank);
+	MPI_Barrier(MPI_COMM_WORLD);
+
+#ifdef TIMEICT
+	gettimeofday (&tv2, &tz);
+	time_use=1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000;
+	if(node->rank==100)
+	printf("Maximazation. reconstruction : %f and process id is %d iter num: %d\n", time_use,node->rank,iter) ;
+	gettimeofday (&tv1, &tz);
+#endif
+#ifdef DEBUG
+	std::cerr << "All classes have been reconstructed" << std::endl;
+#endif
+	RCTIC(timer,RCT_2);
+	// Once reconstructed, broadcast new models to all other nodes
+	// This cannot be done in the reconstruction loop itself because then it will be executed sequentially
+	for (int ibody = 0; ibody < mymodel.nr_bodies; ibody++)
+	{
+
+		if (mymodel.nr_bodies > 1 && mymodel.keep_fixed_bodies[ibody] > 0)
+			continue;
+
+
+		for (int iclass = 0; iclass < mymodel.nr_classes; iclass++)
+		{
+			// either ibody or iclass can be larger than 0, never 2 at the same time!
+			int ith_recons = (mymodel.nr_bodies > 1) ? ibody : iclass;
+
+			if (do_split_random_halves)
+			{
+				if (!do_join_random_halves)
+				{
+					MPI_Status status;
+					// Make sure I am sending from the rank where the reconstruction was done (see above) to all other slaves of this subset
+					// Loop twice through this, as each class was reconstructed by two different slaves!!
+					int nr_halfsets = 2;
+					for (int ihalfset = 1; ihalfset <= nr_halfsets; ihalfset++)
+					{
+						if (node->myRandomSubset() == ihalfset)
+						{
+							int reconstruct_rank = 2 * (ith_recons % ( (node->size - 1)/2 ) ) + ihalfset; // first pass halfset1, second pass halfset2
+							int my_first_recv = node->myRandomSubset();
+
+							for (int recv_node = my_first_recv; recv_node < node->size; recv_node += nr_halfsets)
+							{
+								if (node->rank == reconstruct_rank && recv_node != node->rank)
+								{
+#ifdef DEBUG
+									std::cerr << "ihalfset= "<<ihalfset<<" Sending iclass="<<iclass<<" Sending ibody="<<ibody<<" from node "<<reconstruct_rank<<" to node "<<recv_node << std::endl;
+#endif
+									node->relion_MPI_Send(MULTIDIM_ARRAY(mymodel.Iref[ith_recons]), MULTIDIM_SIZE(mymodel.Iref[ith_recons]), MY_MPI_DOUBLE, recv_node, MPITAG_IMAGE, MPI_COMM_WORLD);
+									node->relion_MPI_Send(MULTIDIM_ARRAY(mymodel.data_vs_prior_class[ith_recons]), MULTIDIM_SIZE(mymodel.data_vs_prior_class[ith_recons]), MY_MPI_DOUBLE, recv_node, MPITAG_METADATA, MPI_COMM_WORLD);
+									node->relion_MPI_Send(MULTIDIM_ARRAY(mymodel.fourier_coverage_class[ith_recons]), MULTIDIM_SIZE(mymodel.fourier_coverage_class[ith_recons]), MY_MPI_DOUBLE, recv_node, MPITAG_METADATA, MPI_COMM_WORLD);
+									node->relion_MPI_Send(MULTIDIM_ARRAY(mymodel.sigma2_class[ith_recons]), MULTIDIM_SIZE(mymodel.sigma2_class[ith_recons]), MY_MPI_DOUBLE, recv_node, MPITAG_RFLOAT, MPI_COMM_WORLD);
+									//node->relion_MPI_Send(MULTIDIM_ARRAY(mymodel.fsc_halves_class[ibody]), MULTIDIM_SIZE(mymodel.fsc_halves_class[ibody]), MY_MPI_DOUBLE, recv_node, MPITAG_RANDOMSEED, MPI_COMM_WORLD);
+								}
+								else if (node->rank != reconstruct_rank && node->rank == recv_node)
+								{
+									node->relion_MPI_Recv(MULTIDIM_ARRAY(mymodel.Iref[ith_recons]), MULTIDIM_SIZE(mymodel.Iref[ith_recons]), MY_MPI_DOUBLE, reconstruct_rank, MPITAG_IMAGE, MPI_COMM_WORLD, status);
+									node->relion_MPI_Recv(MULTIDIM_ARRAY(mymodel.data_vs_prior_class[ith_recons]), MULTIDIM_SIZE(mymodel.data_vs_prior_class[ith_recons]), MY_MPI_DOUBLE, reconstruct_rank, MPITAG_METADATA, MPI_COMM_WORLD, status);
+									node->relion_MPI_Recv(MULTIDIM_ARRAY(mymodel.fourier_coverage_class[ith_recons]), MULTIDIM_SIZE(mymodel.fourier_coverage_class[ith_recons]), MY_MPI_DOUBLE, reconstruct_rank, MPITAG_METADATA, MPI_COMM_WORLD, status);
+									node->relion_MPI_Recv(MULTIDIM_ARRAY(mymodel.sigma2_class[ith_recons]), MULTIDIM_SIZE(mymodel.sigma2_class[ith_recons]), MY_MPI_DOUBLE, reconstruct_rank, MPITAG_RFLOAT, MPI_COMM_WORLD, status);
+									//node->relion_MPI_Recv(MULTIDIM_ARRAY(mymodel.fsc_halves_class[ibody]), MULTIDIM_SIZE(mymodel.fsc_halves_class[ibody]), MY_MPI_DOUBLE, reconstruct_rank, MPITAG_RANDOMSEED, MPI_COMM_WORLD, status);
+#ifdef DEBUG
+									std::cerr << "ihalfset= "<<ihalfset<< " Received!!!="<<iclass<<" ibody="<<ibody<<" from node "<<reconstruct_rank<<" at node "<<node->rank<< std::endl;
+#endif
+								}
+							}
+						}
+					}
+					// No one should continue until we're all here
+					MPI_Barrier(MPI_COMM_WORLD);
+					// Now all slaves have all relevant reconstructions to continue
+				}
+			}
+			else
+			{
+				int reconstruct_rank = (ith_recons % (node->size - 1) ) + 1;
+				// Broadcast the reconstructed references to all other MPI nodes
+				node->relion_MPI_Bcast(MULTIDIM_ARRAY(mymodel.Iref[ith_recons]),
+						MULTIDIM_SIZE(mymodel.Iref[ith_recons]), MY_MPI_DOUBLE, reconstruct_rank, MPI_COMM_WORLD);
+				if (do_sgd)
+					node->relion_MPI_Bcast(MULTIDIM_ARRAY(mymodel.Igrad[ith_recons]),
+						MULTIDIM_SIZE(mymodel.Igrad[ith_recons]), MY_MPI_DOUBLE, reconstruct_rank, MPI_COMM_WORLD);
+				// Broadcast the data_vs_prior spectra to all other MPI nodes
+				node->relion_MPI_Bcast(MULTIDIM_ARRAY(mymodel.data_vs_prior_class[ith_recons]),
+						MULTIDIM_SIZE(mymodel.data_vs_prior_class[ith_recons]), MY_MPI_DOUBLE, reconstruct_rank, MPI_COMM_WORLD);
+				// Broadcast the fourier_coverage spectra to all other MPI nodes
+				node->relion_MPI_Bcast(MULTIDIM_ARRAY(mymodel.fourier_coverage_class[ith_recons]),
+						MULTIDIM_SIZE(mymodel.fourier_coverage_class[ith_recons]), MY_MPI_DOUBLE, reconstruct_rank, MPI_COMM_WORLD);
+				// Broadcast the sigma2_class spectra to all other MPI nodes
+				node->relion_MPI_Bcast(MULTIDIM_ARRAY(mymodel.sigma2_class[ith_recons]),
+						MULTIDIM_SIZE(mymodel.sigma2_class[ith_recons]), MY_MPI_DOUBLE, reconstruct_rank, MPI_COMM_WORLD);
+				// Broadcast helical rise and twist of this 3D class
+				if ( (do_helical_refine) && (!ignore_helical_symmetry) )
+				{
+					node->relion_MPI_Bcast(&mymodel.helical_rise[iclass], 1, MY_MPI_DOUBLE, reconstruct_rank, MPI_COMM_WORLD);
+					node->relion_MPI_Bcast(&mymodel.helical_twist[iclass], 1, MY_MPI_DOUBLE, reconstruct_rank, MPI_COMM_WORLD);
+				}
+			}
+			// Re-set the origin (this may be lost in some cases??)
+			mymodel.Iref[ith_recons].setXmippOrigin();
+			if (do_sgd)
+				mymodel.Igrad[ith_recons].setXmippOrigin();
+
+			// Aug05,2015 - Shaoda, helical symmetry refinement, broadcast refined helical parameters
+			if ( (iter > 1) && (do_helical_refine) && (!ignore_helical_symmetry) && (do_helical_symmetry_local_refinement) )
+			{
+				int reconstruct_rank1;
+				if (do_split_random_halves)
+					reconstruct_rank1 = 2 * (ith_recons % ( (node->size - 1)/2 ) ) + 1;
+				else
+					reconstruct_rank1 = ith_recons % (node->size - 1) + 1;
+				node->relion_MPI_Bcast(&helical_twist_half1, 1, MY_MPI_DOUBLE, reconstruct_rank1, MPI_COMM_WORLD);
+				node->relion_MPI_Bcast(&helical_rise_half1, 1, MY_MPI_DOUBLE, reconstruct_rank1, MPI_COMM_WORLD);
+
+				// When splitting the data into two random halves, perform two reconstructions in parallel: one for each subset
+				if (do_split_random_halves)
+				{
+					int reconstruct_rank2 = 2 * (ith_recons % ( (node->size - 1)/2 ) ) + 2;
+					node->relion_MPI_Bcast(&helical_twist_half2, 1, MY_MPI_DOUBLE, reconstruct_rank2, MPI_COMM_WORLD);
+					node->relion_MPI_Bcast(&helical_rise_half2, 1, MY_MPI_DOUBLE, reconstruct_rank2, MPI_COMM_WORLD);
+				}
+			}
+		}
+	}
+	printf("step2: numrnak is %d \n",node->rank);
 	RCTOC(timer,RCT_2);
 #ifdef TIMEICT
 	gettimeofday (&tv2, &tz);
@@ -4321,7 +4899,7 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct(int iclass, 
 	Itmp.clear();
 	//printf("Test recon \n ");
 	// Now perform the unregularized reconstruction
-	wsum_model.BPref[iclass].reconstruct_gpu(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, nr_threads, -1, false, do_fsc0999);
+	wsum_model.BPref[iclass].reconstruct(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, nr_threads, -1, false, do_fsc0999);
 
 	if (mymodel.nr_bodies > 1)
 	{
@@ -4425,6 +5003,101 @@ void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstruct_gpu_trans(in
 	// And write the resulting model to disc
 	Iunreg.write(fn_root+"_unfil.mrc");
 
+//	printf(" %d %d %f %d\n", wsum_model.BPref[iclass].ori_size, wsum_model.BPref[iclass].data_dim,wsum_model.BPref[iclass].padding_factor,wsum_model.BPref[iclass].pad_size);
+//	printf("%d \n ",wsum_model.BPref[iclass].r_min_nn);
+//	printf("%ld %ld %ld \n",wsum_model.BPref[iclass].weight.xdim,wsum_model.BPref[iclass].weight.ydim,wsum_model.BPref[iclass].weight.zdim);
+
+	/*
+	// remove temporary arrays from the disc
+#ifndef DEBUG_RECONSTRUCTION
+	if (!do_keep_debug_reconstruct_files)
+	{
+		remove((fn_root+"_data_real.mrc").c_str());
+		remove((fn_root+"_data_imag.mrc").c_str());
+		remove((fn_root+"_weight.mrc").c_str());
+	}
+#endif
+*/
+}
+void MlOptimiserMpi::readTemporaryDataAndWeightArraysAndReconstructmpi(int iclass, int ihalf,int my_rank)
+{
+	MultidimArray<RFLOAT> dummy;
+	Image<RFLOAT> Iunreg, Itmp;
+
+#ifdef DEBUG_RECONSTRUCTION
+		FileName fn_root = fn_out + "_it" + integerToString(iter, 3) + "_half" + integerToString(node->rank);;
+#else
+	FileName fn_root = fn_out + "_half" + integerToString(ihalf);;
+#endif
+	if (mymodel.nr_bodies > 1)
+		fn_root.compose(fn_root+"_body", iclass+1, "", 3);
+	else
+		fn_root.compose(fn_root+"_class", iclass+1, "", 3);
+
+	// Read temporary arrays back in
+	Itmp.read(fn_root+"_data_real.mrc");
+	Itmp().setXmippOrigin();
+	Itmp().xinit=0;
+	if (!Itmp().sameShape(wsum_model.BPref[iclass].data))
+	{
+		wsum_model.BPref[iclass].data.printShape(std::cerr);
+		Itmp().printShape(std::cerr);
+		REPORT_ERROR("Incompatible size of "+fn_root+"_data_real.mrc");
+	}
+	FOR_ALL_ELEMENTS_IN_ARRAY3D(Itmp())
+	{
+		A3D_ELEM(wsum_model.BPref[iclass].data, k, i, j).real = A3D_ELEM(Itmp(), k, i, j);
+	}
+
+	Itmp.read(fn_root+"_data_imag.mrc");
+	Itmp().setXmippOrigin();
+	Itmp().xinit=0;
+	if (!Itmp().sameShape(wsum_model.BPref[iclass].data))
+	{
+		wsum_model.BPref[iclass].data.printShape(std::cerr);
+		Itmp().printShape(std::cerr);
+		REPORT_ERROR("Incompatible size of "+fn_root+"_data_imag.mrc");
+	}
+	FOR_ALL_ELEMENTS_IN_ARRAY3D(Itmp())
+	{
+		A3D_ELEM(wsum_model.BPref[iclass].data, k, i, j).imag = A3D_ELEM(Itmp(), k, i, j);
+	}
+
+	Itmp.read(fn_root+"_weight.mrc");
+	Itmp().setXmippOrigin();
+	Itmp().xinit=0;
+	if (!Itmp().sameShape(wsum_model.BPref[iclass].weight))
+	{
+		wsum_model.BPref[iclass].weight.printShape(std::cerr);
+		Itmp().printShape(std::cerr);
+		REPORT_ERROR("Incompatible size of "+fn_root+"_weight.mrc");
+	}
+	FOR_ALL_ELEMENTS_IN_ARRAY3D(Itmp())
+	{
+		A3D_ELEM(wsum_model.BPref[iclass].weight, k, i, j) = A3D_ELEM(Itmp(), k, i, j);
+	}
+	Itmp.clear();
+	//printf("Test recon \n ");
+	// Now perform the unregularized reconstruction
+	wsum_model.BPref[iclass].reconstruct_gpumpicard(Iunreg(), gridding_nr_iter, false, 1., dummy, dummy, dummy, dummy, dummy, 1., false, true, nr_threads, -1, false, do_fsc0999,my_rank,2);
+
+
+	if(my_rank ==1 || my_rank ==2)
+	{
+		if (mymodel.nr_bodies > 1)
+		{
+			// 19may2015 translate the reconstruction back to its C.O.M.
+			selfTranslate(Iunreg(), mymodel.com_bodies[iclass], DONT_WRAP);
+		}
+
+		// Update header information
+		Iunreg.setStatisticsInHeader();
+		Iunreg.setSamplingRateInHeader(mymodel.pixel_size);
+		// And write the resulting model to disc
+		Iunreg.write(fn_root+"_unfil.mrc");
+
+	}
+	Iunreg.clear();
 //	printf(" %d %d %f %d\n", wsum_model.BPref[iclass].ori_size, wsum_model.BPref[iclass].data_dim,wsum_model.BPref[iclass].padding_factor,wsum_model.BPref[iclass].pad_size);
 //	printf("%d \n ",wsum_model.BPref[iclass].r_min_nn);
 //	printf("%ld %ld %ld \n",wsum_model.BPref[iclass].weight.xdim,wsum_model.BPref[iclass].weight.ydim,wsum_model.BPref[iclass].weight.zdim);
@@ -4556,8 +5229,9 @@ void MlOptimiserMpi::iterate()
 		updateSubsetSize(node->isMaster());
 
 		// Randomly take different subset of the particles each time we do a new "iteration" in SGD
-		//mydata.randomiseOriginalParticlesOrder(random_seed+iter, do_split_random_halves,  subset_size < mydata.numberOfOriginalParticles() );
-
+#ifdef RANDOM
+		mydata.randomiseOriginalParticlesOrder(random_seed+iter, do_split_random_halves,  subset_size < mydata.numberOfOriginalParticles() );
+#endif
 		// Nobody can start the next iteration until everyone has finished
 		MPI_Barrier(MPI_COMM_WORLD);
 
@@ -4566,6 +5240,17 @@ void MlOptimiserMpi::iterate()
 			checkConvergence(node->rank == 1);
 
 		expectation();
+
+#ifdef TIMBPS
+		printf("Process %d ||   Time : %f %f %f \n",node->rank,wsum_model.timebp,wsum_model.timememcpy,wsum_model.timecalc);
+		printf("Count : %d %d \n",wsum_model.count,wsum_model.countsum);
+#endif
+
+
+
+
+
+
 #ifdef DEBUG
 		std::cerr << " finished expectation..." << std::endl;
 #endif
@@ -4792,7 +5477,13 @@ void MlOptimiserMpi::iterate()
 #endif
 
 
-		maximization();
+//
+		//maximization();
+#ifdef MAXCPU
+		maximization_cpu();
+#else
+		maximization_mpi();
+#endif
 #ifdef TIMEICT
 	gettimeofday (&tv1, &tz);
 #endif

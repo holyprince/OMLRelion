@@ -67,8 +67,16 @@
 #endif
 
 //#define TIMING
-#define COMGPU
+//#define COMGPU
+#define FMDEBUG
+//
+//#define RANDOM
+#define BACKSLICE
+#define FILTERSLICE
+//#define PINMEM
+#define TIMBPS
 
+//#define MAXCPU
 #define RELION_SINGLE_PRECISION
 
 #ifdef RELION_SINGLE_PRECISION
