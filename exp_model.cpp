@@ -357,10 +357,12 @@ void Experiment::divideOriginalParticlesInRandomHalves(int seed, bool do_helical
 			for (long int i = 0; i < ori_particles.size(); i++)
 			{
 				int random_subset = rand() % 2 + 1;
+#ifndef RANDOM
 				if(i<ori_particles.size()/2)
 					random_subset=1;
 				else
 					random_subset=2;
+#endif
 				ori_particles[i].random_subset = random_subset; // randomly 1 or 2
 				if (random_subset == 1)
 					nr_ori_particles_subset1++;

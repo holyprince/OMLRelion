@@ -1,0 +1,213 @@
+#include <omp.h>
+#include <time.h>
+#include <iostream>
+#include <ctime>
+#include <mpi.h>
+#include "cuda_runtime.h"
+#include <cuda_runtime_api.h>
+#include "cuda.h"
+#include "device_launch_parameters.h"
+#include <unistd.h>
+#include <stdlib.h>
+#include "../reconstructor.h"
+#include "../acc/cuda/cuda_kernels/BPsort.cuh"
+#define DS 22560000
+
+void cuda_kernel_sort(int *d_index,XFLOAT *d_real,int numElements,
+		int *cpuindex,XFLOAT *cpureal)
+{
+	thrust::device_ptr<int> keys(d_index);
+	thrust::device_ptr<XFLOAT> vals0(d_real);
+//	thrust::device_ptr<XFLOAT> vals1(d_imag);
+//	thrust::device_ptr<XFLOAT> vals2(d_weight);
+
+	// allocate space for the output
+	thrust::device_vector<XFLOAT> sortedVals0(numElements);
+//	thrust::device_vector<XFLOAT> sortedvals1(numElements);
+//	thrust::device_vector<XFLOAT> sortedvals2(numElements);
+
+	// initialize indices vector to [0,1,2,..]
+	thrust::counting_iterator<int> iter(0);
+	thrust::device_vector<int> indices(numElements);
+	thrust::copy(iter, iter + indices.size(), indices.begin());
+
+	// first sort the keys and indices by the keys
+	//thrust::sort_by_key(keys.begin(), keys.end(), indices.begin());
+	thrust::sort_by_key(keys, keys+numElements, indices.begin(),thrust::greater<int>());
+	//thrust::sort(keys, keys+numElements,thrust::greater<int>());
+	// Now reorder the ID arrays using the sorted indices
+	thrust::gather(indices.begin(), indices.end(), vals0, sortedVals0.begin());
+//	thrust::gather(indices.begin(), indices.end(), vals1, sortedvals1.begin());
+//	thrust::gather(indices.begin(), indices.end(), vals2, sortedvals2.begin());
+
+
+//	thrust::host_vector<int>   h_index = indices;
+	thrust::host_vector<XFLOAT>   h_real = sortedVals0;
+//	thrust::host_vector<XFLOAT>   h_imag = sortedvals1;
+//	thrust::host_vector<XFLOAT>   h_weight = sortedvals2;
+	d_index = thrust::raw_pointer_cast(keys);
+	cudaMemcpy(cpuindex,d_index,sizeof(int)*numElements,cudaMemcpyDeviceToHost);
+
+	for(int i=0;i<numElements;i++)
+	{
+		//cpuindex[i]=h_index[i];
+		cpureal[i]=h_real[i];
+//		cpuimag[i]=h_imag[i];
+//		cpuweight[i]=h_weight[i];
+	}
+
+}
+
+
+
+int main (int argc, char* argv[]) {
+	char hostname[100];
+	int rank, size;
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+	gethostname(hostname, sizeof(hostname));
+	 int count=0;
+	printf("Hello world from process %d of %d: host: %s\n", rank, size,
+			hostname);
+
+	FileName fn_root_real = "1103omp_itreal";
+	FileName fn_root_index = "1103omp_itindex";
+
+	Image<RFLOAT> Itmpreal, Itmpindex;
+
+	int iter = rank;
+	fn_root_real.compose(fn_root_real, iter, "mrc", 3);
+	fn_root_index.compose(fn_root_index, iter, "mrc", 3);
+	printf("%s \n", fn_root_real.c_str());
+
+	// Read temporary arrays back in
+	Itmpreal.read(fn_root_real);
+	Itmpindex.read(fn_root_index);
+	long int x, y, z, n;
+	Itmpreal().getDimensions(x, y, z, n);
+	printf("%d %d %d \n", x, y, z);
+
+
+
+	count = 0;
+	 for(int i=0;i<x*y;i++)
+	 {
+	 if(Itmpreal().data[i]!=0)
+		 count++;
+	 }
+	 printf("count: %d \n",count);
+
+	int i = 0;
+//	Itmp().setXmippOrigin();
+//	Itmp().xinit=0;
+
+
+
+	int imgsize = x * y;
+	//for(int i=0;i<10;i++)
+
+	int fullsize = 362 * 723 * 723;
+	float *datareal = (float*) malloc(sizeof(float) * fullsize);
+	float *dataindex = (float*) malloc(sizeof(float) * fullsize);
+
+	memset(datareal, 0, sizeof(float) * fullsize);
+	memset(dataindex, 0, sizeof(float) * fullsize);
+
+	int *cpuindex = (int*) malloc(sizeof(int) * imgsize);
+	for (int i = 0; i < imgsize; i++)
+		cpuindex[i] = Itmpindex().data[i];
+
+/*	for(int i=0;i<imgsize;i++)
+	{
+		cpuindex[i]=i;
+		Itmpreal().data[i]=imgsize-i;
+	}*/
+
+	struct timeval tv1, tv2;
+	struct timezone tz;
+	gettimeofday(&tv1, &tz);
+
+
+
+	 int *d_index;
+	 float *d_realdata;
+	 cudaMalloc((void **)&d_index,sizeof(int)*imgsize);
+	 cudaMalloc((void **)&d_realdata,sizeof(float)*imgsize);
+
+
+	 printf("Before:\n");
+	 count=0;
+	 for(int i=0;i<imgsize;i++)
+	 {
+	 if(Itmpreal().data[i]!=0)
+	 count++;
+	 }
+	 printf("%d \n",count);
+
+	 cudaMemcpy(d_index,cpuindex,sizeof(int)*imgsize,cudaMemcpyHostToDevice);
+	 cudaMemcpy(d_realdata,Itmpreal().data,sizeof(float)*imgsize,cudaMemcpyHostToDevice);
+	 //cuda_kernel_backproject3D_sortbykey(d_index,d_realdata,imgsize,cpuindex,Itmpreal().data);
+	 cuda_kernel_sort(d_index,d_realdata,imgsize,cpuindex,Itmpreal().data);
+
+
+
+	 printf("After:\n");
+
+
+
+	for (int i = 0; i < x * y; i++) {
+
+		size_t index = cpuindex[i];
+		datareal[index] += Itmpreal().data[i];
+	}
+/*
+	int minindex = 1000000000;
+	int maxindex = 0;
+	for(i=0;i<x * y;i++)
+	{
+		if(cpuindex[i]<minindex && cpuindex[i] !=0)
+			minindex = cpuindex[i];
+		if(cpuindex[i] > maxindex)
+			maxindex=cpuindex[i];
+	}
+
+	printf("minindex and maxindex : %d  %d\n",minindex,maxindex);*/
+
+	count = 0;
+	while (count < 10) {
+		if (datareal[i] != 0) {
+			printf("%d %f\n", i, datareal[i]);
+			count++;
+		}
+		i++;
+		if (i == fullsize)
+			break;
+	}
+
+
+
+
+	gettimeofday(&tv2, &tz);
+	float timetres = (float) (1000 * (tv2.tv_sec - tv1.tv_sec)
+			+ (tv2.tv_usec - tv1.tv_usec) / 1000.0);
+	printf("Time and %f %d\n", timetres, rank);
+
+	for (int i = 0; i < imgsize; i++)
+		Itmpindex().data[i]=cpuindex[i];
+
+
+	Itmpindex.setStatisticsInHeader();
+	Itmpindex.setSamplingRateInHeader(1);
+	FileName fn_root_res = "1103omp_itres";
+	fn_root_res.compose(fn_root_res, iter, "mrc", 3);
+
+	Itmpindex.write(fn_root_res);
+	Itmpindex.clear();
+
+
+	MPI_Finalize();
+	return 0;
+
+}

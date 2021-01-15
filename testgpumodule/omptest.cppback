@@ -1,0 +1,100 @@
+#include <omp.h>
+#include <time.h>
+#include <iostream>
+#include <ctime>
+#include <mpi.h>
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include <unistd.h>
+#include <stdlib.h>
+#include "../reconstructor.h"
+
+#define DS 22560000
+void testopenmp()
+{
+    time_t start,end1;
+    time( &start );
+    int a = 0;
+    double omp_start = omp_get_wtime( );
+    int *data=(int *)malloc(sizeof(int)*DS);
+
+   #pragma omp parallel for num_threads(4)
+    for (int i = 0; i < DS; ++i)
+    {
+    	data[i]=100;
+    	data[i] = i*100+data[i];
+        for (int j = 0; j < 10000; j++);
+    }
+    time( &end1 );
+    double omp_end = omp_get_wtime( );
+    std::cout<<std::endl;
+    std::cout<<"Time_used " <<((end1 - start))<<"s"<<std::endl;
+    std::cout<<"omp_time: "<<((omp_end - omp_start))<<std::endl;
+}
+
+
+
+
+int main (int argc, char* argv[]) {
+  char hostname[100];
+  int rank, size;
+  MPI_Init (&argc, &argv);
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &size);
+
+  gethostname(hostname,sizeof(hostname));
+
+  printf( "Hello world from process %d of %d: host: %s\n", rank, size, hostname);
+
+
+
+	FileName fn_root_real = "1103omp_itreal";
+	FileName fn_root_index = "1103omp_itindex";
+
+	Image<RFLOAT> Itmpreal,Itmpindex;
+
+	int iter=rank;
+	fn_root_real.compose(fn_root_real, iter, "mrc", 3);
+	fn_root_index.compose(fn_root_index, iter, "mrc", 3);
+	printf("%s \n",fn_root_real.c_str());
+
+	// Read temporary arrays back in
+	Itmpreal.read(fn_root_real);
+	Itmpindex.read(fn_root_index);
+
+//	Itmp().setXmippOrigin();
+//	Itmp().xinit=0;
+
+	long int x,y,z,n;
+	Itmpreal().getDimensions(x,y,z,n);
+	printf("%d %d %d \n",x,y,z);
+	//for(int i=0;i<10;i++)
+
+	int fullsize= 362*723*723;
+	float *datareal=(float*)malloc(sizeof(float)*fullsize);
+	float *dataindex=(float*)malloc(sizeof(float)*fullsize);
+
+	memset(datareal,0,sizeof(float)*fullsize);
+	memset(dataindex,0,sizeof(float)*fullsize);
+
+    struct timeval tv1,tv2;
+		struct timezone tz;
+	    gettimeofday (&tv1, &tz);
+//#pragma omp parallel for num_threads(4)
+	for(int i=0;i<x*y;i++)
+	{
+
+		size_t index = Itmpindex().data[i];
+		datareal[index]+= Itmpreal().data[i];
+		datareal[index]+= Itmpreal().data[i];
+		datareal[index]+= Itmpreal().data[i];
+	}
+	   gettimeofday (&tv2, &tz);
+	   float timetres= (float)(1000 * (tv2.tv_sec-tv1.tv_sec)+ (tv2.tv_usec-tv1.tv_usec)/1000.0);
+	   printf("Time and %f %d\n",timetres,rank);
+
+
+  MPI_Finalize();
+  return 0;
+
+}

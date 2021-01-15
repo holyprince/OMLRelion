@@ -413,7 +413,7 @@ int MpiNode::relion_MPI_Allreduce(void* send_data,void* recv_data,std::ptrdiff_t
 
 }
 
-int MpiNode::relion_MPI_Allreduce_float(RFLOAT* send_data,RFLOAT* recv_data,std::ptrdiff_t count,MPI_Datatype datatype,MPI_Op op,MPI_Comm communicator)
+int MpiNode::relion_MPI_Allreduce_float(RFLOAT* send_data,RFLOAT* recv_data,long int count,MPI_Datatype datatype,MPI_Op op,MPI_Comm communicator)
 {
 
     int result(0);
@@ -437,7 +437,7 @@ int MpiNode::relion_MPI_Allreduce_float(RFLOAT* send_data,RFLOAT* recv_data,std:
     	int offset=blocksize/unitsize; //offset = blocknum;
     	const std::ptrdiff_t nremain(totalsize%blocksize);
     	int remainnum=nremain/unitsize;
-    	printf("ALL reduce offset :%d remainnum :%d ntimes :%d\n",offset,remainnum,ntimes);
+    	//printf("ALL reduce offset :%d remainnum :%d ntimes :%d\n",offset,remainnum,ntimes);
         std::ptrdiff_t i(0);
         for(; i<ntimes; ++i) {
             result = MPI_Allreduce(send_data+i*offset,recv_data+i*offset,offset,datatype,op,communicator);

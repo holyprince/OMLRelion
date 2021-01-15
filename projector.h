@@ -42,9 +42,9 @@ public:
 #ifdef COMGPU
     MultidimArray<RFLOAT > compdatareal;
     MultidimArray<RFLOAT > compdataimag;
-    int *yoffsetdata;
+    size_t *yoffsetdata;
     int *ydata;
-    int sumalldata;
+    size_t sumalldata;
 #endif
     // Only points within this many pixels from the origin (in the original size) will be interpolated
     int r_max;
@@ -196,6 +196,7 @@ public:
     * Depending on whether 2D or 3D Fourier Transforms will be extracted, the map is normalized internally in a different manner
     *
     */
+   void compress_projection_data();
    void computeFourierTransformMap(MultidimArray<RFLOAT> &vol_in, MultidimArray<RFLOAT> &power_spectrum, int current_size = -1, int nr_threads = 1, bool do_gridding = true, bool do_heavy = true);
 
    /* This is experimental: apply a mask in Fourier-space to focus refinements on certain Fourier components

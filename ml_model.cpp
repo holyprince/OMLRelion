@@ -1412,11 +1412,22 @@ void MlWsumModel::initZeros()
     sigma2_tilt = 0.;
     sigma2_psi = 0.;
 
+#ifdef TIMBPS
+    timebp=0;
+    timecalc = 0;
+    timememcpy =0;
+    count=0;
+    countsum=0;
+#endif
+
     // Set all weighted sums to zero
 
     for (int iclass = 0; iclass < nr_classes * nr_bodies; iclass++)
     {
     	BPref[iclass].initZeros(current_size);
+#ifdef BACKSLICE
+    	BPref[iclass].initslicedata(current_size);
+#endif
         // Assume pdf_direction is already of the right size...
         pdf_direction[iclass].initZeros();
     }
@@ -1802,7 +1813,6 @@ void MlWsumModel::pack(MultidimArray<RFLOAT> &packed, int &piece, int &nr_pieces
         REPORT_ERROR("MlWsumModel::pack: idx != idx_stop-idx_start");
 
     }
-    printf("%llu  %llu \n",packed_size,ori_idx);
 
 }
 #ifdef COMGPU
@@ -2700,29 +2710,29 @@ void MlWsumModel::unpackpart2(MultidimArray<int> &packed, int piece, bool do_cle
     }
 
 }
-
+#ifdef COMGPU
 void MlWsumModel::uncompressdataandweight()
 {
-#ifdef COMGPU
-	int rawoffset=0;
-	int compressoffset=0;
-	int ydim=BPref[0].data.ydim;
-	int zdim=BPref[0].data.zdim;
-	int xdim=BPref[0].data.xdim;
+
+	size_t rawoffset=0;
+	size_t compressoffset=0;
+	size_t ydim=BPref[0].data.ydim;
+	size_t zdim=BPref[0].data.zdim;
+	size_t xdim=BPref[0].data.xdim;
 
 	BPref[0].weight.initZeros(zdim,ydim,xdim);
 	BPref[0].data.initZeros(zdim,ydim,xdim);
 
-	printf("test weight : %d %d \n",BPref[0].weight.yinit,BPref[0].weight.zinit);
+	printf("test weight : %ld %ld \n",BPref[0].weight.yinit,BPref[0].weight.zinit);
 
 
-	for(int i=0;i<zdim;i++)
-		for(int j=0;j<ydim;j++)
+	for(size_t i=0;i<zdim;i++)
+		for(size_t j=0;j<ydim;j++)
 		{
-			int curiindex=i*ydim+j;
+			size_t curiindex=i*ydim+j;
 			if(BPref[0].ydata[curiindex] !=0 )
 			{
-				for(int k=0;k<BPref[0].ydata[curiindex];k++)
+				for(size_t k=0;k<BPref[0].ydata[curiindex];k++)
 				{
 					BPref[0].data.data[rawoffset+k].real=BPref[0].compdatareal.data[compressoffset+k];
 					BPref[0].data.data[rawoffset+k].imag=BPref[0].compdataimag.data[compressoffset+k];
@@ -2738,7 +2748,8 @@ void MlWsumModel::uncompressdataandweight()
 	BPref[0].compweight.clear();
 	free(BPref[0].ydata);
 	free(BPref[0].yoffsetdata);
-#endif
+
 }
+#endif
 
 

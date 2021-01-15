@@ -1,0 +1,140 @@
+
+#include "../reconstructor.h"
+
+#include "complex.h"
+#include <cmath>
+
+int main(int argc, char **argv)
+{
+
+	//FileName fn_root_raw = "1021cpu_itrealcpu";
+	//FileName fn_root_slice = "1021_itreal";
+	FileName fn_root_raw = "1021_itreal";
+	FileName fn_root_slice = "1021slice_itreal";
+
+
+
+	Image<RFLOAT> Itmpraw,Itmpslice;
+
+	int iter=1;
+	fn_root_raw.compose(fn_root_raw, iter, "mrc", 3);
+	fn_root_slice.compose(fn_root_slice, iter, "mrc", 3);
+
+	printf("%s \n",fn_root_raw.c_str());
+
+	// Read temporary arrays back in
+	Itmpraw.read(fn_root_raw);
+	Itmpslice.read(fn_root_slice);
+
+//	Itmp().setXmippOrigin();
+//	Itmp().xinit=0;
+
+	long int x,y,z,n;
+	Itmpraw().getDimensions(x,y,z,n);
+	printf("raw dim : %d %d %d \n",x,y,z);
+
+	Itmpslice().getDimensions(x,y,z,n);
+	printf("slice dim: %d %d %d \n",x,y,z);
+
+	int sumres=x*y*z;
+	int count=0;
+	for(int i=0;i<sumres;i++)
+	{
+		if(fabs(Itmpraw().data[i]-Itmpslice().data[i])>0.000001)
+		{
+			printf(" %d %f %f \n",i,Itmpraw().data[i],Itmpslice().data[i]);
+			count++;
+		}
+
+		//if(i==8306185)
+		//	printf("%f ",Itmpraw().data[i]-Itmpslice().data[i]);
+	}
+
+	printf("count :%d \n",count);
+	//for(int i=0;i<10;i++)
+/*
+	int pad_size=y;
+	int xdim=x;
+	int padding_factor = 2;
+	int r_max = ((pad_size - 1)/2 -1 )/2;
+	printf("%d \n",r_max);
+	int max_r2= ROUND((r_max+2) * padding_factor) * ROUND((r_max+2) * padding_factor);
+	int *ydata;
+	Itmpreal().setXmippOrigin();
+	Itmpreal().xinit=0;
+
+	ydata=(int *)malloc(sizeof(int)*pad_size*pad_size);
+	memset(ydata,0,sizeof(int)*pad_size*pad_size);
+	for(int iz=0;iz<pad_size;iz++)
+		for(int jy=0;jy<pad_size;jy++)
+		{
+			int xtemp=max_r2 - (iz+ Itmpreal().zinit)*(iz+ Itmpreal().zinit) - (jy+Itmpreal().yinit)*(jy+Itmpreal().yinit);
+			if(xtemp<=0)
+				ydata[iz*pad_size+jy]= 0;
+			else
+			{
+				int ydatatemp=(int)sqrt(xtemp-0.01)+1;
+				if(ydatatemp>Itmpreal().xdim)
+					ydata[iz*pad_size+jy]= Itmpreal().xdim;
+				else
+					ydata[iz*pad_size+jy]=ydatatemp;
+			}
+
+		}
+
+	size_t *yoffsetdata=(size_t *)malloc(sizeof(size_t)*pad_size*pad_size);
+	yoffsetdata[0]=0;
+	for(int cur=1;cur<pad_size*pad_size;cur++)
+		yoffsetdata[cur]=yoffsetdata[cur-1]+ydata[cur-1];
+	size_t sumalldata=yoffsetdata[pad_size*pad_size-1]+ydata[pad_size*pad_size-1];
+    MultidimArray<RFLOAT > compdatareal;
+    MultidimArray<RFLOAT > compdataimag;
+	compdatareal.resize(sumalldata);
+	compdataimag.resize(sumalldata);
+	printf("sumalldata : %d \n",sumalldata);
+	compress_projection_data(compdatareal,Itmpreal(),ydata,pad_size,sumalldata);
+//	compress_projection_data(compdataimag,Itmpreal(),ydata,pad_size,sumalldata);
+	printf("compdatareal.data[1000] %f \n",compdatareal.data[132900]);
+	MultidimArray<RFLOAT > newcomdata;
+
+	newcomdata.resize(pad_size,pad_size,xdim);
+
+	newcomdata.setXmippOrigin();
+	newcomdata.xinit=0; // ! need for init
+	uncompress_projection_data(newcomdata, compdatareal,ydata,pad_size,xdim);
+
+	int count=0;
+	printf("%d %d %d \n",newcomdata.xdim,newcomdata.ydim,newcomdata.zdim);
+	printf("%d %d %d \n",newcomdata.xinit,newcomdata.yinit,newcomdata.zinit);
+
+	Itmpreal.setStatisticsInHeader();
+	Itmpreal.setSamplingRateInHeader(1);
+	// And write the resulting model to disc
+	Itmpreal.write("tempraw.mrc");
+
+	Itmpimag()=newcomdata;
+	Itmpimag.setStatisticsInHeader();
+	Itmpimag.setSamplingRateInHeader(1);
+	// And write the resulting model to disc
+	Itmpimag.write("tempcomm.mrc");
+
+
+	FOR_ALL_ELEMENTS_IN_ARRAY3D(newcomdata)
+	{
+		if(A3D_ELEM(newcomdata, k, i, j) != A3D_ELEM(Itmpreal(), k, i, j))
+		{
+			A3D_ELEM(Itmpreal(), k, i, j)=1;
+			count++;
+		}
+		else
+			A3D_ELEM(Itmpreal(), k, i, j)=0;
+	}
+
+
+
+	Itmpreal.setStatisticsInHeader();
+	Itmpreal.setSamplingRateInHeader(1);
+	// And write the resulting model to disc
+	Itmpreal.write("diff.mrc");
+	printf("%d Success\n",count);*/
+}

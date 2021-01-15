@@ -1,0 +1,74 @@
+Image<float> datacpu(wsum_model.BPref[0].weight.xdim,wsum_model.BPref[0].weight.ydim,wsum_model.BPref[0].weight.zdim);
+memcpy(datacpu.data.data,wsum_model.BPref[0].weight.data,wsum_model.BPref[0].weight.nzyxdim*sizeof(float));
+datacpu.setStatisticsInHeader();
+datacpu.setSamplingRateInHeader(1);
+FileName fn_root;
+fn_root.compose(fn_out+"_itreal", node->rank, "mrc", 3);
+datacpu.write(fn_root);
+datacpu.clear();
+
+
+#ifdef 	FMDEBUG
+
+/*
+		FileName fn_root;
+		fn_root.compose(fn_out+"_itreal", iter, "mrc", 3);
+		char a[100];
+		memset(a,0,sizeof(char)*100);
+		Image<RFLOAT> Iunregtest;
+
+		//sprintf(a,"PROJreal%03d.mrc",iter);
+		Iunregtest.data.resize(baseMLO->mymodel.PPref[imodel].data);
+		FOR_ALL_ELEMENTS_IN_ARRAY3D(Iunregtest())
+		{
+			 A3D_ELEM(Iunregtest(), k, i, j) = A3D_ELEM(baseMLO->mymodel.PPref[imodel].data, k, i, j).real;
+		}
+		// Update header information
+		Iunregtest.setStatisticsInHeader();
+		Iunregtest.setSamplingRateInHeader(1);
+		// And write the resulting model to disc
+		//std::string str(a);
+		Iunregtest.write(fn_root);
+		fn_root.compose(fn_out+"_itimag", iter, "mrc", 3);
+		FOR_ALL_ELEMENTS_IN_ARRAY3D(Iunregtest())
+		{
+			 A3D_ELEM(Iunregtest(), k, i, j) = A3D_ELEM(baseMLO->mymodel.PPref[imodel].data, k, i, j).imag;
+		}
+		// Update header information
+		Iunregtest.setStatisticsInHeader();
+		Iunregtest.setSamplingRateInHeader(1);
+		// And write the resulting model to disc
+
+		Iunregtest.write(fn_root);
+		Iunregtest.clear();
+*/
+#endif
+
+
+
+
+///////////////////////////////////
+				if(op.my_ori_particle ==0)
+				{
+					Image<float> datacpu(imgx*8,imgy);
+					Image<float> dataindex(imgx*8,imgy);
+					FileName fn_root;
+					fn_root.compose(baseMLO->fn_out+"_itreal", imagenum, "mrc", 3);
+					FileName fn_rootin;
+					fn_rootin.compose(baseMLO->fn_out+"_itindex", imagenum, "mrc", 3);
+
+					for(int i=0;i<imgx * imgy * 8;i++)
+					{
+						datacpu.data.data[i]=baseMLO->wsum_model.BPref[0].cpureal.data[i];
+						dataindex.data.data[i]=baseMLO->wsum_model.BPref[0].cpuindex.data[i];
+					}
+
+					datacpu.setStatisticsInHeader();
+					datacpu.setSamplingRateInHeader(1);
+					dataindex.setStatisticsInHeader();
+					dataindex.setSamplingRateInHeader(1);
+					datacpu.write(fn_root);
+					dataindex.write(fn_rootin);
+					datacpu.clear();
+					dataindex.clear();
+				}

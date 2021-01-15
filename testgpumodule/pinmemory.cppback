@@ -1,0 +1,146 @@
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "iostream"
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <mpi.h>
+using namespace std;
+
+float cuda_host_alloc_test(int size, bool up)
+{
+	cudaEvent_t start, stop;
+	float elapsedTime;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
+	int *a, *dev_a;
+
+	cudaError_t cudaStatus = cudaHostAlloc((void **)&a, size * sizeof(int), cudaHostAllocDefault);
+	if (cudaStatus != cudaSuccess)
+	{
+		printf("host alloc fail!\n");
+		return -1;
+	}
+
+	cudaStatus = cudaMalloc((void **)&dev_a, size * sizeof(int));
+	if (cudaStatus != cudaSuccess)
+	{
+		fprintf(stderr, "cudaMalloc failed!\n");
+		return -1;
+	}
+
+	cudaEventRecord(start, 0);
+
+	for (int i = 0; i < 100; i++)
+	{
+
+/*		cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
+		if (cudaStatus != cudaSuccess)
+		{
+			fprintf(stderr, "cudaMemcpy Host to Device failed!\n");
+			return -1;
+		}*/
+
+		cudaStatus = cudaMemcpy(a, dev_a, size * sizeof(int), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess)
+		{
+			fprintf(stderr, "cudaMemcpy Device to Host failed!\n");
+			return -1;
+		}
+	}
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&elapsedTime, start, stop);
+
+	cudaFreeHost(a);
+	cudaFree(dev_a);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+
+	return (float)elapsedTime / 1000;
+
+}
+
+float cuda_host_Malloc_test(int size, bool up)
+{
+	cudaEvent_t start, stop;
+	float elapsedTime;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
+	int *a, *dev_a;
+
+	a = (int*)malloc(size * sizeof(int));
+
+	cudaError_t	cudaStatus = cudaMalloc((void **)&dev_a, size * sizeof(int));
+	if (cudaStatus != cudaSuccess)
+	{
+		fprintf(stderr, "cudaMalloc failed!\n");
+		return -1;
+	}
+
+	cudaEventRecord(start, 0);
+
+	for (int i = 0; i < 100; i++)
+	{
+/*
+		cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
+		if (cudaStatus != cudaSuccess)
+		{
+			fprintf(stderr, "cudaMemcpy Host to Device failed!\n");
+			return -1;
+		}
+*/
+		cudaStatus = cudaMemcpy(a, dev_a, size * sizeof(int), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess)
+		{
+			fprintf(stderr, "cudaMemcpy Device to Host failed!\n");
+			return -1;
+		}
+	}
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&elapsedTime, start, stop);
+
+	free(a);
+	cudaFree(dev_a);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+
+	return (float)elapsedTime / 1000;
+}
+
+int main()
+{
+	float allocTime = cuda_host_alloc_test(521280, true);
+	cout << "pinned " << allocTime << " s" << endl;
+	float mallocTime = cuda_host_Malloc_test(521280, true);
+	cout << "pageable " << mallocTime << " s" << endl;
+	getchar();
+	return 0;
+}
+
+
+/*
+int main (int argc, char* argv[]) {
+  char hostname[100];
+  int rank, size;
+  MPI_Init (&argc, &argv);
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &size);
+
+  gethostname(hostname,sizeof(hostname));
+
+  printf( "Hello world from process %d of %d: host: %s\n", rank, size, hostname);
+  cudaSetDevice(rank);
+  float allocTime = cuda_host_alloc_test(2256000, true);
+  cout << "pinned " << allocTime << " s" << endl;
+  float mallocTime = cuda_host_Malloc_test(2256000, true);
+  cout << "pageable " << mallocTime << " s" << endl;
+
+
+  MPI_Finalize();
+  return 0;
+
+}*/

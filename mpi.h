@@ -102,7 +102,7 @@ public:
     int relion_MPI_Bcast(void *buffer, long int count, MPI_Datatype datatype, int root, MPI_Comm comm);
 
     int relion_MPI_Allreduce(void* send_data,void* recv_data,std::ptrdiff_t count,MPI_Datatype datatype,MPI_Op op,MPI_Comm communicator);
-    int relion_MPI_Allreduce_float(RFLOAT* send_data,RFLOAT* recv_data,std::ptrdiff_t count,MPI_Datatype datatype,MPI_Op op,MPI_Comm communicator);
+    int relion_MPI_Allreduce_float(RFLOAT* send_data,RFLOAT* recv_data,long int count,MPI_Datatype datatype,MPI_Op op,MPI_Comm communicator);
     /* Better error handling of MPI error messages */
     void report_MPI_ERROR(int error_code);
 

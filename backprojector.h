@@ -41,6 +41,32 @@ public:
 #ifdef COMGPU
 	MultidimArray<RFLOAT> compweight;
 #endif
+
+
+
+#ifdef PINMEM
+
+	int* cpuindex;
+	RFLOAT* cpureal;
+	RFLOAT* cpuimag;
+	RFLOAT* cpuweight;
+#endif
+#ifdef BACKSLICE
+
+	MultidimArray<int> cpuindex;
+	MultidimArray<RFLOAT> cpureal;
+	MultidimArray<RFLOAT> cpuimag;
+	MultidimArray<RFLOAT> cpuweight;
+#endif
+
+#ifdef 	FILTERSLICE
+	int fstartx,fendx;
+	int fstarty,fendy;
+	int fstartz,fendz;
+	int fxsize,fysize,fzsize;
+	int fxyzsize;
+
+#endif
 	// Tabulated blob values
 	TabFtBlob tab_ftblob;
 
@@ -165,6 +191,14 @@ public:
 
 	void clear()
 	{
+#ifdef BACKSLICE
+#ifndef PINMEM
+		cpuindex.clear();
+		cpureal.clear();
+		cpuimag.clear();
+		cpuweight.clear();
+#endif
+#endif
 		skip_gridding = false;
 		weight.clear();
 		Projector::clear();
@@ -179,7 +213,9 @@ public:
 
 	// Initialise data and weight arrays to the given size and set all values to zero
 	void initZeros(int current_size = -1);
-
+#ifdef BACKSLICE
+	void initslicedata(int current_size = -1);
+#endif
 	/*
 	* Set a 2D Fourier Transform back into the 2D or 3D data array
 	* Depending on the dimension of the map, this will be a backprojection or a rotation operation

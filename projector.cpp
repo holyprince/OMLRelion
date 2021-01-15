@@ -93,7 +93,7 @@ void Projector::initialiseData(int current_size)
 			}
 
 		}
-	yoffsetdata=(int *)malloc(sizeof(int)*pad_size*pad_size);
+	yoffsetdata=(size_t *)malloc(sizeof(size_t)*pad_size*pad_size);
 	yoffsetdata[0]=0;
 	for(int cur=1;cur<pad_size*pad_size;cur++)
 		yoffsetdata[cur]=yoffsetdata[cur-1]+ydata[cur-1];
@@ -157,6 +157,41 @@ long int Projector::getSize()
 	}
 
 }
+
+
+#ifdef COMGPU
+void Projector::compress_projection_data()
+{
+
+	size_t rawoffset=0;
+	size_t compressoffset=0;
+	size_t ydim=data.ydim;
+	size_t zdim=data.zdim;
+	size_t xdim=data.xdim;
+
+	compdatareal.initZeros(sumalldata);
+	compdataimag.initZeros(sumalldata);
+	//imagdata.initZeros(zdim,ydim,xdim);
+
+
+	for(size_t i=0;i<zdim;i++)
+		for(size_t j=0;j<ydim;j++)
+		{
+			size_t curiindex=i*ydim+j;
+			if(ydata[curiindex] !=0 )
+			{
+				//memset(data.data+);
+				for(size_t k=0;k<ydata[curiindex];k++)
+				{
+					compdatareal.data[compressoffset+k]=data.data[rawoffset+k].real;
+					compdataimag.data[compressoffset+k]=data.data[rawoffset+k].imag;
+				} //206576 132900
+			}
+			compressoffset += ydata[curiindex];
+			rawoffset+=xdim;
+		}
+}
+#endif
 
 // Fill data array with oversampled Fourier transform, and calculate its power spectrum
 void Projector::computeFourierTransformMap(MultidimArray<RFLOAT> &vol_in, MultidimArray<RFLOAT> &power_spectrum, int current_size, int nr_threads, bool do_gridding, bool do_heavy)
@@ -279,7 +314,9 @@ void Projector::computeFourierTransformMap(MultidimArray<RFLOAT> &vol_in, Multid
 			}
 		}
 	TIMING_TOC(TIMING_FAUX);
-
+#ifdef COMGPU
+	compress_projection_data();
+#endif
 	TIMING_TIC(TIMING_POW);
 	// Calculate radial average of power spectrum
 	if(do_heavy)

@@ -1,0 +1,427 @@
+
+#include "../reconstructor.h"
+#include "cufft.h"
+#include "complex.h"
+#include <cmath>
+
+
+
+void uncompress_projection_data(MultidimArray<RFLOAT > &desdata, MultidimArray<RFLOAT > srcdata,int *ydata, int pad_size,int xdim)
+{
+
+	size_t rawoffset=0;
+	size_t compressoffset=0;
+	size_t ydim=pad_size;
+	size_t zdim=pad_size;
+
+
+	desdata.initZeros(zdim,ydim,xdim);
+
+
+	for(size_t i=0;i<zdim;i++)
+		for(size_t j=0;j<ydim;j++)
+		{
+			size_t curiindex=i*ydim+j;
+			if(ydata[curiindex] !=0 )
+			{
+				for(size_t k=0;k<ydata[curiindex];k++)
+				{
+					//desdata.data[rawoffset+k].real=BPref[0].compdatareal.data[compressoffset+k];
+					//BPref[0].data.data[rawoffset+k].imag=BPref[0].compdataimag.data[compressoffset+k];
+					desdata.data[rawoffset+k]=srcdata.data[compressoffset+k];
+				}
+			}
+
+			compressoffset += ydata[curiindex];
+			rawoffset+=xdim;
+		}
+/*	BPref[0].compdatareal.clear();
+	BPref[0].compdataimag.clear();
+	BPref[0].compweight.clear();
+	free(BPref[0].ydata);
+	free(BPref[0].yoffsetdata);*/
+
+}
+/*
+void compress_projection_data(MultidimArray<RFLOAT > realdata,MultidimArray<RFLOAT > imagdata, MultidimArray<Complex > data,int *ydata, int pad_size,)
+{
+
+	size_t rawoffset=0;
+	size_t compressoffset=0;
+	size_t ydim=data.ydim;
+	size_t zdim=data.zdim;
+	size_t xdim=data.xdim;
+
+	realdata.initZeros(zdim,ydim,xdim);
+	imagdata.initZeros(zdim,ydim,xdim);
+
+
+	printf("test weight : %ld %ld \n",realdata.yinit,realdata.zinit);
+
+
+	for(size_t i=0;i<zdim;i++)
+		for(size_t j=0;j<ydim;j++)
+		{
+			size_t curiindex=i*ydim+j;
+			if(ydata[curiindex] !=0 )
+			{
+				//memset(data.data+);
+				for(size_t k=0;k<BPref[0].ydata[curiindex];k++)
+				{
+					realdata.data[compressoffset+k]=data.data[rawoffset+k].real;
+					imagdata.data[compressoffset+k] = data.data[rawoffset+k].imag;
+				}
+			}
+			compressoffset += ydata[curiindex];
+			rawoffset+=xdim;
+		}
+	data.clear();
+	//free(BPref[0].ydata);
+	//free(BPref[0].yoffsetdata);
+}*/
+void compress_projection_data(MultidimArray<RFLOAT > &desdata, MultidimArray<RFLOAT > srcdata,int *ydata, int pad_size,int sumalldata)
+{
+
+	size_t rawoffset=0;
+	size_t compressoffset=0;
+	size_t ydim=srcdata.ydim;
+	size_t zdim=srcdata.zdim;
+	size_t xdim=srcdata.xdim;
+
+	desdata.initZeros(sumalldata);
+	//imagdata.initZeros(zdim,ydim,xdim);
+
+
+	printf("test weight : %ld %ld \n",srcdata.yinit,srcdata.zinit);
+
+
+	for(size_t i=0;i<zdim;i++)
+		for(size_t j=0;j<ydim;j++)
+		{
+			size_t curiindex=i*ydim+j;
+			if(ydata[curiindex] !=0 )
+			{
+				//memset(data.data+);
+				for(size_t k=0;k<ydata[curiindex];k++)
+				{
+					desdata.data[compressoffset+k]=srcdata.data[rawoffset+k];
+
+					//if(srcdata.data[rawoffset+k] !=0)
+					//	printf("%d %d \n",rawoffset+k,compressoffset+k);
+				} //206576 132900
+			}
+			compressoffset += ydata[curiindex];
+			rawoffset+=xdim;
+		}
+	//srcdata.clear();
+	//free(BPref[0].ydata);
+	//free(BPref[0].yoffsetdata);
+}
+/*
+void initcompressdata(MultidimArray<RFLOAT > realdata,MultidimArray<RFLOAT > imagdata, int *ydata, int pad_size)
+{
+
+
+	int max_r2= ROUND((r_max+2) * padding_factor) * ROUND((r_max+2) * padding_factor);
+
+	ydata=(int *)malloc(sizeof(int)*pad_size*pad_size);
+	memset(ydata,0,sizeof(int)*pad_size*pad_size);
+	for(int iz=0;iz<pad_size;iz++)
+		for(int jy=0;jy<pad_size;jy++)
+		{
+			int xtemp=max_r2 - (iz+ data.zinit)*(iz+ data.zinit) - (jy+data.yinit)*(jy+data.yinit);
+			if(xtemp<=0)
+				ydata[iz*pad_size+jy]= 0;
+			else
+			{
+				int ydatatemp=(int) sqrt(xtemp-0.01)+1;
+				if(ydatatemp>data.xdim)
+					ydata[iz*pad_size+jy]= data.xdim;
+				else
+					ydata[iz*pad_size+jy]=ydatatemp;
+			}
+
+		}
+	yoffsetdata=(size_t *)malloc(sizeof(size_t)*pad_size*pad_size);
+	yoffsetdata[0]=0;
+	for(int cur=1;cur<pad_size*pad_size;cur++)
+		yoffsetdata[cur]=yoffsetdata[cur-1]+ydata[cur-1];
+	sumalldata=yoffsetdata[pad_size*pad_size-1]+ydata[pad_size*pad_size-1];
+	compdatareal.resize(sumalldata);
+	compdataimag.resize(sumalldata);
+}*/
+
+
+int main()
+{
+
+
+//	printf("%s \n",fn_proj);
+
+	FileName fn_root_real = "2w5cpu_itreal";
+	FileName fn_root_imag = "2w5cpu_itimag";
+
+	Image<RFLOAT> Itmpreal,Itmpimag;
+
+	int iter=19;
+	fn_root_real.compose(fn_root_real, iter, "mrc", 3);
+
+
+	printf("%s \n",fn_root_real.c_str());
+
+	// Read temporary arrays back in
+	Itmpreal.read(fn_root_real);
+
+//	Itmp().setXmippOrigin();
+//	Itmp().xinit=0;
+
+	long int x,y,z,n;
+	Itmpreal().getDimensions(x,y,z,n);
+	printf("%d %d %d \n",x,y,z);
+	//for(int i=0;i<10;i++)
+
+	int pad_size=y;
+	int xdim=x;
+	int padding_factor = 2;
+	int r_max = ((pad_size - 1)/2 -1 )/2;
+	printf("%d \n",r_max);
+	int max_r2= ROUND((r_max+2) * padding_factor) * ROUND((r_max+2) * padding_factor);
+	int *ydata;
+	Itmpreal().setXmippOrigin();
+	Itmpreal().xinit=0;
+
+	ydata=(int *)malloc(sizeof(int)*pad_size*pad_size);
+	memset(ydata,0,sizeof(int)*pad_size*pad_size);
+	for(int iz=0;iz<pad_size;iz++)
+		for(int jy=0;jy<pad_size;jy++)
+		{
+			int xtemp=max_r2 - (iz+ Itmpreal().zinit)*(iz+ Itmpreal().zinit) - (jy+Itmpreal().yinit)*(jy+Itmpreal().yinit);
+			if(xtemp<=0)
+				ydata[iz*pad_size+jy]= 0;
+			else
+			{
+				int ydatatemp=(int)sqrt(xtemp-0.01)+1;
+				if(ydatatemp>Itmpreal().xdim)
+					ydata[iz*pad_size+jy]= Itmpreal().xdim;
+				else
+					ydata[iz*pad_size+jy]=ydatatemp;
+			}
+
+		}
+
+	size_t *yoffsetdata=(size_t *)malloc(sizeof(size_t)*pad_size*pad_size);
+	yoffsetdata[0]=0;
+	for(int cur=1;cur<pad_size*pad_size;cur++)
+		yoffsetdata[cur]=yoffsetdata[cur-1]+ydata[cur-1];
+	size_t sumalldata=yoffsetdata[pad_size*pad_size-1]+ydata[pad_size*pad_size-1];
+    MultidimArray<RFLOAT > compdatareal;
+    MultidimArray<RFLOAT > compdataimag;
+	compdatareal.resize(sumalldata);
+	compdataimag.resize(sumalldata);
+	printf("sumalldata : %d \n",sumalldata);
+	compress_projection_data(compdatareal,Itmpreal(),ydata,pad_size,sumalldata);
+//	compress_projection_data(compdataimag,Itmpreal(),ydata,pad_size,sumalldata);
+	printf("compdatareal.data[1000] %f \n",compdatareal.data[132900]);
+	MultidimArray<RFLOAT > newcomdata;
+
+	newcomdata.resize(pad_size,pad_size,xdim);
+
+	newcomdata.setXmippOrigin();
+	newcomdata.xinit=0; // ! need for init
+	uncompress_projection_data(newcomdata, compdatareal,ydata,pad_size,xdim);
+
+	int count=0;
+	printf("%d %d %d \n",newcomdata.xdim,newcomdata.ydim,newcomdata.zdim);
+	printf("%d %d %d \n",newcomdata.xinit,newcomdata.yinit,newcomdata.zinit);
+
+	Itmpreal.setStatisticsInHeader();
+	Itmpreal.setSamplingRateInHeader(1);
+	// And write the resulting model to disc
+	Itmpreal.write("tempraw.mrc");
+
+	Itmpimag()=newcomdata;
+	Itmpimag.setStatisticsInHeader();
+	Itmpimag.setSamplingRateInHeader(1);
+	// And write the resulting model to disc
+	Itmpimag.write("tempcomm.mrc");
+
+
+	FOR_ALL_ELEMENTS_IN_ARRAY3D(newcomdata)
+	{
+		if(A3D_ELEM(newcomdata, k, i, j) != A3D_ELEM(Itmpreal(), k, i, j))
+		{
+			A3D_ELEM(Itmpreal(), k, i, j)=1;
+			count++;
+		}
+		else
+			A3D_ELEM(Itmpreal(), k, i, j)=0;
+	}
+
+/*
+	for(int i=0;i<xdim*pad_size*pad_size;i++)
+	{
+		if(newcomdata.data[i]!=Itmpreal().data[i])
+			count++;
+	}
+*/
+
+	Itmpreal.setStatisticsInHeader();
+	Itmpreal.setSamplingRateInHeader(1);
+	// And write the resulting model to disc
+	Itmpreal.write("diff.mrc");
+	printf("%d Success\n",count);
+
+
+
+
+/*
+
+
+	for(int i=0;i<10;i++)
+	{
+		Image<RFLOAT> Iunregtest;
+		sprintf(a,"TEST%03d.mrc",i);
+		Iunregtest.data.resize(backprojector.weight);
+		FOR_ALL_ELEMENTS_IN_ARRAY3D(Iunregtest())
+		{
+			 A3D_ELEM(Iunregtest(), k, i, j) = A3D_ELEM(backprojector.weight, k, i, j) ;
+		}
+		// Update header information
+		Iunregtest.setStatisticsInHeader();
+		Iunregtest.setSamplingRateInHeader(1);
+		// And write the resulting model to disc
+		std::string str(a);
+		Iunregtest.write(str);
+//		Iunregtest.clear();
+
+	}
+
+
+
+
+
+    int ori_size=100;
+	int ref_dim=3;
+	int pad_size= 2* ori_size + 3;
+	BackProjector backprojector(ori_size,ref_dim,"D2");
+
+//	int ori_size=360;
+//	FileName fn_root = "run_ct5kdata_half1";
+//	int ref_dim=3;
+//	int pad_size= 2* ori_size + 3;
+//	BackProjector backprojector(ori_size,ref_dim,"C1");
+
+
+//set back project para :
+	backprojector.pad_size= pad_size;
+	backprojector.data.coreAllocate(1,pad_size,pad_size,pad_size/2+1);
+	backprojector.weight.coreAllocate(1,pad_size,pad_size,pad_size/2+1);
+	backprojector.data.setXmippOrigin();
+	backprojector.data.xinit=0;
+	backprojector.weight.setXmippOrigin();
+	backprojector.weight.xinit=0;
+	backprojector.r_max=ori_size/2;  //add by self
+	int _blob_order = 0;
+	RFLOAT _blob_radius = 1.9;
+	RFLOAT _blob_alpha = 15;
+	backprojector.tab_ftblob.initialise(_blob_radius * 2., _blob_alpha, _blob_order, 10000);
+
+	printf(" %d %d %f %d\n", backprojector.ori_size, backprojector.data_dim,backprojector.padding_factor,backprojector.pad_size);
+	printf("%d \n ",backprojector.r_min_nn);
+	printf("%ld %ld %ld \n",backprojector.weight.xdim,backprojector.weight.ydim,backprojector.weight.zdim);
+	MultidimArray<RFLOAT> dummy;
+	Image<RFLOAT> Iunreg, Itmp;
+
+
+
+	int iclass=0;
+
+
+	fn_root.compose(fn_root+"_class", iclass+1, "", 3);
+
+	// Read temporary arrays back in
+	Itmp.read(fn_root+"_data_real.mrc");
+
+	Itmp().setXmippOrigin();
+	Itmp().xinit=0;
+	if (!Itmp().sameShape(backprojector.data))
+	{
+		backprojector.data.printShape(std::cerr);
+		Itmp().printShape(std::cerr);
+		REPORT_ERROR("Incompatible size of "+fn_root+"_data_real.mrc");
+	}
+	FOR_ALL_ELEMENTS_IN_ARRAY3D(Itmp())
+	{
+		A3D_ELEM(backprojector.data, k, i, j).real = A3D_ELEM(Itmp(), k, i, j);
+	}
+
+	Itmp.read(fn_root+"_data_imag.mrc");
+	Itmp().setXmippOrigin();
+	Itmp().xinit=0;
+	if (!Itmp().sameShape(backprojector.data))
+	{
+		backprojector.data.printShape(std::cerr);
+		Itmp().printShape(std::cerr);
+		REPORT_ERROR("Incompatible size of "+fn_root+"_data_imag.mrc");
+	}
+	FOR_ALL_ELEMENTS_IN_ARRAY3D(Itmp())
+	{
+		A3D_ELEM(backprojector.data, k, i, j).imag = A3D_ELEM(Itmp(), k, i, j);
+	}
+
+	Itmp.read(fn_root+"_weight.mrc");
+	Itmp().setXmippOrigin();
+	Itmp().xinit=0;
+	if (!Itmp().sameShape(backprojector.weight))
+	{
+		backprojector.weight.printShape(std::cerr);
+		Itmp().printShape(std::cerr);
+		REPORT_ERROR("Incompatible size of "+fn_root+"_weight.mrc");
+	}
+	FOR_ALL_ELEMENTS_IN_ARRAY3D(Itmp())
+	{
+		A3D_ELEM(backprojector.weight, k, i, j) = A3D_ELEM(Itmp(), k, i, j);
+	}
+
+	// Now perform the unregularized reconstruction
+	int gridding_nr_iter=1;
+	bool do_fsc0999 = false;
+
+
+//	Iunregtest.data(backprojector.weight);
+
+
+	char a[100];
+	memset(a,0,sizeof(char)*100);
+	for(int i=0;i<10;i++)
+	{
+		Image<RFLOAT> Iunregtest;
+		sprintf(a,"TEST%03d.mrc",i);
+		Iunregtest.data.resize(backprojector.weight);
+		FOR_ALL_ELEMENTS_IN_ARRAY3D(Iunregtest())
+		{
+			 A3D_ELEM(Iunregtest(), k, i, j) = A3D_ELEM(backprojector.weight, k, i, j) ;
+		}
+		// Update header information
+		Iunregtest.setStatisticsInHeader();
+		Iunregtest.setSamplingRateInHeader(1);
+		// And write the resulting model to disc
+		std::string str(a);
+		Iunregtest.write(str);
+//		Iunregtest.clear();
+
+	}
+
+
+
+
+*/
+/*
+	Image<RFLOAT> Iunreg;
+	FileName fn_root="TEST003";
+	Iunreg.data(baseMLO->mymodel.PPref[imodel].data.data);
+	Iunreg.setStatisticsInHeader();
+	Iunreg.setSamplingRateInHeader(1);
+	sprintf(fn_root,"TEST%3d",iter);
+	Iunreg.write(fn_root + "_proj.mrc");*/
+}
