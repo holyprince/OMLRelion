@@ -56,3 +56,17 @@ new macro including :
 finish filterslice backprojection with sort and reduction using thrust but the performance is not very well
 so next try to improve the throughput at the same time.
 
+### 2020.12.23
+add compression experiment so need delete the forward projection compression in define COMGPU
+but the submit version using COMGPU do not ensure the accuracy
+
+
+### 2020.12.24
+has been add COMFORGPU and the accuacy is right now 
+This is the backup for reconstruct_gpumpicard 
+and test the scalability for the function more 8 process test
+
+
+
+
+

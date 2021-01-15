@@ -463,6 +463,22 @@ public:
 	int countsum;
 #endif
 
+
+#ifdef COMGPUTIME
+
+	long int timebp;
+	float timecalc;
+	float timememcpy;
+	int count;
+	int countsum;
+#endif
+#ifdef NOCOMGPUTIME
+	long int timebp;
+	float timecalc;
+	float timememcpy;
+	int count;
+	int countsum;
+#endif
 	// Constructor
 	MlWsumModel()
 	{

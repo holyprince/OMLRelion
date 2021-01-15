@@ -67,7 +67,8 @@ void volume_Multi_float(cufftComplex *data1, RFLOAT *data2, int numElements, int
 
 void volume_Multi_float_mpi(cufftComplex *data1, float *data2, int numElements, int tabxdim, double sampling ,
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);
-
+void volume_Multi_float_mpi(cufftComplex *data1, double *data2, int numElements, int tabxdim, double sampling ,
+		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);
 void vector_Normlize(cufftComplex *data1, long int normsize, size_t numElements);
 void fft_Divide(cufftComplex *data1, double *Fnewweight, long int numElements,int xysize,int xsize,int ysize,int zsize,int halfxsize,int max_r2);
 void fft_Divide_mpi(cufftComplex *data1, double *Fnewweight, size_t numElements,int xysize,
@@ -150,9 +151,10 @@ void yzlocal_transpose(MultiGPUplan *plan,int GPU_N,int pad_size,int *numberZ,in
 //void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, int numElements, int tabxdim, double sampling ,
 	//	int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);
 
-void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, size_t numElements, int tabxdim, double sampling ,
+void volume_Multi_float_transone(cufftComplex *data1, float *data2, size_t numElements, int tabxdim, double sampling ,
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);
-
+void volume_Multi_float_transone(cufftComplex *data1, double *data2, size_t numElements, int tabxdim, double sampling ,
+		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset);
 
 void yzlocal_transpose_multicard(MultiGPUplan *plan,int GPU_N,int pad_size,int *offsetZ,int *numberZ,int *offsettmpZ,int ranknum,int sumrank);
 

@@ -158,8 +158,70 @@ __global__ void volumeMulti_float_mpi(cufftComplex *Mconv, float *tabdata, int n
 
 	}
 }
+__global__ void volumeMulti_float_mpi(cufftComplex *Mconv, double *tabdata, int numElements, int tabxdim, double sampling , int padhdim, int pad_size,
+		int ori_size, double padding_factor, float normftblob, int zslice, int ydim, int offset)
+{
 
-__global__ void volumeMulti_float_transone(cufftComplex *Mconv, RFLOAT *tabdata, size_t numElements, int tabxdim, double sampling , int padhdim, int pad_size,
+
+    int index = blockDim.x * blockIdx.x + threadIdx.x;
+
+	if (index < numElements) {
+
+		int k = index / zslice;
+		int xyslice = index % (zslice);
+		int i = xyslice / pad_size;
+		int j = xyslice % pad_size;
+
+		i=i+offset;
+		// real j , i , k ;
+
+		int kp = (k < padhdim) ? k : k - pad_size;
+		int ip = (i < padhdim) ? i : i - pad_size;
+		int jp = (j < padhdim) ? j : j - pad_size;
+		double rval = sqrt((double) (kp * kp + ip * ip + jp * jp)) / (ori_size * padding_factor);
+/*
+    	if (do_mask && rval > 1./(2. * padding_factor))
+    		DIRECT_A3D_ELEM(Mconv, k, i, j) = 0.;*/
+
+		int realindex= k*(pad_size*pad_size)+ i*pad_size + j;
+		Mconv[realindex].x *= (tab_ftblobgetvalue(tabdata, rval, sampling, tabxdim) / normftblob);
+		Mconv[realindex].y =0;
+
+	}
+}
+
+__global__ void volumeMulti_float_transone(cufftComplex *Mconv, double *tabdata, size_t numElements, int tabxdim, double sampling , int padhdim, int pad_size,
+		int ori_size, double padding_factor, float normftblob, int zslice, int ydim, int offset)
+{
+
+
+	size_t index = blockDim.x * blockIdx.x + threadIdx.x;
+
+	if (index < numElements) {
+
+		int k = index / zslice;
+		int xyslice = index % (zslice);
+		int i = xyslice / pad_size;
+		int j = xyslice % pad_size;
+
+		k=k+offset;
+		// real j , i , k ;
+
+		size_t kp = (k < padhdim) ? k : k - pad_size;
+		size_t ip = (i < padhdim) ? i : i - pad_size;
+		size_t jp = (j < padhdim) ? j : j - pad_size;
+		double rval = sqrt((double) (kp * kp + ip * ip + jp * jp)) / (ori_size * padding_factor);
+/*
+    	if (do_mask && rval > 1./(2. * padding_factor))
+    		DIRECT_A3D_ELEM(Mconv, k, i, j) = 0.;*/
+
+		//int realindex= k*(pad_size*pad_size)+ i*pad_size + j;
+		Mconv[index].x *= (tab_ftblobgetvalue(tabdata, rval, sampling, tabxdim) / normftblob);
+		Mconv[index].y =0;
+
+	}
+}
+__global__ void volumeMulti_float_transone(cufftComplex *Mconv, float *tabdata, size_t numElements, int tabxdim, double sampling , int padhdim, int pad_size,
 		int ori_size, double padding_factor, float normftblob, int zslice, int ydim, int offset)
 {
 
@@ -479,7 +541,28 @@ void volume_Multi_float_mpi(cufftComplex *data1, float *data2, int numElements, 
     		pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
 }
 
-void volume_Multi_float_transone(cufftComplex *data1, RFLOAT *data2, size_t numElements, int tabxdim, double sampling ,
+void volume_Multi_float_mpi(cufftComplex *data1, double *data2, int numElements, int tabxdim, double sampling ,
+		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset)
+{
+    int threadsPerBlock = 512;
+    int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
+    int zslice= ydim*pad_size ;
+    volumeMulti_float_mpi<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, tabxdim, sampling,padhdim,
+    		pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
+}
+
+void volume_Multi_float_transone(cufftComplex *data1, double *data2, size_t numElements, int tabxdim, double sampling ,
+		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset)
+{
+    int threadsPerBlock = 512;
+    int blocksPerGrid =(numElements + threadsPerBlock - 1) / threadsPerBlock;
+    int zslice= ydim*pad_size ;
+    volumeMulti_float_transone<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, tabxdim, sampling,padhdim,
+    		pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
+    //volumeMulti_float_transonetest<<<blocksPerGrid, threadsPerBlock>>>(data1, data2,numElements, tabxdim, sampling,padhdim,
+   // 	   	pad_size,ori_size,padding_factor,normftblob,zslice,ydim,offset);
+}
+void volume_Multi_float_transone(cufftComplex *data1, float *data2, size_t numElements, int tabxdim, double sampling ,
 		int padhdim, int pad_size, int ori_size, float padding_factor, double normftblob,int ydim,int offset)
 {
     int threadsPerBlock = 512;

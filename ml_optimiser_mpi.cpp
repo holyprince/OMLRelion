@@ -1060,8 +1060,6 @@ void MlOptimiserMpi::expectation()
 	// Wait until expected angular errors have been calculated
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	printf("=====before cuda \n");
-	fflush(stdout);
 	sleep(1);
 #ifdef TIMING
 		timer.toc(TIMING_EXP_4a);
@@ -1647,6 +1645,14 @@ void MlOptimiserMpi::expectation()
 						XFLOAT *imags = new XFLOAT[s];
 						XFLOAT *weights = new XFLOAT[s];
 
+#ifdef  COMGPUTIME
+
+	    struct timeval tv1,tv2;
+	    struct timezone tz;
+	    long int time_use;
+	    gettimeofday (&tv1, &tz);
+#endif
+
 						b->backprojectors[j].getcompressMdlData(reals, imags, weights);
 
 						for (unsigned long n = 0; n < s; n++)
@@ -1655,13 +1661,29 @@ void MlOptimiserMpi::expectation()
 							wsum_model.BPref[j].compdataimag.data[n] += (RFLOAT) imags[n];
 							wsum_model.BPref[j].compweight.data[n] += (RFLOAT) weights[n];
 						}
+#ifdef  COMGPUTIME
+		gettimeofday (&tv2, &tz);
+		time_use=(tv2.tv_sec-tv1.tv_sec)*1000000+(tv2.tv_usec-tv1.tv_usec);
+		 printf("31. GPU cpy  data time : %d  \n ",time_use);
+		 fflush(stdout);
+#endif
 
 						delete [] reals;
 						delete [] imags;
 						delete [] weights;
 
 						b->projectors[j].clear();
+#ifdef  COMGPUTIME
+						   gettimeofday (&tv1, &tz);
+#endif
 						b->backprojectors[j].compressclear();
+#ifdef  COMGPUTIME
+		gettimeofday (&tv2, &tz);
+		time_use=(tv2.tv_sec-tv1.tv_sec)*1000000+(tv2.tv_usec-tv1.tv_usec);
+		 printf("32. GPU free data time : %d  \n ",time_use);
+		 fflush(stdout);
+#endif
+
 					}
 
 #else
@@ -1722,6 +1744,13 @@ void MlOptimiserMpi::expectation()
 						XFLOAT *reals = new XFLOAT[s];
 						XFLOAT *imags = new XFLOAT[s];
 						XFLOAT *weights = new XFLOAT[s];
+#ifdef  NOCOMGPUTIME
+
+	    struct timeval tv1,tv2;
+	    struct timezone tz;
+	    long int time_use;
+	    gettimeofday (&tv1, &tz);
+#endif
 
 						b->backprojectors[j].getMdlData(reals, imags, weights);
 
@@ -1731,13 +1760,25 @@ void MlOptimiserMpi::expectation()
 							wsum_model.BPref[j].data.data[n].imag += (RFLOAT) imags[n];
 							wsum_model.BPref[j].weight.data[n] += (RFLOAT) weights[n];
 						}
-
+#ifdef  NOCOMGPUTIME
+		gettimeofday (&tv2, &tz);
+		time_use=(tv2.tv_sec-tv1.tv_sec)*1000000+(tv2.tv_usec-tv1.tv_usec);
+		 printf("31. GPU cpy  data time : %d  \n ",time_use);
+#endif
 						delete [] reals;
 						delete [] imags;
 						delete [] weights;
 
 						b->projectors[j].clear();
+#ifdef  NOCOMGPUTIME
+						   gettimeofday (&tv1, &tz);
+#endif
 						b->backprojectors[j].clear();
+#ifdef  NOCOMGPUTIME
+		gettimeofday (&tv2, &tz);
+		time_use=(tv2.tv_sec-tv1.tv_sec)*1000000+(tv2.tv_usec-tv1.tv_usec);
+		 printf("32. GPU free data time : %d  \n ",time_use);
+#endif
 					}
 #endif
 #endif
@@ -5244,6 +5285,19 @@ void MlOptimiserMpi::iterate()
 #ifdef TIMBPS
 		printf("Process %d ||   Time : %f %f %f \n",node->rank,wsum_model.timebp,wsum_model.timememcpy,wsum_model.timecalc);
 		printf("Count : %d %d \n",wsum_model.count,wsum_model.countsum);
+#endif
+
+#ifdef COMGPUTIME
+		printf("Process %d ||   Time : %d \n",node->rank,wsum_model.timebp);
+		printf("Count : %d \n",wsum_model.countsum);
+		 fflush(stdout);
+#endif
+
+
+#ifdef NOCOMGPUTIME
+		printf("Process %d ||   Time : %d \n",node->rank,wsum_model.timebp);
+		printf("Count : %d \n",wsum_model.countsum);
+		 fflush(stdout);
 #endif
 
 

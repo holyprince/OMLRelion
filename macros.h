@@ -66,17 +66,24 @@
 #define MAXFLOAT  1e30
 #endif
 
+
+
+
 //#define TIMING
-//#define COMGPU
-#define FMDEBUG
+#define COMGPU
+
+#define COMGPUTIME
+//#define NOCOMGPUTIME
+//#define COMFORGPU
+//#define FMDEBUG
 //
 //#define RANDOM
-#define BACKSLICE
-#define FILTERSLICE
+//#define BACKSLICE
+//#define FILTERSLICE
 //#define PINMEM
-#define TIMBPS
+//#define TIMBPS
 
-//#define MAXCPU
+#define MAXCPU
 #define RELION_SINGLE_PRECISION
 
 #ifdef RELION_SINGLE_PRECISION

@@ -196,7 +196,9 @@ public:
     * Depending on whether 2D or 3D Fourier Transforms will be extracted, the map is normalized internally in a different manner
     *
     */
+#ifdef COMFORGPU
    void compress_projection_data();
+#endif
    void computeFourierTransformMap(MultidimArray<RFLOAT> &vol_in, MultidimArray<RFLOAT> &power_spectrum, int current_size = -1, int nr_threads = 1, bool do_gridding = true, bool do_heavy = true);
 
    /* This is experimental: apply a mask in Fourier-space to focus refinements on certain Fourier components

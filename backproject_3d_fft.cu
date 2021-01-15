@@ -807,8 +807,8 @@ void cpu_alltoalltrans_multinode(MultiGPUplan *plan,cufftComplex *cpu_data,size_
 	{
 		for(int i=3;i<ranksize;i++)
 		{
-			int globaloffset=padsize*padsize*offsetZ[ranknum]; //globaloffset offsetZ[1] = number[0]
-			int sendsliceoffset=padsize*offsetZ[i]+globaloffset;
+			size_t globaloffset=padsize*padsize*offsetZ[ranknum]; //globaloffset offsetZ[1] = number[0]
+			size_t sendsliceoffset=padsize*offsetZ[i]+globaloffset;
 			int sendslicesize=padsize*numberZ[i];
 			for(int slicenum=0;slicenum<numberZ[ranknum];slicenum++)
 			{

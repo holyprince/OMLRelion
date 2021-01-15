@@ -73,6 +73,14 @@ void Projector::initialiseData(int current_size)
 	data.setXmippOrigin();
 	data.xinit=0;
 #ifdef COMGPU
+
+#ifdef COMGPUTIME
+    struct timeval tv1,tv2;
+	    struct timezone tz;
+	    long int time_use;
+	    gettimeofday (&tv1, &tz);
+#endif
+
 	int max_r2= ROUND((r_max+2) * padding_factor) * ROUND((r_max+2) * padding_factor);
 
 	ydata=(int *)malloc(sizeof(int)*pad_size*pad_size);
@@ -100,6 +108,13 @@ void Projector::initialiseData(int current_size)
 	sumalldata=yoffsetdata[pad_size*pad_size-1]+ydata[pad_size*pad_size-1];
 	compdatareal.resize(sumalldata);
 	compdataimag.resize(sumalldata);
+
+#ifdef  COMGPUTIME
+		gettimeofday (&tv2, &tz);
+		time_use=(tv2.tv_sec-tv1.tv_sec)*1000000+(tv2.tv_usec-tv1.tv_usec);
+		 printf("add part: . CPU malloc data time : %d  \n ",time_use);
+		 fflush(stdout);
+#endif
 #endif
 }
 
@@ -159,7 +174,7 @@ long int Projector::getSize()
 }
 
 
-#ifdef COMGPU
+#ifdef COMFORGPU
 void Projector::compress_projection_data()
 {
 
@@ -314,7 +329,7 @@ void Projector::computeFourierTransformMap(MultidimArray<RFLOAT> &vol_in, Multid
 			}
 		}
 	TIMING_TOC(TIMING_FAUX);
-#ifdef COMGPU
+#ifdef COMFORGPU
 	compress_projection_data();
 #endif
 	TIMING_TIC(TIMING_POW);

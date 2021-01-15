@@ -1,0 +1,95 @@
+#ifndef ACC_PROJECTOR_H_
+#define ACC_PROJECTOR_H_
+
+#include "../complex.h"
+//#include "src/acc/cuda/cuda_settings.h"
+//#include "src/acc/cuda/cuda_mem_utils.h"
+#include "acc_ptr.h"
+//#include <cuda_runtime.h>
+//#include "src/acc/cuda/cuda_kernels/cuda_device_utils.cuh"
+#ifndef CUDA
+#include <complex>
+#endif
+
+class AccProjector
+{
+	friend class AccProjectorKernel;
+
+	int mdlX, mdlY, mdlZ, mdlMaxR,
+	    mdlInitY, mdlInitZ,
+	    padding_factor,pad_size;
+		size_t mdlXYZ;
+		size_t sumalldata;
+	size_t allocaton_size;
+
+#ifndef PROJECTOR_NO_TEXTURES
+
+	XFLOAT *texArrayReal2D, *texArrayImag2D;
+	cudaArray_t *texArrayReal, *texArrayImag;
+	cudaTextureObject_t *mdlReal, *mdlImag;
+
+	size_t pitch2D;
+#else
+#ifdef CUDA
+	XFLOAT *mdlReal, *mdlImag;
+	size_t *d_yoffsetdata;
+#else
+	std::complex<XFLOAT> *mdlComplex;
+	int externalFree;
+#endif
+#endif  // PROJECTOR_NO_TEXTURES
+
+public:
+	AccProjector():
+			mdlX(0), mdlY(0), mdlZ(0),
+			mdlXYZ(0), mdlMaxR(0),
+			mdlInitY(0), mdlInitZ(0),
+			padding_factor(0),
+			allocaton_size(0)
+	{
+#ifndef PROJECTOR_NO_TEXTURES
+
+		texArrayReal2D = 0;
+		texArrayImag2D = 0;
+		texArrayReal = 0;
+		texArrayImag = 0;
+		mdlReal = 0;
+		mdlImag = 0;
+		pitch2D = 0;
+#else
+#ifdef CUDA
+		mdlReal = 0;
+		mdlImag = 0;
+#else
+		mdlComplex = 0;
+		externalFree = 0;
+#endif
+#endif
+	}
+
+	bool setMdlDim(
+			int xdim, int ydim, int zdim,
+			int inity, int initz,
+			int maxr, int paddingFactor);
+	bool setcompressMdlDim(
+			int xdim, int ydim, int zdim,
+			int inity, int initz,
+			int maxr, int paddingFactor,int padsize,size_t sumdata,size_t *yoffsetdata);
+	void initMdl(XFLOAT *real, XFLOAT *imag);
+
+	void initcompressMdl(XFLOAT *real, XFLOAT *imag);
+	void initMdl(Complex *data);
+#ifndef CUDA
+	void initMdl(std::complex<XFLOAT> *data);
+#endif
+
+	void clear();
+
+	~AccProjector()
+	{
+		clear();
+	};
+
+};  // AccProjector
+
+#endif

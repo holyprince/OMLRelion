@@ -2043,7 +2043,8 @@ void BackProjector::reconstruct_gpumpicard(MultidimArray<RFLOAT> &vol_out,
 			ranknum =0;
 		if(realranknum == 5)
 			ranknum =1;
-
+		if(realranknum == 9)
+			ranknum =2;
 
 		if(realranknum ==2 )
 		{
@@ -2057,6 +2058,7 @@ void BackProjector::reconstruct_gpumpicard(MultidimArray<RFLOAT> &vol_out,
 		{
 			realrankarray[0]=1;
 			realrankarray[1]=5;
+			realrankarray[2]=9;
 		}
 		if(flag==1)
 		{
@@ -2085,36 +2087,13 @@ void BackProjector::reconstruct_gpumpicard(MultidimArray<RFLOAT> &vol_out,
 
 	dividetask(numberZ,offsetZ,pad_size,sumranknum);
 	size_t padtrans_size = numberZ[0]*sumranknum;
-//	char cmd[100];
-//	memset(cmd,0,sizeof(cmd));
-//
-//	int iPid = (int)getpid();
-//	sprintf(cmd, "cat /proc/%d/status | grep -E 'VmSize|VmData'",iPid);
-//
-//
-//	if(ranknum==0)
-//	{
-//		printf("end part1 \n");
-//		system(cmd);
-//	}
+
   	//end part1
 
 
 	cufftComplex *cpu_data;
 	cpu_data= (cufftComplex *)malloc(pad_size*padtrans_size*padtrans_size* sizeof(cufftComplex));
 	double *tempdata= (double *)malloc(sizeof(double)*pad_size*pad_size*pad_size);
-/*
-	for(int i=0;i<fullsize;i++)
-	{
-		tempdata[i]=100;
-	}*/
-
-//
-//	sleep(20);
-//	if(ranknum==0)
-//	{
-//		printf("end part1 \n");	system(cmd);
-//	}
 
     //end part2
 	//end rank change
@@ -2332,11 +2311,11 @@ void BackProjector::reconstruct_gpumpicard(MultidimArray<RFLOAT> &vol_out,
 
     }
 //	sleep(20);
-//	if(ranknum==0)
-//	{
-//		printf("end part3 \n");
-//		system(cmd);
-//	}
+	if(ranknum==0)
+	{
+		printf("end part3 \n");
+		fflush(stdout);
+	}
 	//end part 3
 	//==============================================================================add multi- GPU version
 
@@ -2497,11 +2476,11 @@ void BackProjector::reconstruct_gpumpicard(MultidimArray<RFLOAT> &vol_out,
 			inembed[1]=Ndim[1];
 			cufftPlanMany(&zplan[i], rank, nrank, inembed, Ndim[0] , 1, inembed, Ndim[0], 1, CUFFT_C2C, Ndim[0]);
 		}
-//		if(ranknum==0)
-//		{
-//			printf("After plan  \n");
-//			system(cmd);
-//		}
+		if(ranknum==0)
+		{
+			printf("After plan  \n");
+			fflush(stdout);
+		}
 
 
 		float *fweightdata= (float *)malloc(sizeof(float)*pad_size*pad_size*pad_size);
@@ -2533,16 +2512,16 @@ void BackProjector::reconstruct_gpumpicard(MultidimArray<RFLOAT> &vol_out,
 			cudaMemcpy(d_blockone[i],tempdata+plan[i].selfoffset,plan[i].realsize*sizeof(double),cudaMemcpyHostToDevice);
 		}
 		multi_sync(plan,GPU_N);
-//		if(ranknum==0)
-//		{
-//			printf("end  \n");
-//			system(cmd);
-//		}
+    	if(ranknum==0)
+		{
+			printf("end part 4  \n");
+			fflush(stdout);
+		}
        //end part 4
 
 
 
-		//printf("Start calc \n ");
+		printf("Start calc \n ");
 		for (int iter = 0; iter < max_iter_preweight; iter++)
 		{
 
@@ -2564,14 +2543,22 @@ void BackProjector::reconstruct_gpumpicard(MultidimArray<RFLOAT> &vol_out,
 //					printf("%f ",cpu_data[i*pad_size].x);
 //				printf("\n");
 //			}
-
+	    	if(ranknum==0)
+			{
+				printf("before  cpu_alltoalltrans_multinode \n");
+				fflush(stdout);
+			}
 			yzlocal_transpose_multicard(plan,GPU_N,pad_size,offsetZ,numberZ,offsettmpZ,ranknum,sumranknum);
 			transpose_exchange_intra(plan,GPU_N,pad_size,offsetZ,numberZ,offsettmpZ,ranknum);
 			memset(cpu_data,0,pad_size*padtrans_size*padtrans_size* sizeof(cufftComplex));
 			data_exchange_gputocpu(plan,cpu_data,GPU_N,pad_size,offsettmpZ,ranknum);
 			cpu_alltoalltrans_multinode(plan,cpu_data,pad_size,processnumberZ,processoffsetZ,ranknum,padtrans_size,ranksize,realrankarray);
 			data_exchange_cputogpu(plan, cpu_data, GPU_N, pad_size,offsetZ,numberZ, offsettmpZ, numbertmpZ, ranknum,sumranknum,padtrans_size);
-
+	    	if(ranknum==0)
+			{
+				printf("after cpu_alltoalltrans_multinode  \n");
+				fflush(stdout);
+			}
 
 //			if(ranknum==0)
 //			{

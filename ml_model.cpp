@@ -1420,6 +1420,22 @@ void MlWsumModel::initZeros()
     countsum=0;
 #endif
 
+#ifdef COMGPUTIME
+    timebp=0;
+    timecalc = 0;
+    timememcpy =0;
+    count=0;
+    countsum=0;
+#endif
+
+#ifdef   NOCOMGPUTIME
+    timebp=0;
+    timecalc = 0;
+    timememcpy =0;
+    count=0;
+    countsum=0;
+#endif
+
     // Set all weighted sums to zero
 
     for (int iclass = 0; iclass < nr_classes * nr_bodies; iclass++)
